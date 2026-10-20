@@ -120,7 +120,8 @@
   <section class="tab" id="tab-tickets">
     <h2>Tickets</h2>
     <p class="muted">Create estimates, invoices, and receipts branded with your logo and contact info. Open a ticket to print or save it as a PDF.</p>
-    <form id="ticket-form">
+    <p><button class="primary" type="button" id="t-new">Create new ticket</button></p>
+    <form id="ticket-form" hidden>
       <div class="row">
         <div><label for="t-type">Type</label><select id="t-type"><option value="estimate">Estimate</option><option value="invoice">Invoice</option><option value="receipt">Receipt</option></select></div>
         <div><label for="t-customer">Customer name</label><input id="t-customer" required></div>
@@ -141,6 +142,7 @@
       <label for="t-notes">Notes (optional)</label><textarea id="t-notes" rows="2"></textarea>
       <label for="t-warranty">Warranty (optional)</label><textarea id="t-warranty" rows="2" placeholder="e.g. 12 months / 12,000 miles on parts and labor"></textarea>
       <button class="primary" type="submit">Create ticket</button>
+      <button class="ghost" type="button" id="t-cancel">Cancel</button>
       <div class="err" id="t-err"></div><div class="ok" id="t-ok"></div>
     </form>
     <div id="ticket-list"></div>
@@ -207,7 +209,7 @@ async function loadInbox() {
 window.bookedToTicket = (bid) => {
   const b = (window._booked || []).find(x => x.id === bid);
   document.querySelector('[data-tab="tickets"]').click();
-  if (b) { $('t-customer').value = b.ownerName || ''; $('t-vehicle').value = b.vehicle || ''; $('t-vin').value = b.vin || ''; updateVinRequired(); }
+  if (b) { $('t-customer').value = b.ownerName || ''; $('t-vehicle').value = b.vehicle || ''; $('t-vin').value = b.vin || ''; updateVinRequired(); showTicketForm(true); }
   window.scrollTo(0, 0);
 };
 window.addQuoteRow = (rid) => {
@@ -320,6 +322,13 @@ $('g-upload').onclick = async () => {
 };
 
 /* ---------- Tickets ---------- */
+function showTicketForm(show) {
+  $('ticket-form').hidden = !show;
+  $('t-new').hidden = !!show;
+  if (show) window.scrollTo(0, 0);
+}
+$('t-new').onclick = () => showTicketForm(true);
+$('t-cancel').onclick = () => showTicketForm(false);
 function ticketRowTotal(row) {
   const ins = row.querySelectorAll('input');
   const qty = Number(ins[1].value) || 0, price = Number(ins[2].value) || 0;
@@ -400,6 +409,7 @@ $('ticket-form').onsubmit = async (e) => {
     $('t-items').innerHTML = ''; addItemRow('', '', '');
     $('t-ok').textContent = 'Ticket created.';
     loadTickets();
+    showTicketForm(false);
     window.open('/ticket?id=' + d.ticket.id, '_blank');
   } catch (ex) { $('t-err').textContent = ex.message; }
 };
