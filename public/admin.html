@@ -49,8 +49,14 @@
     <div class="cards" id="stats"></div>
     <h2>Mechanics</h2>
     <div id="businesses"></div>
-    <h2>Vehicle owners</h2>
-    <div id="owners"></div>
+    <h2>Accounts</h2>
+    <div id="accounts"></div>
+    <h2>Site traffic</h2>
+    <div class="cards" id="traffic"></div>
+    <h2 style="font-size:15px">Recent mechanic searches</h2>
+    <div id="searches"></div>
+    <h2 style="font-size:15px">Top pages</h2>
+    <div id="pages"></div>
     <h2>Quote requests</h2>
     <div id="requests"></div>
     <h2>Quotes</h2>
@@ -78,10 +84,9 @@ async function load() {
     data.businesses.map(b => `<tr><td>${esc(b.name)}<br><span style="color:#94a3b8">${esc(b.city)}, ${esc(b.state)}</span></td><td>${esc(b.mechanicName)}</td><td>${esc((b.serviceCities||[]).join(', '))}</td><td>${esc((b.services||[]).join(', '))}</td><td><span class="pill ${b.published?'on':'off'}">${b.published?'Published':'Hidden'}</span></td><td><button class="ghost" data-biz="${b.id}" data-pub="${b.published?0:1}">${b.published?'Hide':'Publish'}</button></td></tr>`).join('') + `</table>`
     : `<div class="empty">No mechanic businesses yet.</div>`;
 
-  const owners = data.users.filter(u => u.role === 'owner');
-  $('owners').innerHTML = owners.length ? `<table><tr><th>Name</th><th>Email</th><th>Joined</th></tr>` +
-    owners.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${d(u.createdAt)}</td></tr>`).join('') + `</table>`
-    : `<div class="empty">No vehicle owner accounts yet.</div>`;
+  $('accounts').innerHTML = data.users.length ? `<table><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th></th></tr>` +
+    data.users.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(u.role)}</td><td>${d(u.createdAt)}</td><td><button class="ghost" data-deluser="${u.id}" data-name="${esc(u.name)}">Remove</button></td></tr>`).join('') + `</table>`
+    : `<div class="empty">No accounts yet.</div>`;
 
   $('requests').innerHTML = data.requests.length ? `<table><tr><th>Owner</th><th>Job</th><th>Area</th><th>Status</th><th>Created</th></tr>` +
     data.requests.map(r => `<tr><td>${esc(r.ownerName)}<br><span style="color:#94a3b8">${esc(r.phone)}</span></td><td>${esc(r.service)} — ${esc(r.vehicle)}</td><td>${esc(r.city)}, ${esc(r.state)}</td><td>${esc(r.status)}</td><td>${d(r.createdAt)}</td></tr>`).join('') + `</table>`
@@ -91,6 +96,28 @@ async function load() {
     data.quotes.map(q => `<tr><td>$${esc(q.price)}</td><td>${esc(q.status)}</td><td>${d(q.createdAt)}</td></tr>`).join('') + `</table>`
     : `<div class="empty">No quotes yet.</div>`;
 
+  const a = data.analytics || {};
+  $('traffic').innerHTML = [
+    ['Total visits', a.totalVisits || 0], ['Unique visitors', a.uniqueVisitors || 0],
+    ['Visits today', a.visitsToday || 0], ['Mechanic searches', a.totalSearches || 0],
+  ].map(([l, v]) => `<div class="card"><b>${v}</b><span>${l}</span></div>`).join('');
+
+  $('searches').innerHTML = (a.recentSearches && a.recentSearches.length) ? `<table><tr><th>When</th><th>Area</th><th>Service</th></tr>` +
+    a.recentSearches.map(s => `<tr><td>${d(s.t)}</td><td>${esc([s.city, s.state].filter(Boolean).join(', '))}</td><td>${esc(s.service || 'Any')}</td></tr>`).join('') + `</table>`
+    : `<div class="empty">No mechanic searches yet.</div>`;
+
+  const topCities = (a.topCities || []).map(c => `<tr><td>${esc(c.city)}</td><td>${c.count}</td></tr>`).join('');
+  $('pages').innerHTML = `<table><tr><th>Page</th><th>Views</th></tr>` +
+    (a.topPages || []).map(pg => `<tr><td>${esc(pg.path)}</td><td>${pg.count}</td></tr>`).join('') + `</table>` +
+    (topCities ? `<h2 style="font-size:15px">Most searched areas</h2><table><tr><th>Area</th><th>Searches</th></tr>${topCities}</table>` : '');
+
+  document.querySelectorAll('[data-deluser]').forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm(`Remove the account "${btn.dataset.name}" and all of its data? This cannot be undone.`)) return;
+      const r = await fetch('/api/admin/users/' + btn.dataset.deluser, { method: 'DELETE' });
+      if (r.ok) load(); else alert('Could not remove that account.');
+    };
+  });
   document.querySelectorAll('[data-biz]').forEach(btn => {
     btn.onclick = async () => {
       const r = await fetch('/api/admin/business/' + btn.dataset.biz, {
