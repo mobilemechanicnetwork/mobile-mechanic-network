@@ -647,14 +647,8 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { ticket: t });
     }
     const ticketDel = p.match(/^\/api\/tickets\/([0-9a-f-]+)$/);
-    if (ticketDel && req.method === 'DELETE') {      const user = getSessionUser(req);
-      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
-      if (mechanicFrozen(user)) return frozenError(res);
-      const tickets = ticketsStore.read();
-      const ix = tickets.findIndex(x => x.id === ticketDel[1] && x.mechanicId === user.id);
-      if (ix === -1) return sendJson(res, 404, { error: 'Not found.' });
-      tickets.splice(ix, 1); ticketsStore.write(tickets);
-      return sendJson(res, 200, {});
+    if (ticketDel && req.method === 'DELETE') {
+      return sendJson(res, 403, { error: 'Tickets cannot be deleted.' });
     }
     if (p === '/api/ticket' && req.method === 'GET') {
       const user = getSessionUser(req);
