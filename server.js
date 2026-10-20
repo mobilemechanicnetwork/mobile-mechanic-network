@@ -37,6 +37,7 @@ const quotesStore = store('quotes.json');
 const promotionsStore = store('promotions.json');
 const ticketsStore = store('tickets.json');
 const vehiclesStore = store('vehicles.json');
+const helpStore = store('help.json');
 
 const sessions = new Map(); // token -> userId (in-memory at this stage)
 const visitsStore = store('visits.json');
@@ -426,7 +427,28 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { quote, requestStatus: row.status });
     }
 
-    // ---------- Logo / cover photo uploads (mechanics only) ----------
+    // ---------- Help requests ----------
+    if (p === '/api/help' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const { subject, message } = await parseBody(req);
+      if (!message || !String(message).trim()) return sendJson(res, 400, { error: 'Describe the issue.' });
+      const rows = helpStore.read();
+      const row = { id: crypto.randomUUID(), userId: user.id, name: user.name, email: user.email, role: user.role, subject: String(subject || '').trim().slice(0, 120), message: String(message).trim().slice(0, 2000), status: 'open', createdAt: new Date().toISOString() };
+      rows.push(row); helpStore.write(rows);
+      return sendJson(res, 201, { ok: true });
+    }
+    const adminHelp = p.match(/^\/api\/admin\/help\/([0-9a-f-]+)$/);
+    if (adminHelp && req.method === 'POST') {
+      if (!adminAuthed(req)) return sendJson(res, 401, { error: 'Not authorized.' });
+      const { resolved } = await parseBody(req);
+      const rows = helpStore.read();
+      const h = rows.find(x => x.id === adminHelp[1]);
+      if (!h) return sendJson(res, 404, { error: 'Not found.' });
+      h.status = resolved ? 'resolved' : 'open';
+      helpStore.write(rows);
+      return sendJson(res, 200, { ok: true });
+    }
     if (p === '/api/upload' && req.method === 'POST') {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
@@ -830,6 +852,7 @@ const server = http.createServer(async (req, res) => {
         businesses: businesses.map(b => ({ ...publicBusiness(b), published: !!b.published, createdAt: b.createdAt })),
         requests: requests.map(r => ({ id: r.id, ownerName: r.ownerName, phone: r.phone, city: r.city, state: r.state, service: r.service, vehicle: r.vehicle, status: r.status, createdAt: r.createdAt })),
         quotes: quotes.map(q => ({ id: q.id, requestId: q.requestId, price: q.price, status: q.status, createdAt: q.createdAt })),
+        help: helpStore.read().slice().reverse(),
       });
     }
     const adminBizToggle = p.match(/^\/api\/admin\/business\/([0-9a-f-]+)$/);
