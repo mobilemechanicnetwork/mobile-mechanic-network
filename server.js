@@ -29,6 +29,7 @@ const requestsStore = store('requests.json');
 const quotesStore = store('quotes.json');
 const promotionsStore = store('promotions.json');
 const ticketsStore = store('tickets.json');
+const vehiclesStore = store('vehicles.json');
 
 const sessions = new Map(); // token -> userId (in-memory at this stage)
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || ''; // founder admin passphrase, set as env var on the host
@@ -42,7 +43,7 @@ function makeUser({ name, email, password, role }) {
 function verifyPassword(user, password) {
   return crypto.timingSafeEqual(Buffer.from(hashPassword(password, user.salt), 'hex'), Buffer.from(user.passwordHash, 'hex'));
 }
-function publicUser(u) { return { id: u.id, name: u.name, email: u.email, role: u.role, createdAt: u.createdAt }; }
+function publicUser(u) { return { id: u.id, name: u.name, email: u.email, role: u.role, phone: u.phone || '', createdAt: u.createdAt }; }
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
@@ -158,6 +159,47 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       return sendJson(res, 200, { user: publicUser(user) });
+    }
+    if (p === '/api/profile' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const { name, phone } = await parseBody(req);
+      const users = usersStore.read();
+      const row = users.find(u => u.id === user.id);
+      if (!row) return sendJson(res, 404, { error: 'Not found.' });
+      if (name && String(name).trim()) row.name = String(name).trim().slice(0, 120);
+      row.phone = String(phone || '').trim().slice(0, 40);
+      usersStore.write(users);
+      return sendJson(res, 200, { user: publicUser(row) });
+    }
+
+    // ---------- Owner vehicles ----------
+    if (p === '/api/vehicles/me' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'owner') return sendJson(res, 403, { error: 'Vehicle owners only.' });
+      return sendJson(res, 200, { vehicles: vehiclesStore.read().filter(v => v.ownerId === user.id) });
+    }
+    if (p === '/api/vehicles' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'owner') return sendJson(res, 403, { error: 'Vehicle owners only.' });
+      const { year, make, model } = await parseBody(req);
+      if (!year || !make || !model) return sendJson(res, 400, { error: 'Year, make, and model are required.' });
+      const vehicles = vehiclesStore.read();
+      const v = { id: crypto.randomUUID(), ownerId: user.id, year: String(year).trim().slice(0, 10), make: String(make).trim().slice(0, 60), model: String(model).trim().slice(0, 60), createdAt: new Date().toISOString() };
+      vehicles.push(v); vehiclesStore.write(vehicles);
+      return sendJson(res, 201, { vehicle: v });
+    }
+    const vehicleDel = p.match(/^\/api\/vehicles\/([0-9a-f-]+)$/);
+    if (vehicleDel && req.method === 'DELETE') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const vehicles = vehiclesStore.read();
+      const ix = vehicles.findIndex(v => v.id === vehicleDel[1] && v.ownerId === user.id);
+      if (ix === -1) return sendJson(res, 404, { error: 'Not found.' });
+      vehicles.splice(ix, 1); vehiclesStore.write(vehicles);
+      return sendJson(res, 200, {});
     }
 
     // ---------- Mechanic business profiles + directory ----------
