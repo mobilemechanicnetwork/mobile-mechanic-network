@@ -126,6 +126,7 @@
         <div><label for="t-customer">Customer name</label><input id="t-customer" required></div>
       </div>
       <label for="t-vehicle">Vehicle</label><input id="t-vehicle" placeholder="2019 Ford F-150">
+      <label for="t-vin">VIN <span class="muted" id="t-vin-note">(required on invoices and receipts)</span></label><input id="t-vin" maxlength="17" placeholder="17 characters" style="text-transform:uppercase">
       <label>Line items</label>
       <div id="t-items"></div>
       <div><button class="ghost" type="button" id="t-additem">+ Add line item</button></div>
@@ -182,7 +183,7 @@ async function loadInbox() {
   if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Publish your business page to start receiving requests in your area.</p>'; return; }
   if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
   box.innerHTML = inbox.requests.map(r => `<div class="card">
-    <strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
+    <strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
     <p>${esc(r.description)}</p>
     ${r.myQuote ? `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p>` : `
     <div id="qb-${r.id}">
@@ -197,7 +198,7 @@ async function loadInbox() {
   inbox.requests.forEach(r => { if (!r.myQuote) addQuoteRow(r.id); });
   const bk = $('booked');
   bk.innerHTML = (inbox.booked && inbox.booked.length) ? inbox.booked.map(b => `<div class="card">
-    <strong>${esc(b.service)}</strong> — ${esc(b.vehicle)} <span class="ok">Booked</span><div class="muted">${esc(b.city)}, ${esc(b.state)} · ${esc(b.ownerName)} · <a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(b.phone)}</a>${b.date ? ' · Needed by ' + esc(b.date) : ''}</div>
+    <strong>${esc(b.service)}</strong> — ${esc(b.vehicle)}${b.vin ? ' · VIN ' + esc(b.vin) : ''} <span class="ok">Booked</span><div class="muted">${esc(b.city)}, ${esc(b.state)} · ${esc(b.ownerName)} · <a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(b.phone)}</a>${b.date ? ' · Needed by ' + esc(b.date) : ''}</div>
     <p>${esc(b.description)}</p>
     <p><strong>Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}</strong></p>
     <p><button type="button" class="ghost" onclick="bookedToTicket('${b.id}')">Create ticket</button></p>
@@ -206,7 +207,7 @@ async function loadInbox() {
 window.bookedToTicket = (bid) => {
   const b = (window._booked || []).find(x => x.id === bid);
   document.querySelector('[data-tab="tickets"]').click();
-  if (b) { $('t-customer').value = b.ownerName || ''; $('t-vehicle').value = b.vehicle || ''; }
+  if (b) { $('t-customer').value = b.ownerName || ''; $('t-vehicle').value = b.vehicle || ''; $('t-vin').value = b.vin || ''; updateVinRequired(); }
   window.scrollTo(0, 0);
 };
 window.addQuoteRow = (rid) => {
@@ -346,6 +347,13 @@ function addItemRow(desc, qty, price) {
 $('t-additem').onclick = () => addItemRow('', '', '');
 $('t-labor').oninput = updateTicketTotals;
 $('t-taxrate').oninput = updateTicketTotals;
+function updateVinRequired() {
+  const need = $('t-type').value === 'invoice' || $('t-type').value === 'receipt';
+  $('t-vin').required = need;
+  $('t-vin-note').textContent = need ? '(required)' : '(optional)';
+}
+$('t-type').onchange = updateVinRequired;
+updateVinRequired();
 async function loadTickets() {
   const d = await api('/api/tickets/me');
   $('ticket-list').innerHTML = d.tickets.length ? d.tickets.map(t => `<div class="card">
@@ -367,8 +375,8 @@ $('ticket-form').onsubmit = async (e) => {
   const rows = [...document.querySelectorAll('#t-items .itemrow')];
   const items = rows.map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value }; });
   try {
-    const d = await post('/api/tickets', { type: $('t-type').value, customerName: $('t-customer').value, vehicle: $('t-vehicle').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, notes: $('t-notes').value, warranty: $('t-warranty').value });
-    $('t-customer').value = ''; $('t-vehicle').value = ''; $('t-notes').value = ''; $('t-warranty').value = '';
+    const d = await post('/api/tickets', { type: $('t-type').value, customerName: $('t-customer').value, vehicle: $('t-vehicle').value, vin: $('t-vin').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, notes: $('t-notes').value, warranty: $('t-warranty').value });
+    $('t-customer').value = ''; $('t-vehicle').value = ''; $('t-vin').value = ''; $('t-notes').value = ''; $('t-warranty').value = '';
     $('t-labor-desc').value = ''; $('t-labor').value = ''; $('t-taxrate').value = '';
     $('t-items').innerHTML = ''; addItemRow('', '', '');
     $('t-ok').textContent = 'Ticket created.';
