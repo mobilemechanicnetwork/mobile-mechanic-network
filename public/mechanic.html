@@ -360,9 +360,22 @@ async function loadTickets() {
     <h3 style="text-transform:capitalize">${esc(t.type)} — $${esc(t.total)}</h3>
     <div class="muted">${esc(t.customerName)}${t.vehicle ? ' · ' + esc(t.vehicle) : ''} · ${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() : ''}</div>
     <p><a href="/ticket?id=${t.id}" target="_blank"><button class="ghost" type="button">View / Print</button></a>
+    ${t.type === 'estimate' ? `<button class="primary" data-convertticket="${t.id}" data-hasvin="${t.vin ? '1' : ''}">Convert to invoice</button>` : ''}
     ${t.type === 'invoice' ? `<button class="primary" data-paidticket="${t.id}">Mark as paid</button>` : ''}
     <button class="danger" data-delticket="${t.id}">Delete</button></p>
   </div>`).join('') : '<p class="muted">No tickets yet.</p>';
+  document.querySelectorAll('[data-convertticket]').forEach(b => {
+    b.onclick = async () => {
+      let vin = '';
+      if (!b.dataset.hasvin) {
+        vin = prompt('Enter the 17-character VIN (required on invoices):') || '';
+        if (!vin.trim()) return;
+      }
+      if (!confirm('Convert this estimate to an invoice?')) return;
+      try { await post('/api/tickets/' + b.dataset.convertticket + '/convert', { vin }); loadTickets(); }
+      catch (e) { alert(e.message); }
+    };
+  });
   document.querySelectorAll('[data-paidticket]').forEach(b => {
     b.onclick = async () => { if (!confirm('Mark this invoice as paid? It will become a receipt.')) return; await post('/api/tickets/' + b.dataset.paidticket + '/paid', {}); loadTickets(); };
   });
