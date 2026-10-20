@@ -129,6 +129,14 @@
       <label>Line items</label>
       <div id="t-items"></div>
       <div><button class="ghost" type="button" id="t-additem">+ Add line item</button></div>
+      <div class="row">
+        <div><label for="t-labor-desc">Labor description (optional)</label><input id="t-labor-desc" placeholder="e.g. Brake job labor"></div>
+        <div><label for="t-labor">Labor amount ($)</label><input id="t-labor" type="number" min="0" step="0.01" placeholder="0.00"></div>
+      </div>
+      <div class="row">
+        <div><label for="t-taxrate">Tax rate % (optional)</label><input id="t-taxrate" type="number" min="0" max="100" step="0.01" placeholder="0"></div>
+        <div><div id="t-totals" class="muted" style="padding-top:24px"></div></div>
+      </div>
       <label for="t-notes">Notes (optional)</label><textarea id="t-notes" rows="2"></textarea>
       <button class="primary" type="submit">Create ticket</button>
       <div class="err" id="t-err"></div><div class="ok" id="t-ok"></div>
@@ -310,14 +318,33 @@ $('g-upload').onclick = async () => {
 };
 
 /* ---------- Tickets ---------- */
-function addItemRow(desc, amount) {
+function ticketRowTotal(row) {
+  const ins = row.querySelectorAll('input');
+  const qty = Number(ins[1].value) || 0, price = Number(ins[2].value) || 0;
+  return Math.round(qty * price * 100) / 100;
+}
+function updateTicketTotals() {
+  let parts = 0;
+  document.querySelectorAll('#t-items .itemrow').forEach(r => { parts += ticketRowTotal(r); r.querySelector('.rowtotal').textContent = '$' + ticketRowTotal(r).toFixed(2); });
+  const labor = Math.max(0, Number($('t-labor').value) || 0);
+  const rate = Math.max(0, Math.min(100, Number($('t-taxrate').value) || 0));
+  const tax = Math.round((parts + labor) * rate) / 100;
+  const total = Math.round((parts + labor + tax) * 100) / 100;
+  $('t-totals').innerHTML = `Parts: $${parts.toFixed(2)} · Labor: $${labor.toFixed(2)} · Tax: $${tax.toFixed(2)}<br><strong>Total: $${total.toFixed(2)}</strong>`;
+}
+function addItemRow(desc, qty, price) {
   const div = document.createElement('div');
   div.className = 'itemrow';
-  div.innerHTML = `<input placeholder="Description" value="${esc(desc || '')}" required><input type="number" placeholder="$" min="0" step="0.01" value="${amount || ''}" required><button class="danger" type="button">×</button>`;
-  div.querySelector('button').onclick = () => div.remove();
+  div.style.cssText = 'display:flex;gap:8px;margin:6px 0;align-items:center';
+  div.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" required style="flex:3"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" required style="flex:1;max-width:70px"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" required style="flex:1;max-width:110px"><span class="rowtotal muted" style="min-width:70px;text-align:right">$0.00</span><button class="danger" type="button">×</button>`;
+  div.querySelector('button').onclick = () => { div.remove(); updateTicketTotals(); };
+  div.querySelectorAll('input').forEach(i => i.oninput = updateTicketTotals);
   $('t-items').appendChild(div);
+  updateTicketTotals();
 }
-$('t-additem').onclick = () => addItemRow('', '');
+$('t-additem').onclick = () => addItemRow('', '', '');
+$('t-labor').oninput = updateTicketTotals;
+$('t-taxrate').oninput = updateTicketTotals;
 async function loadTickets() {
   const d = await api('/api/tickets/me');
   $('ticket-list').innerHTML = d.tickets.length ? d.tickets.map(t => `<div class="card">
@@ -333,11 +360,12 @@ async function loadTickets() {
 $('ticket-form').onsubmit = async (e) => {
   e.preventDefault(); $('t-err').textContent = ''; $('t-ok').textContent = '';
   const rows = [...document.querySelectorAll('#t-items .itemrow')];
-  const items = rows.map(r => ({ desc: r.querySelectorAll('input')[0].value, amount: r.querySelectorAll('input')[1].value }));
+  const items = rows.map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value }; });
   try {
-    const d = await post('/api/tickets', { type: $('t-type').value, customerName: $('t-customer').value, vehicle: $('t-vehicle').value, items, notes: $('t-notes').value });
+    const d = await post('/api/tickets', { type: $('t-type').value, customerName: $('t-customer').value, vehicle: $('t-vehicle').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, notes: $('t-notes').value });
     $('t-customer').value = ''; $('t-vehicle').value = ''; $('t-notes').value = '';
-    $('t-items').innerHTML = ''; addItemRow('', '');
+    $('t-labor-desc').value = ''; $('t-labor').value = ''; $('t-taxrate').value = '';
+    $('t-items').innerHTML = ''; addItemRow('', '', '');
     $('t-ok').textContent = 'Ticket created.';
     loadTickets();
     window.open('/ticket?id=' + d.ticket.id, '_blank');

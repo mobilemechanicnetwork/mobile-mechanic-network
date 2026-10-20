@@ -502,15 +502,22 @@ const server = http.createServer(async (req, res) => {
       if (mechanicFrozen(user)) return frozenError(res);
       const biz = myBusiness(user.id);
       if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
-      const { type, customerName, vehicle, items, notes } = await parseBody(req);
+      const { type, customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate } = await parseBody(req);
       if (!['estimate', 'invoice', 'receipt'].includes(type)) return sendJson(res, 400, { error: 'Pick estimate, invoice, or receipt.' });
       if (!customerName || !Array.isArray(items) || !items.length) return sendJson(res, 400, { error: 'Customer name and at least one line item are required.' });
       const cleanItems = items.slice(0, 50)
-        .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), amount: Math.max(0, Number(it.amount) || 0) }))
-        .filter(it => it.desc);
-      if (!cleanItems.length) return sendJson(res, 400, { error: 'Add at least one line item.' });
+        .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), qty: Math.max(0, Number(it.qty) || 0), price: Math.max(0, Number(it.price) || 0) }))
+        .filter(it => it.desc && it.qty > 0 && it.price >= 0);
+      if (!cleanItems.length) return sendJson(res, 400, { error: 'Add at least one line item with a quantity and price.' });
+      const r2 = n => Math.round(n * 100) / 100;
+      const partsSubtotal = r2(cleanItems.reduce((s, it) => s + it.qty * it.price, 0));
+      const labor = { desc: String(laborDesc || '').trim().slice(0, 200), amount: r2(Math.max(0, Number(laborAmount) || 0)) };
+      const rate = Math.max(0, Math.min(100, Number(taxRate) || 0));
+      const taxable = r2(partsSubtotal + labor.amount);
+      const taxAmount = r2(taxable * rate / 100);
+      const total = r2(partsSubtotal + labor.amount + taxAmount);
       const tickets = ticketsStore.read();
-      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, customerName: String(customerName).trim().slice(0, 120), vehicle: String(vehicle || '').trim().slice(0, 120), items: cleanItems, notes: String(notes || '').trim().slice(0, 1000), total: Math.round(cleanItems.reduce((s, it) => s + it.amount, 0) * 100) / 100, createdAt: new Date().toISOString() };
+      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, customerName: String(customerName).trim().slice(0, 120), vehicle: String(vehicle || '').trim().slice(0, 120), items: cleanItems, laborDesc: labor.desc, laborAmount: labor.amount, taxRate: rate, subtotal: partsSubtotal, taxAmount, notes: String(notes || '').trim().slice(0, 1000), total, createdAt: new Date().toISOString() };
       tickets.push(ticket); ticketsStore.write(tickets);
       return sendJson(res, 201, { ticket });
     }
