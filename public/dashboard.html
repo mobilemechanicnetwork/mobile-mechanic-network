@@ -114,6 +114,7 @@
         <div>${q.businessLogo ? `<img src="${q.businessLogo}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}<strong>${q.businessName}</strong> <span class="muted">(${q.businessCity})</span>${q.businessPhone ? ` · <a href="tel:${q.businessPhone.replace(/[^+\d]/g, '')}">${q.businessPhone}</a>` : ''}</div>
         ${(q.items && q.items.length) ? `<div style="margin:10px 0">${q.items.map(i => `<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid #1e293b"><span>${i.desc}</span><span>$${Number(i.amount).toFixed(2)}</span></div>`).join('')}<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;font-weight:700"><span>Total</span><span>$${Number(q.total != null ? q.total : q.price).toFixed(2)}</span></div></div>` : `<div style="margin:10px 0"><span class="price">$${q.price}</span></div>`}
         ${q.notes ? `<p>${q.notes}</p>` : ''}${q.message ? `<p>${q.message}</p>` : ''}
+        ${q.businessWarranty ? `<p class="muted"><strong>Warranty:</strong> ${q.businessWarranty}</p>` : ''}
         <div class="muted">Quote: ${q.status}</div>
         ${q.status === 'pending' && r.status === 'open' ? `<button onclick="actQuote('${q.id}','accept')">Accept</button> <button class="decline" onclick="actQuote('${q.id}','decline')">Decline</button>` : ''}
       </div>`).join('') : '<p class="muted">No quotes yet.</p>'}

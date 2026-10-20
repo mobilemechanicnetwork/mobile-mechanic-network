@@ -76,6 +76,7 @@
       <label>Services you offer</label>
       <div class="checks" id="b-services"></div>
       <label for="b-about">About your business</label><textarea id="b-about" rows="3"></textarea>
+      <label for="b-warranty">Warranty policy (optional — shows on your quotes and tickets)</label><textarea id="b-warranty" rows="2" placeholder="e.g. 12 months / 12,000 miles on parts and labor"></textarea>
       <label for="b-phone">Business phone number (shown on your public listing so customers can call you)</label><input id="b-phone" type="tel" placeholder="(504) 555-0100">
       <label>Social media <span class="muted">(optional — links shown on your public listing)</span></label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -258,7 +259,8 @@ async function loadProfile() {
   if (d.business) {
     const b = d.business;
     $('b-name').value = b.name; $('b-city').value = b.city; $('b-state').value = b.state;
-    $('b-cities').value = (b.serviceCities || []).join(', '); $('b-about').value = b.about || '';
+    $('b-cities').value = (b.serviceCities || []).join(', '); $('b-about').value = b.about || ''; $('b-warranty').value = b.warranty || '';
+    if ($('t-warranty')) $('t-warranty').placeholder = b.warranty ? 'Leave blank to use profile default: ' + b.warranty.slice(0, 80) : 'e.g. 12 months / 12,000 miles on parts and labor';
     $('b-phone').value = b.phone || ''; $('b-published').checked = !!b.published;
     for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website']) $('b-soc-' + k).value = (b.socials && b.socials[k]) || '';
     document.querySelectorAll('#b-services input').forEach(c => { c.checked = (b.services || []).includes(c.value); });
@@ -284,7 +286,7 @@ $('biz-form').onsubmit = async (e) => {
   try {
     const socials = {};
     for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website']) socials[k] = $('b-soc-' + k).value;
-    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked, socials };
+    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked, socials, warranty: $('b-warranty').value };
     if ($('b-logo').files.length) body.logoUrl = await uploadImage('logo', $('b-logo').files[0]);
     if ($('b-cover').files.length) body.coverUrl = await uploadImage('cover', $('b-cover').files[0]);
     await post('/api/business', body);

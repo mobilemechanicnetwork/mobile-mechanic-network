@@ -148,7 +148,8 @@ function ticketFromAcceptedQuote(quote, row) {
     items = [{ desc: row.service, qty: 1, price: r2(Number(quote.total)) }];
   if (!items.length) return null;
   const subtotal = r2(items.reduce((s, it) => s + it.qty * it.price, 0));
-  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'estimate', customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: '', requestId: row.id, quoteId: quote.id, total: subtotal, createdAt: new Date().toISOString() };
+  const biz = businessesStore.read().find(b => b.id === quote.businessId);
+  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'estimate', customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, total: subtotal, createdAt: new Date().toISOString() };
 }
 function servedCities(biz) {
   const list = [biz.city, ...(Array.isArray(biz.serviceCities) ? biz.serviceCities : [])];
@@ -164,7 +165,7 @@ function requestMatchesBusiness(reqRow, biz) {
 }
 function publicBusiness(b) {
   const owner = usersStore.read().find(u => u.id === b.userId);
-  return { id: b.id, name: b.name, city: b.city, state: b.state, serviceCities: b.serviceCities || [], services: b.services, about: b.about, phone: b.phone || '', logoUrl: b.logoUrl || '', coverUrl: b.coverUrl || '', gallery: b.gallery || [], socials: b.socials || {}, mechanicName: owner ? owner.name : '' };
+  return { id: b.id, name: b.name, city: b.city, state: b.state, serviceCities: b.serviceCities || [], services: b.services, about: b.about, phone: b.phone || '', logoUrl: b.logoUrl || '', coverUrl: b.coverUrl || '', gallery: b.gallery || [], socials: b.socials || {}, warranty: b.warranty || '', mechanicName: owner ? owner.name : '' };
 }
 function latestPromotion(businessId) {
   const all = promotionsStore.read().filter(x => x.businessId === businessId);
@@ -317,7 +318,7 @@ const server = http.createServer(async (req, res) => {
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Only mobile mechanic accounts have a business page.' });
       if (mechanicFrozen(user)) return frozenError(res);
-      const { name, city, state, serviceCities, services, about, published, phone, logoUrl, coverUrl, socials } = await parseBody(req);
+      const { name, city, state, serviceCities, services, about, published, phone, logoUrl, coverUrl, socials, warranty } = await parseBody(req);
       if (!name || !city || !state || !Array.isArray(services) || services.length === 0)
         return sendJson(res, 400, { error: 'Business name, city, state, and at least one service are required.' });
       const cleanServices = services.filter(s => SERVICES.includes(s));
@@ -331,7 +332,7 @@ const server = http.createServer(async (req, res) => {
         const v = String(socials[k] || '').trim().slice(0, 300);
         if (v) cleanSocials[k] = v;
       }
-      const fields = { name: String(name).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), serviceCities: cleanCities, services: cleanServices, about: String(about || ''), phone: String(phone || '').trim(), published: !!published, socials: cleanSocials };
+      const fields = { name: String(name).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), serviceCities: cleanCities, services: cleanServices, about: String(about || ''), phone: String(phone || '').trim(), published: !!published, socials: cleanSocials, warranty: String(warranty || '').trim().slice(0, 2000) };
       if (typeof logoUrl === 'string' && logoUrl.startsWith('/uploads/')) fields.logoUrl = logoUrl;
       if (typeof coverUrl === 'string' && coverUrl.startsWith('/uploads/')) fields.coverUrl = coverUrl;
       if (biz) Object.assign(biz, fields); else { biz = { id: crypto.randomUUID(), userId: user.id, createdAt: new Date().toISOString(), ...fields }; businesses.push(biz); }
@@ -392,7 +393,7 @@ const server = http.createServer(async (req, res) => {
         ...r,
         quotes: quotes.filter(q => q.requestId === r.id).map(q => {
           const biz = businessesStore.read().find(b => b.id === q.businessId);
-          return { ...q, businessName: biz ? biz.name : 'Mobile mechanic', businessCity: biz ? `${biz.city}, ${biz.state}` : '', businessLogo: biz && biz.logoUrl ? biz.logoUrl : '', businessPhone: biz ? (biz.phone || '') : '' };
+          return { ...q, businessName: biz ? biz.name : 'Mobile mechanic', businessCity: biz ? `${biz.city}, ${biz.state}` : '', businessLogo: biz && biz.logoUrl ? biz.logoUrl : '', businessPhone: biz ? (biz.phone || '') : '', businessWarranty: biz && biz.warranty ? biz.warranty : '' };
         }),
       }));
       return sendJson(res, 200, { requests: mine });
@@ -607,6 +608,7 @@ const server = http.createServer(async (req, res) => {
       if (!['estimate', 'invoice', 'receipt'].includes(type)) return sendJson(res, 400, { error: 'Pick estimate, invoice, or receipt.' });
       const clean = cleanTicketBody(body, type);
       if (clean.error) return sendJson(res, 400, { error: clean.error });
+      if (!clean.warranty && biz.warranty) clean.warranty = String(biz.warranty).slice(0, 2000);
       const tickets = ticketsStore.read();
       const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, ...clean, createdAt: new Date().toISOString() };
       tickets.push(ticket); ticketsStore.write(tickets);
