@@ -14,12 +14,14 @@
   .err{color:#fca5a5;min-height:1.2em;margin-top:12px;font-size:.9rem}
   .ok{color:#86efac;margin-top:12px}
   .muted{color:#9fb3c8}
+  .urgent-banner{background:#7f1d1d;border:1px solid #b91c1c;color:#fff;border-radius:10px;padding:12px 14px;margin:0 0 6px;font-size:.95rem}
 </style>
 </head>
 <body>
 <main>
   <h1>Request quotes</h1>
   <p class="muted">Describe the job once. Mobile mechanics in your area who offer that service can send you a quote. Your street address stays private until you accept a quote.</p>
+  <div class="urgent-banner" id="urgent-banner" hidden><strong>URGENT REQUEST</strong> — mechanics in your area will see this flagged as urgent.</div>
   <form id="form">
     <label for="service">Service</label>
     <select id="service" required></select>
@@ -58,6 +60,8 @@
     let pre = {};
     try { pre = JSON.parse(sessionStorage.getItem('mmn_find') || '{}'); } catch (e) {}
     const get = k => qp.get(k) || pre[k] || '';
+    const isUrgent = qp.get('urgent') === '1';
+    if (isUrgent) document.getElementById('urgent-banner').hidden = false;
     if (get('service')) document.getElementById('service').value = get('service');
     if (get('vehicle')) document.getElementById('vehicle').value = get('vehicle');
     if (get('city')) document.getElementById('city').value = get('city');
@@ -73,7 +77,7 @@
   })();
   document.getElementById('form').onsubmit = async (e) => {
     e.preventDefault(); err.textContent = ''; ok.textContent = '';
-    const body = { service: document.getElementById('service').value, vehicle: document.getElementById('vehicle').value, vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: document.getElementById('description').value, phone: document.getElementById('phone').value, date: document.getElementById('date').value };
+    const body = { service: document.getElementById('service').value, vehicle: document.getElementById('vehicle').value, vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: document.getElementById('description').value, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: isUrgent };
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { err.textContent = d.error || 'Something went wrong.'; return; }

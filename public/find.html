@@ -83,6 +83,7 @@ $('find-form').onsubmit = async (e) => {
     : `<p class="muted">We are sorry, mobile mechanics in your area coming soon.</p>`;
   if (!d.mechanics.length) $('req-link').querySelector('button').textContent = 'Send a quote request anyway';
   const rp = new URLSearchParams({ service: q.service, vehicle: q.vehicle, city: q.city, state: q.state, date: q.date });
+  if (new URLSearchParams(location.search).get('urgent') === '1') rp.set('urgent', '1');
   $('req-link').href = '/request?' + rp.toString();
   try { sessionStorage.setItem('mmn_find', JSON.stringify(q)); } catch (e) {}
   $('req-cta').hidden = false;

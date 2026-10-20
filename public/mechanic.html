@@ -31,6 +31,7 @@
   .row > div{flex:1;min-width:140px}
   .err{color:#fca5a5;min-height:20px;font-size:.9rem}
   .ok{color:#86efac;min-height:20px;font-size:.9rem}
+  .urgent-badge{background:#b91c1c;color:#fff;font-weight:800;font-size:.72rem;padding:2px 8px;border-radius:6px;letter-spacing:.04em}
   .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px}
   .gallery figure{margin:0;position:relative}
   .gallery img{width:100%;height:120px;object-fit:cover;border-radius:8px;display:block}
@@ -198,7 +199,7 @@ async function loadInbox() {
   if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Publish your business page to start receiving requests in your area.</p>'; return; }
   if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
   box.innerHTML = inbox.requests.map(r => `<div class="card">
-    <strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
+    ${r.urgent ? '<span class="urgent-badge">URGENT</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
     <p>${esc(r.description)}</p>
     ${r.myQuote ? `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p>` : `
     <div id="qb-${r.id}">
