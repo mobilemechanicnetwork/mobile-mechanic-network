@@ -61,6 +61,8 @@
   <section class="tab active" id="tab-requests">
     <h2>Requests in your area</h2>
     <div id="inbox"></div>
+    <h2 style="margin-top:28px">Booked jobs</h2>
+    <div id="booked"></div>
   </section>
 
   <section class="tab" id="tab-profile">
@@ -167,6 +169,7 @@ async function loadServices() {
 async function loadInbox() {
   const inbox = await api('/api/requests/inbox');
   const box = $('inbox');
+  window._booked = inbox.booked || [];
   if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Publish your business page to start receiving requests in your area.</p>'; return; }
   if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
   box.innerHTML = inbox.requests.map(r => `<div class="card">
@@ -183,7 +186,20 @@ async function loadInbox() {
     </div>`}
   </div>`).join('');
   inbox.requests.forEach(r => { if (!r.myQuote) addQuoteRow(r.id); });
+  const bk = $('booked');
+  bk.innerHTML = (inbox.booked && inbox.booked.length) ? inbox.booked.map(b => `<div class="card">
+    <strong>${esc(b.service)}</strong> — ${esc(b.vehicle)} <span class="ok">Booked</span><div class="muted">${esc(b.city)}, ${esc(b.state)} · ${esc(b.ownerName)} · <a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(b.phone)}</a>${b.date ? ' · Needed by ' + esc(b.date) : ''}</div>
+    <p>${esc(b.description)}</p>
+    <p><strong>Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}</strong></p>
+    <p><button type="button" class="ghost" onclick="bookedToTicket('${b.id}')">Create ticket</button></p>
+  </div>`).join('') : '<p class="muted">No booked jobs yet. When a customer accepts your quote, it shows up here.</p>';
 }
+window.bookedToTicket = (bid) => {
+  const b = (window._booked || []).find(x => x.id === bid);
+  document.querySelector('[data-tab="tickets"]').click();
+  if (b) { $('t-customer').value = b.ownerName || ''; $('t-vehicle').value = b.vehicle || ''; }
+  window.scrollTo(0, 0);
+};
 window.addQuoteRow = (rid) => {
   const wrap = document.getElementById('qi-' + rid);
   if (!wrap) return;
