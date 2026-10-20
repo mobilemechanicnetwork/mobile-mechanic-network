@@ -24,7 +24,7 @@
 <main>
   <h1 id="hello">My dashboard</h1>
   <p class="muted" id="who"></p>
-  <p><a href="/">Home</a> · <a href="/mechanics">Find a mobile mechanic</a> · <a href="#" id="logout">Log out</a></p>
+  <p><a href="/">Home</a> · <a href="/mechanics">Find a mobile mechanic</a> · <span id="adminLink"></span><a href="#" id="logout">Log out</a></p>
 
   <section id="owner" hidden>
     <p><a href="/request"><button type="button">Request quotes</button></a> <a href="/mechanics"><button type="button" class="ghost">Find a mobile mechanic</button></a></p>
@@ -83,6 +83,7 @@
 
   async function loadOwner() {
     const me = await api('/api/me');
+    if (me.user.isAdmin) $('adminLink').innerHTML = '<a href="/admin">Admin</a> · ';
     $('o-email').textContent = me.user.email;
     $('o-name').value = me.user.name || '';
     $('o-phone').value = me.user.phone || '';
