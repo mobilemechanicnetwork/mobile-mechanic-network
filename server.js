@@ -27,6 +27,8 @@ const usersStore = store('users.json');
 const businessesStore = store('businesses.json');
 const requestsStore = store('requests.json');
 const quotesStore = store('quotes.json');
+const promotionsStore = store('promotions.json');
+const ticketsStore = store('tickets.json');
 
 const sessions = new Map(); // token -> userId (in-memory at this stage)
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || ''; // founder admin passphrase, set as env var on the host
@@ -76,11 +78,53 @@ function requestMatchesBusiness(reqRow, biz) {
 }
 function publicBusiness(b) {
   const owner = usersStore.read().find(u => u.id === b.userId);
-  return { id: b.id, name: b.name, city: b.city, state: b.state, serviceCities: b.serviceCities || [], services: b.services, about: b.about, mechanicName: owner ? owner.name : '' };
+  return { id: b.id, name: b.name, city: b.city, state: b.state, serviceCities: b.serviceCities || [], services: b.services, about: b.about, phone: b.phone || '', logoUrl: b.logoUrl || '', coverUrl: b.coverUrl || '', gallery: b.gallery || [], mechanicName: owner ? owner.name : '' };
+}
+function latestPromotion(businessId) {
+  const all = promotionsStore.read().filter(x => x.businessId === businessId);
+  all.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const p = all[0];
+  return p ? { title: p.title, description: p.description, validUntil: p.validUntil } : null;
 }
 
-const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.json': 'application/json' };
 function serveFile(res, file) { res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' }); res.end(fs.readFileSync(file)); }
+
+// Minimal multipart/form-data parser (single file uploads only)
+function parseMultipart(req) {
+  return new Promise((resolve, reject) => {
+    const ctype = req.headers['content-type'] || '';
+    const m = ctype.match(/boundary=(.+)$/);
+    if (!m) return reject(new Error('not multipart'));
+    const b = Buffer.from('--' + m[1].trim());
+    const chunks = [];
+    let size = 0;
+    req.on('data', c => { chunks.push(c); size += c.length; if (size > 6 * 1024 * 1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const buf = Buffer.concat(chunks);
+        const parts = [];
+        let pos = 0, idx;
+        while ((idx = buf.indexOf(b, pos)) !== -1) {
+          const seg = buf.slice(pos, idx);
+          pos = idx + b.length;
+          if (seg.length < 10) continue;
+          const headerEnd = seg.indexOf('\r\n\r\n');
+          if (headerEnd === -1) continue;
+          const headers = seg.slice(0, headerEnd).toString('latin1');
+          let body = seg.slice(headerEnd + 4);
+          if (body.length >= 2 && body[body.length - 2] === 13 && body[body.length - 1] === 10) body = body.slice(0, -2);
+          const nameM = headers.match(/name="([^"]+)"/);
+          const fileM = headers.match(/filename="([^"]*)"/);
+          const typeM = headers.match(/Content-Type:\s*([^\r\n;]+)/i);
+          parts.push({ name: nameM && nameM[1], filename: fileM && fileM[1], contentType: typeM && typeM[1].trim().toLowerCase(), data: body });
+        }
+        resolve(parts);
+      } catch (e) { reject(e); }
+    });
+    req.on('error', reject);
+  });
+}
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -121,7 +165,7 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Only mobile mechanic accounts have a business page.' });
-      const { name, city, state, serviceCities, services, about, published } = await parseBody(req);
+      const { name, city, state, serviceCities, services, about, published, phone, logoUrl, coverUrl } = await parseBody(req);
       if (!name || !city || !state || !Array.isArray(services) || services.length === 0)
         return sendJson(res, 400, { error: 'Business name, city, state, and at least one service are required.' });
       const cleanServices = services.filter(s => SERVICES.includes(s));
@@ -130,7 +174,9 @@ const server = http.createServer(async (req, res) => {
       let biz = businesses.find(b => b.userId === user.id);
       const rawCities = Array.isArray(serviceCities) ? serviceCities.join(',') : String(serviceCities || '');
       const cleanCities = [...new Set(rawCities.split(/[,\n]/).map(s => s.trim()).filter(Boolean))];
-      const fields = { name: String(name).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), serviceCities: cleanCities, services: cleanServices, about: String(about || ''), published: !!published };
+      const fields = { name: String(name).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), serviceCities: cleanCities, services: cleanServices, about: String(about || ''), phone: String(phone || '').trim(), published: !!published };
+      if (typeof logoUrl === 'string' && logoUrl.startsWith('/uploads/')) fields.logoUrl = logoUrl;
+      if (typeof coverUrl === 'string' && coverUrl.startsWith('/uploads/')) fields.coverUrl = coverUrl;
       if (biz) Object.assign(biz, fields); else { biz = { id: crypto.randomUUID(), userId: user.id, createdAt: new Date().toISOString(), ...fields }; businesses.push(biz); }
       businessesStore.write(businesses);
       return sendJson(res, 200, { business: publicBusiness(biz) });
@@ -149,7 +195,7 @@ const server = http.createServer(async (req, res) => {
       if (state) list = list.filter(b => b.state.toLowerCase() === state);
       if (city) list = list.filter(b => b.city.toLowerCase() === city);
       if (service) list = list.filter(b => b.services.includes(service));
-      return sendJson(res, 200, { mechanics: list.map(publicBusiness) });
+      return sendJson(res, 200, { mechanics: list.map(b => ({ ...publicBusiness(b), promotion: latestPromotion(b.id) })) });
     }
     if (p === '/api/services' && req.method === 'GET') return sendJson(res, 200, { services: SERVICES });
 
@@ -231,6 +277,145 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { quote, requestStatus: row.status });
     }
 
+    // ---------- Logo / cover photo uploads (mechanics only) ----------
+    if (p === '/api/upload' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const biz = myBusiness(user.id);
+      if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
+      let parts;
+      try { parts = await parseMultipart(req); } catch (e) { return sendJson(res, 400, { error: 'Upload failed.' }); }
+      const kindPart = parts.find(x => x.name === 'kind' && !x.filename);
+      const filePart = parts.find(x => x.filename);
+      const kind = kindPart ? kindPart.data.toString().trim() : '';
+      if (!['logo', 'cover', 'gallery'].includes(kind) || !filePart) return sendJson(res, 400, { error: 'Choose a logo, cover photo, or gallery photo to upload.' });
+      const allowed = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
+      const ext = allowed[filePart.contentType];
+      if (!ext) return sendJson(res, 400, { error: 'Only JPG, PNG, WebP or GIF images.' });
+      if (filePart.data.length > 5 * 1024 * 1024) return sendJson(res, 400, { error: 'Image must be under 5 MB.' });
+      const dir = path.join(DATA_DIR, 'uploads');
+      fs.mkdirSync(dir, { recursive: true });
+      let fname;
+      if (kind === 'gallery') {
+        fname = biz.id + '-gallery-' + crypto.randomBytes(8).toString('hex') + '.' + ext;
+      } else {
+        for (const f of fs.readdirSync(dir)) if (f.startsWith(biz.id + '-' + kind + '.')) fs.unlinkSync(path.join(dir, f));
+        fname = biz.id + '-' + kind + '.' + ext;
+      }
+      fs.writeFileSync(path.join(dir, fname), filePart.data);
+      const url = '/uploads/' + fname;
+      const businesses = businessesStore.read();
+      const row = businesses.find(b => b.id === biz.id);
+      if (row) {
+        if (kind === 'gallery') row.gallery = [...(row.gallery || []), url];
+        else row[kind === 'logo' ? 'logoUrl' : 'coverUrl'] = url;
+        businessesStore.write(businesses);
+      }
+      return sendJson(res, 200, { url });
+    }
+    if (p === '/api/gallery/remove' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const { url } = await parseBody(req);
+      const businesses = businessesStore.read();
+      const biz = businesses.find(b => b.userId === user.id);
+      if (!biz || !Array.isArray(biz.gallery) || !biz.gallery.includes(url)) return sendJson(res, 404, { error: 'Not found.' });
+      biz.gallery = biz.gallery.filter(u => u !== url);
+      businessesStore.write(businesses);
+      const fname = path.basename(String(url || ''));
+      if (/^[0-9a-f-]+-gallery-[0-9a-f]+\.(jpg|png|webp|gif)$/.test(fname)) {
+        const f = path.join(DATA_DIR, 'uploads', fname);
+        if (fs.existsSync(f)) fs.unlinkSync(f);
+      }
+      return sendJson(res, 200, {});
+    }
+    if (p.startsWith('/uploads/') && req.method === 'GET') {
+      const fname = path.basename(p);
+      if (!/^[0-9a-f-]+\-(logo|cover|gallery\-[0-9a-f]+)\.(jpg|png|webp|gif)$/.test(fname)) { res.writeHead(404); return res.end('Not found'); }
+      const file = path.join(DATA_DIR, 'uploads', fname);
+      if (!fs.existsSync(file)) { res.writeHead(404); return res.end('Not found'); }
+      return serveFile(res, file);
+    }
+
+    // ---------- Promotions ----------
+    if (p === '/api/promotions' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const biz = myBusiness(user.id);
+      if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
+      const { title, description, validUntil } = await parseBody(req);
+      if (!title || !description) return sendJson(res, 400, { error: 'Title and description are required.' });
+      const promos = promotionsStore.read();
+      const promo = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, title: String(title).trim().slice(0, 120), description: String(description).trim().slice(0, 500), validUntil: String(validUntil || '').trim().slice(0, 60), createdAt: new Date().toISOString() };
+      promos.push(promo); promotionsStore.write(promos);
+      return sendJson(res, 201, { promotion: promo });
+    }
+    if (p === '/api/promotions/me' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const biz = myBusiness(user.id);
+      const promos = promotionsStore.read().filter(x => x.mechanicId === user.id && (!biz || x.businessId === biz.id));
+      return sendJson(res, 200, { promotions: promos });
+    }
+    const promoDel = p.match(/^\/api\/promotions\/([0-9a-f-]+)$/);
+    if (promoDel && req.method === 'DELETE') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const promos = promotionsStore.read();
+      const ix = promos.findIndex(x => x.id === promoDel[1] && x.mechanicId === user.id);
+      if (ix === -1) return sendJson(res, 404, { error: 'Not found.' });
+      promos.splice(ix, 1); promotionsStore.write(promos);
+      return sendJson(res, 200, {});
+    }
+
+    // ---------- Tickets (estimates / invoices / receipts) ----------
+    if (p === '/api/tickets' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const biz = myBusiness(user.id);
+      if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
+      const { type, customerName, vehicle, items, notes } = await parseBody(req);
+      if (!['estimate', 'invoice', 'receipt'].includes(type)) return sendJson(res, 400, { error: 'Pick estimate, invoice, or receipt.' });
+      if (!customerName || !Array.isArray(items) || !items.length) return sendJson(res, 400, { error: 'Customer name and at least one line item are required.' });
+      const cleanItems = items.slice(0, 50)
+        .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), amount: Math.max(0, Number(it.amount) || 0) }))
+        .filter(it => it.desc);
+      if (!cleanItems.length) return sendJson(res, 400, { error: 'Add at least one line item.' });
+      const tickets = ticketsStore.read();
+      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, customerName: String(customerName).trim().slice(0, 120), vehicle: String(vehicle || '').trim().slice(0, 120), items: cleanItems, notes: String(notes || '').trim().slice(0, 1000), total: Math.round(cleanItems.reduce((s, it) => s + it.amount, 0) * 100) / 100, createdAt: new Date().toISOString() };
+      tickets.push(ticket); ticketsStore.write(tickets);
+      return sendJson(res, 201, { ticket });
+    }
+    if (p === '/api/tickets/me' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const tickets = ticketsStore.read().filter(t => t.mechanicId === user.id);
+      return sendJson(res, 200, { tickets });
+    }
+    const ticketDel = p.match(/^\/api\/tickets\/([0-9a-f-]+)$/);
+    if (ticketDel && req.method === 'DELETE') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const tickets = ticketsStore.read();
+      const ix = tickets.findIndex(x => x.id === ticketDel[1] && x.mechanicId === user.id);
+      if (ix === -1) return sendJson(res, 404, { error: 'Not found.' });
+      tickets.splice(ix, 1); ticketsStore.write(tickets);
+      return sendJson(res, 200, {});
+    }
+    if (p === '/api/ticket' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      const t = ticketsStore.read().find(x => x.id === url.searchParams.get('id'));
+      if (!t || !user || t.mechanicId !== user.id) return sendJson(res, 404, { error: 'Not found.' });
+      const biz = businessesStore.read().find(b => b.id === t.businessId);
+      return sendJson(res, 200, { ticket: t, business: biz ? publicBusiness(biz) : null });
+    }
+
     // ---------- Founder admin (token-gated; set ADMIN_TOKEN env var on the host) ----------
     function adminAuthed(req) {
       const match = (req.headers.cookie || '').match(/mmn_admin=([a-f0-9]+)/);
@@ -289,6 +474,16 @@ const server = http.createServer(async (req, res) => {
 
     // ---------- Pages ----------
     if (p === '/admin') return serveFile(res, path.join(PUBLIC_DIR, 'admin.html'));
+    if (p === '/mechanic') {
+      const u = getSessionUser(req);
+      if (!u) { res.writeHead(302, { Location: '/account' }); return res.end(); }
+      if (u.role !== 'mechanic') { res.writeHead(302, { Location: '/dashboard' }); return res.end(); }
+      return serveFile(res, path.join(PUBLIC_DIR, 'mechanic.html'));
+    }
+    if (p === '/ticket') {
+      if (!getSessionUser(req)) { res.writeHead(302, { Location: '/account' }); return res.end(); }
+      return serveFile(res, path.join(PUBLIC_DIR, 'ticket.html'));
+    }
     if (p === '/mechanics') return serveFile(res, path.join(PUBLIC_DIR, 'mechanics.html'));
     if (p === '/request') return serveFile(res, path.join(PUBLIC_DIR, 'request.html'));
     if (p === '/dashboard') {
