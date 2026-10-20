@@ -78,14 +78,16 @@ $('find-form').onsubmit = async (e) => {
   const greet = q.name ? `Thanks, ${esc(q.name)} — here are` : 'Here are';
   $('results').innerHTML = d.mechanics.length
     ? `<p class="muted">${greet} mobile mechanics that serve your area for <strong>${esc(q.service)}</strong>.</p>` + d.mechanics.map(card).join('')
-    : `<p class="muted">${q.name ? `Thanks, ${esc(q.name)} — ` : ''}no mechanics in ${esc(q.city)} yet for ${esc(q.service)}. Send a request anyway and mechanics nearby can still quote it as they join.</p>`;
-  const rp = new URLSearchParams({ service: q.service, vehicle: q.vehicle, city: q.city, state: q.state, date: q.date });
-  $('req-link').href = '/request?' + rp.toString();
-  try { sessionStorage.setItem('mmn_find', JSON.stringify(q)); } catch (e) {}
-  $('req-cta').hidden = false;
-  window.scrollTo(0, 0);
-};
-$('back').onclick = (e) => { e.preventDefault(); $('results-view').hidden = true; $('form-view').hidden = false; };
+
+  : `<p class="muted">We are sorry, mobile mechanics in your area coming soon.</p>`;
+  if (!d.mechanics.length) $('req-link').querySelector('button').textContent = 'Send a quote request anyway';
+    const rp = new URLSearchParams({ service: q.service, vehicle: q.vehicle, city: q.city, state: q.state, date: q.date });
+    $('req-link').href = '/request?' + rp.toString();
+    try { sessionStorage.setItem('mmn_find', JSON.stringify(q)); } catch (e) {}
+    $('req-cta').hidden = false;
+    window.scrollTo(0, 0);
+  };
+  $('back').onclick = (e) => { e.preventDefault(); $('results-view').hidden = true; $('form-view').hidden = false; };
 </script>
 </body>
 </html>
