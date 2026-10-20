@@ -54,12 +54,12 @@ const adminSessions = new Set(); // admin token strings (in-memory; re-login aft
 function hashPassword(password, salt) { return crypto.scryptSync(password, salt, 64).toString('hex'); }
 function makeUser({ name, email, password, role }) {
   const salt = crypto.randomBytes(16).toString('hex');
-  return { id: crypto.randomUUID(), name, email: email.toLowerCase(), role, salt, passwordHash: hashPassword(password, salt), createdAt: new Date().toISOString() };
+  return { id: crypto.randomUUID(), name, email: email.toLowerCase(), role, isAdmin: false, salt, passwordHash: hashPassword(password, salt), createdAt: new Date().toISOString() };
 }
 function verifyPassword(user, password) {
   return crypto.timingSafeEqual(Buffer.from(hashPassword(password, user.salt), 'hex'), Buffer.from(user.passwordHash, 'hex'));
 }
-function publicUser(u) { return { id: u.id, name: u.name, email: u.email, role: u.role, phone: u.phone || '', createdAt: u.createdAt }; }
+function publicUser(u) { return { id: u.id, name: u.name, email: u.email, role: u.role, isAdmin: !!u.isAdmin, phone: u.phone || '', createdAt: u.createdAt }; }
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
@@ -638,10 +638,12 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // ---------- Founder admin (token-gated; set ADMIN_TOKEN env var on the host) ----------
+    // ---------- Founder admin (token-gated, or signed-in admin user) ----------
     function adminAuthed(req) {
       const match = (req.headers.cookie || '').match(/mmn_admin=([a-f0-9]+)/);
-      return !!match && adminSessions.has(match[1]);
+      if (match && adminSessions.has(match[1])) return true;
+      const u = getSessionUser(req);
+      return !!(u && u.isAdmin);
     }
     if (p === '/api/admin/login' && req.method === 'POST') {
       const { token } = await parseBody(req);
@@ -660,6 +662,16 @@ const server = http.createServer(async (req, res) => {
       if (match) adminSessions.delete(match[1]);
       res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'mmn_admin=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0' });
       return res.end('{}');
+    }
+    if (p === '/api/admin/promote' && req.method === 'POST') {
+      if (!adminAuthed(req)) return sendJson(res, 401, { error: 'Not authorized.' });
+      const { email, isAdmin } = await parseBody(req);
+      const users = usersStore.read();
+      const user = users.find(u => u.email === String(email || '').toLowerCase());
+      if (!user) return sendJson(res, 404, { error: 'No account with that email.' });
+      user.isAdmin = !!isAdmin;
+      usersStore.write(users);
+      return sendJson(res, 200, { ok: true, user: publicUser(user) });
     }
     if (p === '/api/admin/data' && req.method === 'GET') {
       if (!adminAuthed(req)) return sendJson(res, 401, { error: 'Not authorized.' });
