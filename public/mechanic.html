@@ -358,7 +358,7 @@ async function loadTickets() {
   const d = await api('/api/tickets/me');
   $('ticket-list').innerHTML = d.tickets.length ? d.tickets.map(t => `<div class="card">
     <h3 style="text-transform:capitalize">${esc(t.type)} — $${esc(t.total)}</h3>
-    <div class="muted">${esc(t.customerName)}${t.vehicle ? ' · ' + esc(t.vehicle) : ''} · ${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() : ''}</div>
+    <div class="muted">${esc(t.customerName)}${t.vehicle ? ' · ' + esc(t.vehicle) : ''} · ${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() + (t.paymentMethod ? ' via ' + esc(t.paymentMethod) : '') : ''}</div>
     <p><a href="/ticket?id=${t.id}" target="_blank"><button class="ghost" type="button">View / Print</button></a>
     ${t.type === 'estimate' ? `<button class="primary" data-convertticket="${t.id}" data-hasvin="${t.vin ? '1' : ''}">Convert to invoice</button>` : ''}
     ${t.type === 'invoice' ? `<button class="primary" data-paidticket="${t.id}">Mark as paid</button>` : ''}
@@ -377,7 +377,13 @@ async function loadTickets() {
     };
   });
   document.querySelectorAll('[data-paidticket]').forEach(b => {
-    b.onclick = async () => { if (!confirm('Mark this invoice as paid? It will become a receipt.')) return; await post('/api/tickets/' + b.dataset.paidticket + '/paid', {}); loadTickets(); };
+    b.onclick = async () => {
+      const pm = prompt('How was this paid? (cash, card, check, etc.)') || '';
+      if (!pm.trim()) return;
+      if (!confirm('Mark this invoice as paid via ' + pm.trim() + '? It will become a receipt.')) return;
+      try { await post('/api/tickets/' + b.dataset.paidticket + '/paid', { paymentMethod: pm.trim() }); loadTickets(); }
+      catch (e) { alert(e.message); }
+    };
   });
   document.querySelectorAll('[data-delticket]').forEach(b => {
     b.onclick = async () => { if (!confirm('Delete this ticket?')) return; await api('/api/tickets/' + b.dataset.delticket, { method: 'DELETE' }); loadTickets(); };
