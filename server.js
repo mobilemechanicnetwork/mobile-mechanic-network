@@ -330,12 +330,19 @@ const server = http.createServer(async (req, res) => {
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
       const biz = myBusiness(user.id);
-      if (!biz || !biz.published) return sendJson(res, 200, { requests: [], needsBusiness: true });
+      if (!biz || !biz.published) return sendJson(res, 200, { requests: [], booked: [], needsBusiness: true });
       const quotes = quotesStore.read();
       const inbox = requestsStore.read()
         .filter(r => r.status === 'open' && requestMatchesBusiness(r, biz))
         .map(r => ({ ...r, myQuote: quotes.find(q => q.requestId === r.id && q.businessId === biz.id) || null }));
-      return sendJson(res, 200, { requests: inbox });
+      const booked = requestsStore.read()
+        .filter(r => r.status === 'accepted')
+        .map(r => {
+          const q = quotes.find(q => q.requestId === r.id && q.businessId === biz.id && q.status === 'accepted');
+          return q ? { id: r.id, service: r.service, vehicle: r.vehicle, description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price } : null;
+        })
+        .filter(Boolean);
+      return sendJson(res, 200, { requests: inbox, booked });
     }
 
     // ---------- Quotes ----------
