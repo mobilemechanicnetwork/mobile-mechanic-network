@@ -96,7 +96,7 @@
     if (!d.requests.length) { box.innerHTML = '<p class="muted">No repair history yet. Send your first request and mechanics in your area can quote it.</p>'; return; }
     const pill = s => s === 'accepted' ? '<span style="color:#86efac">Booked</span>' : s === 'open' ? '<span style="color:#93c5fd">Open</span>' : `<span class="muted">${s}</span>`;
     box.innerHTML = d.requests.map(r => `<div class="card">
-      <strong>${r.service}</strong> — ${r.vehicle}<div class="muted">${r.city}, ${r.state} · ${new Date(r.createdAt).toLocaleDateString()} · ${pill(r.status)}</div>
+      <strong>${r.service}</strong> — ${r.vehicle}<div class="muted">${r.city}, ${r.state} · ${new Date(r.createdAt).toLocaleDateString()}${r.date ? ' · Needed by ' + r.date : ''} · ${pill(r.status)}</div>
       <p>${r.description}</p>
       ${r.quotes.length ? r.quotes.map(q => `<div class="card">
         <span class="price">$${q.price}</span> from <strong>${q.businessName}</strong> <span class="muted">(${q.businessCity})</span>

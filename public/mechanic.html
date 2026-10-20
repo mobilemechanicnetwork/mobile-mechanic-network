@@ -161,7 +161,7 @@ async function loadInbox() {
   if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Publish your business page to start receiving requests in your area.</p>'; return; }
   if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
   box.innerHTML = inbox.requests.map(r => `<div class="card">
-    <strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}</div>
+    <strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
     <p>${esc(r.description)}</p>
     ${r.myQuote ? `<p class="ok">You quoted $${esc(r.myQuote.price)} (${esc(r.myQuote.status)}).</p>` : `
     <form onsubmit="return sendQuote(event,'${r.id}')">
@@ -312,7 +312,7 @@ async function loadBilling() {
       ? b.plans.map(p => `<div class="card"><strong>${p.label}</strong><div style="margin-top:8px"><button class="primary" data-plan="${p.id}">Choose ${p.id === 'yearly' ? 'yearly' : 'monthly'}</button></div></div>`).join('')
       : '<p class="muted">Online payments are being connected. Your free trial keeps running — nothing is due until this is ready.</p>';
     box.innerHTML = `${note}<div class="card"><div>${statusLine}</div>
-      <p class="muted">Mobile mechanics get the first 90 days free. After the trial: $24.99/month or $200/year. Cancel anytime. Your card is added through Stripe's secure checkout and is only charged after the free trial ends.</p></div>${plans}`;
+      <p class="muted">Your first 90 days are free, no payment information needed. After the trial it's $24.99/month or $200/year. If no payment method is on file when the trial ends, your account pauses until one is added. Cancel anytime. Cards are handled through Stripe's secure checkout.</p></div>${plans}`;
     box.querySelectorAll('[data-plan]').forEach(btn => {
       btn.onclick = async () => {
         try {
@@ -331,6 +331,15 @@ async function loadBilling() {
   if (!me || !me.user) { location.href = '/account'; return; }
   if (me.user.role !== 'mechanic') { location.href = '/dashboard'; return; }
   $('hello').textContent = 'My shop — ' + me.user.name;
+  if (me.user.frozen) {
+    const banner = document.createElement('div');
+    banner.className = 'card';
+    banner.style.borderColor = '#7f1d1d';
+    banner.innerHTML = '<strong>Your free trial has ended.</strong><p class="muted">Your business is hidden and requests are paused until a payment method is added.</p><button class="primary" id="frozen-billing">Add payment method</button>';
+    document.querySelector('main').prepend(banner);
+    document.querySelector('[data-tab="billing"]').click();
+    $('frozen-billing').onclick = () => document.querySelector('[data-tab="billing"]').click();
+  }
   await loadServices();
   await loadProfile();
   await loadInbox();

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Find a mobile mechanic — Mobile Mechanic Network</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0b1220;color:#e8eef7}
+  main{max-width:640px;margin:5vh auto;padding:24px}
+  h1{font-size:1.5rem} a{color:#93c5fd}
+  .muted{color:#9fb3c8;font-size:.9rem}
+  label{display:block;margin:14px 0 6px;font-size:.9rem;color:#c7d5e8}
+  input,select{width:100%;padding:11px;border-radius:8px;border:1px solid #334155;background:#0f1a2e;color:#fff;box-sizing:border-box;font-size:1rem}
+  .row{display:flex;gap:10px}
+  .row > div{flex:1}
+  button.primary{width:100%;margin-top:20px;background:#2563eb;color:#fff;border:0;border-radius:8px;padding:13px;cursor:pointer;font-size:1.05rem}
+  .card{border:1px solid #334155;border-radius:10px;padding:16px;margin:12px 0;background:#0f1a2e}
+  .card h3{margin:0 0 4px}
+  .tag{display:inline-block;border:1px solid #334155;border-radius:999px;padding:2px 10px;margin:2px 4px 2px 0;font-size:.8rem;color:#c7d5e8}
+  .cta{text-align:center;margin:20px 0}
+  .cta a button{width:auto;padding:13px 32px;font-size:1.05rem;background:#2563eb;color:#fff;border:0;border-radius:8px;cursor:pointer}
+</style>
+</head>
+<body>
+<main>
+  <div id="form-view">
+    <h1>Find a mobile mechanic</h1>
+    <p class="muted">Tell us what you need. We'll show you independent mobile mechanics in your area.</p>
+    <form id="find-form">
+      <label for="f-name">Your name</label>
+      <input id="f-name" required autocomplete="name" placeholder="Jane Smith">
+      <div class="row">
+        <div><label for="f-city">City</label><input id="f-city" required placeholder="Slidell"></div>
+        <div><label for="f-state">State</label><input id="f-state" required maxlength="2" placeholder="LA"></div>
+      </div>
+      <label for="f-vehicle">Vehicle (year, make, model)</label>
+      <input id="f-vehicle" required placeholder="2019 Ford F-150">
+      <label for="f-service">Service needed</label>
+      <select id="f-service" required></select>
+      <label for="f-date">When do you need it?</label>
+      <input id="f-date" type="date" required>
+      <button class="primary" type="submit">Find mechanics</button>
+    </form>
+    <p><a href="/">Back to the home page</a></p>
+  </div>
+  <div id="results-view" hidden>
+    <h1 id="r-head">Mechanics near you</h1>
+    <div id="results"></div>
+    <div class="cta" id="req-cta" hidden><a id="req-link" href="/request"><button type="button">Request quotes from these mechanics</button></a></div>
+    <p><a href="#" id="back">← Change my answers</a> · <a href="/">Home</a></p>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+(async () => {
+  const d = await (await fetch('/api/services')).json();
+  d.services.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; $('f-service').appendChild(o); });
+  const tomorrow = new Date(Date.now() + 86400000);
+  $('f-date').value = tomorrow.toISOString().slice(0, 10);
+})();
+$('find-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const q = {
+    name: $('f-name').value.trim(),
+    city: $('f-city').value.trim(),
+    state: $('f-state').value.trim(),
+    vehicle: $('f-vehicle').value.trim(),
+    service: $('f-service').value,
+    date: $('f-date').value,
+  };
+  const params = new URLSearchParams({ city: q.city, state: q.state, service: q.service });
+  const d = await (await fetch('/api/mechanics?' + params)).json();
+  $('form-view').hidden = true;
+  $('results-view').hidden = false;
+  $('r-head').textContent = `Mechanics near ${q.city}, ${q.state.toUpperCase()}`;
+  const card = m => `<div class="card">${m.coverUrl ? `<div style="margin:-16px -16px 12px;border-radius:10px 10px 0 0;overflow:hidden;max-height:140px"><img src="${esc(m.coverUrl)}" alt="" style="width:100%;display:block;object-fit:cover"></div>` : ''}<h3>${m.logoUrl ? `<img src="${esc(m.logoUrl)}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}${esc(m.name)}</h3><div class="muted">${esc(m.city)}, ${esc(m.state)} — ${esc(m.mechanicName)}</div>${m.phone ? `<div style="margin-top:6px"><a href="tel:${esc(m.phone.replace(/[^+\d]/g, ''))}">Call ${esc(m.phone)}</a></div>` : ''}${m.promotion ? `<div style="margin-top:8px;border-left:4px solid #2563eb;padding:6px 10px;background:#0b1e3a;border-radius:0 8px 8px 0"><strong style="font-size:.85rem">Special:</strong> <strong>${esc(m.promotion.title)}</strong></div>` : ''}<div class="muted">Serves: ${esc([m.city, ...(m.serviceCities || [])].join(', '))}</div><div>${(m.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('')}</div></div>`;
+  $('results').innerHTML = d.mechanics.length
+    ? `<p class="muted">Thanks, ${esc(q.name)} — here are mobile mechanics that serve your area for <strong>${esc(q.service)}</strong>.</p>` + d.mechanics.map(card).join('')
+    : `<p class="muted">Thanks, ${esc(q.name)} — no mechanics in ${esc(q.city)} yet for ${esc(q.service)}. Send a request anyway and mechanics nearby can still quote it as they join.</p>`;
+  const rp = new URLSearchParams({ service: q.service, vehicle: q.vehicle, city: q.city, state: q.state, date: q.date });
+  $('req-link').href = '/request?' + rp.toString();
+  try { sessionStorage.setItem('mmn_find', JSON.stringify(q)); } catch (e) {}
+  $('req-cta').hidden = false;
+  window.scrollTo(0, 0);
+};
+$('back').onclick = (e) => { e.preventDefault(); $('results-view').hidden = true; $('form-view').hidden = false; };
+</script>
+</body>
+</html>

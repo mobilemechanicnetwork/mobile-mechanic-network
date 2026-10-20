@@ -32,6 +32,8 @@
     <input id="state" required maxlength="2" placeholder="LA">
     <label for="description">What is going on with the vehicle?</label>
     <textarea id="description" rows="4" required></textarea>
+    <label for="date">When do you need it? (optional)</label>
+    <input id="date" type="date">
     <label for="phone">Phone number (mechanics reach you here)</label>
     <input id="phone" type="tel" required autocomplete="tel">
     <button type="submit">Send request</button>
@@ -50,6 +52,15 @@
     const sel = document.getElementById('service');
     d.services.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
     if (me.user.phone) document.getElementById('phone').value = me.user.phone;
+    const qp = new URLSearchParams(location.search);
+    let pre = {};
+    try { pre = JSON.parse(sessionStorage.getItem('mmn_find') || '{}'); } catch (e) {}
+    const get = k => qp.get(k) || pre[k] || '';
+    if (get('service')) document.getElementById('service').value = get('service');
+    if (get('vehicle')) document.getElementById('vehicle').value = get('vehicle');
+    if (get('city')) document.getElementById('city').value = get('city');
+    if (get('state')) document.getElementById('state').value = get('state');
+    if (get('date')) document.getElementById('date').value = get('date');
     const v = await (await fetch('/api/vehicles/me')).json().catch(() => ({}));
     if (v.vehicles && v.vehicles.length) {
       const vsel = document.getElementById('my-vehicles');
@@ -60,11 +71,12 @@
   })();
   document.getElementById('form').onsubmit = async (e) => {
     e.preventDefault(); err.textContent = ''; ok.textContent = '';
-    const body = { service: document.getElementById('service').value, vehicle: document.getElementById('vehicle').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: document.getElementById('description').value, phone: document.getElementById('phone').value };
+    const body = { service: document.getElementById('service').value, vehicle: document.getElementById('vehicle').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: document.getElementById('description').value, phone: document.getElementById('phone').value, date: document.getElementById('date').value };
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { err.textContent = d.error || 'Something went wrong.'; return; }
     ok.textContent = d.mechanicsNotified > 0 ? `Request sent. ${d.mechanicsNotified} mobile mechanic(s) in your area can quote it. Watch your dashboard for quotes.` : 'Request sent. No mechanics in your area match yet, but your request is posted and will match as mechanics join.';
+    try { sessionStorage.removeItem('mmn_find'); } catch (e) {}
     e.target.reset();
   };
 </script>
