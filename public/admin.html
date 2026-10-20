@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Founder Admin — Mobile Mechanic Network</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0f172a;color:#e2e8f0}
+  .wrap{max-width:1100px;margin:0 auto;padding:24px 16px 64px}
+  h1{font-size:24px;margin:0 0 4px}
+  .sub{color:#94a3b8;font-size:14px;margin-bottom:20px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:28px}
+  .card{background:#1e293b;border-radius:10px;padding:14px}
+  .card b{font-size:26px;display:block}
+  .card span{color:#94a3b8;font-size:13px}
+  table{width:100%;border-collapse:collapse;background:#1e293b;border-radius:10px;overflow:hidden;margin-bottom:28px;font-size:14px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #334155}
+  th{color:#94a3b8;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  tr:last-child td{border-bottom:0}
+  h2{font-size:18px;margin:28px 0 10px}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px}
+  .on{background:#14532d;color:#bbf7d0}
+  .off{background:#3f3f46;color:#d4d4d8}
+  button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px}
+  button.ghost{background:#334155}
+  input{background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:10px 12px;font-size:14px;width:280px;max-width:100%}
+  .login{margin:60px auto;max-width:380px;text-align:center;background:#1e293b;border-radius:12px;padding:32px 24px}
+  .login p{color:#94a3b8;font-size:14px}
+  .err{color:#fca5a5;font-size:13px;min-height:18px}
+  .row{display:flex;gap:10px;justify-content:center;margin-top:12px}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .empty{color:#64748b;font-size:14px;padding:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="loginView" class="login" hidden>
+    <h1>Founder Admin</h1>
+    <p>Enter your admin passphrase to continue.</p>
+    <div class="err" id="loginErr"></div>
+    <input id="token" type="password" placeholder="Admin passphrase" autocomplete="off">
+    <div class="row"><button id="loginBtn">Sign in</button></div>
+  </div>
+  <div id="appView" hidden>
+    <div class="topbar">
+      <div><h1>Founder Admin</h1><div class="sub">Mobile Mechanic Network</div></div>
+      <button class="ghost" id="logoutBtn">Sign out</button>
+    </div>
+    <div class="cards" id="stats"></div>
+    <h2>Mechanics</h2>
+    <div id="businesses"></div>
+    <h2>Vehicle owners</h2>
+    <div id="owners"></div>
+    <h2>Quote requests</h2>
+    <div id="requests"></div>
+    <h2>Quotes</h2>
+    <div id="quotes"></div>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const d = iso => iso ? new Date(iso).toLocaleString() : '';
+
+async function load() {
+  const r = await fetch('/api/admin/data');
+  if (r.status === 401) { $('loginView').hidden = false; $('appView').hidden = true; return; }
+  const data = await r.json();
+  $('loginView').hidden = true; $('appView').hidden = false;
+  const c = data.counts;
+  $('stats').innerHTML = [
+    ['Vehicle owners', c.owners], ['Mechanics', c.mechanics],
+    ['Businesses', c.businesses], ['Published', c.publishedBusinesses],
+    ['Requests', c.requests], ['Quotes', c.quotes],
+  ].map(([l, v]) => `<div class="card"><b>${v}</b><span>${l}</span></div>`).join('');
+
+  $('businesses').innerHTML = data.businesses.length ? `<table><tr><th>Business</th><th>Mechanic</th><th>Area</th><th>Services</th><th>Status</th><th></th></tr>` +
+    data.businesses.map(b => `<tr><td>${esc(b.name)}<br><span style="color:#94a3b8">${esc(b.city)}, ${esc(b.state)}</span></td><td>${esc(b.mechanicName)}</td><td>${esc((b.serviceCities||[]).join(', '))}</td><td>${esc((b.services||[]).join(', '))}</td><td><span class="pill ${b.published?'on':'off'}">${b.published?'Published':'Hidden'}</span></td><td><button class="ghost" data-biz="${b.id}" data-pub="${b.published?0:1}">${b.published?'Hide':'Publish'}</button></td></tr>`).join('') + `</table>`
+    : `<div class="empty">No mechanic businesses yet.</div>`;
+
+  const owners = data.users.filter(u => u.role === 'owner');
+  $('owners').innerHTML = owners.length ? `<table><tr><th>Name</th><th>Email</th><th>Joined</th></tr>` +
+    owners.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${d(u.createdAt)}</td></tr>`).join('') + `</table>`
+    : `<div class="empty">No vehicle owner accounts yet.</div>`;
+
+  $('requests').innerHTML = data.requests.length ? `<table><tr><th>Owner</th><th>Job</th><th>Area</th><th>Status</th><th>Created</th></tr>` +
+    data.requests.map(r => `<tr><td>${esc(r.ownerName)}<br><span style="color:#94a3b8">${esc(r.phone)}</span></td><td>${esc(r.service)} — ${esc(r.vehicle)}</td><td>${esc(r.city)}, ${esc(r.state)}</td><td>${esc(r.status)}</td><td>${d(r.createdAt)}</td></tr>`).join('') + `</table>`
+    : `<div class="empty">No quote requests yet.</div>`;
+
+  $('quotes').innerHTML = data.quotes.length ? `<table><tr><th>Price</th><th>Status</th><th>Created</th></tr>` +
+    data.quotes.map(q => `<tr><td>$${esc(q.price)}</td><td>${esc(q.status)}</td><td>${d(q.createdAt)}</td></tr>`).join('') + `</table>`
+    : `<div class="empty">No quotes yet.</div>`;
+
+  document.querySelectorAll('[data-biz]').forEach(btn => {
+    btn.onclick = async () => {
+      const r = await fetch('/api/admin/business/' + btn.dataset.biz, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ published: btn.dataset.pub === '1' })
+      });
+      if (r.ok) load();
+    };
+  });
+}
+
+$('loginBtn').onclick = async () => {
+  $('loginErr').textContent = '';
+  const r = await fetch('/api/admin/login', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ token: $('token').value })
+  });
+  if (r.ok) { $('token').value = ''; load(); }
+  else $('loginErr').textContent = 'Wrong passphrase.';
+};
+$('token').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
+$('logoutBtn').onclick = async () => { await fetch('/api/admin/logout', { method: 'POST' }); load(); };
+load();
+</script>
+</body>
+</html>
