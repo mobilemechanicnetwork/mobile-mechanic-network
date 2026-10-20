@@ -56,6 +56,7 @@
     <button data-tab="photos">Photos</button>
     <button data-tab="tickets">Tickets</button>
     <button data-tab="billing">Billing</button>
+    <button data-tab="help">Help</button>
   </div>
 
   <section class="tab active" id="tab-requests">
@@ -151,6 +152,17 @@
   <section class="tab" id="tab-billing">
     <h2>Billing</h2>
     <div id="billing-box"><p class="muted">Loading…</p></div>
+  </section>
+
+  <section class="tab" id="tab-help">
+    <h2>Help</h2>
+    <p class="muted">Something not working or have a question? Describe it below and it goes straight to us.</p>
+    <form id="help-form">
+      <label for="h-subject">Subject (optional)</label><input id="h-subject" maxlength="120" placeholder="e.g. Can't upload my logo">
+      <label for="h-message">What's going on?</label><textarea id="h-message" rows="4" required placeholder="Describe the issue or concern"></textarea>
+      <button class="primary" type="submit">Send</button>
+      <div class="err" id="h-err"></div><div class="ok" id="h-ok"></div>
+    </form>
   </section>
 </main>
 <script>
@@ -331,6 +343,16 @@ function showTicketForm(show) {
 }
 $('t-new').onclick = () => showTicketForm(true);
 $('t-cancel').onclick = () => showTicketForm(false);
+
+/* ---------- Help ---------- */
+$('help-form').onsubmit = async (e) => {
+  e.preventDefault(); $('h-err').textContent = ''; $('h-ok').textContent = '';
+  try {
+    await post('/api/help', { subject: $('h-subject').value, message: $('h-message').value });
+    $('h-subject').value = ''; $('h-message').value = '';
+    $('h-ok').textContent = 'Sent. We will take a look.';
+  } catch (ex) { $('h-err').textContent = ex.message; }
+};
 function ticketRowTotal(row) {
   const ins = row.querySelectorAll('input');
   const qty = Number(ins[1].value) || 0, price = Number(ins[2].value) || 0;
