@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 
-const SERVICES = ['Diagnostics', 'Brakes', 'Battery & starting', 'Oil & maintenance', 'Engine repair', 'Pre-purchase inspection'];
+const SERVICES = ['Diagnostics', 'Brakes', 'Battery & starting', 'Oil & maintenance', 'Engine repair', 'Pre-purchase inspection', 'Other'];
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 function store(name) {
@@ -33,6 +33,21 @@ const ticketsStore = store('tickets.json');
 const vehiclesStore = store('vehicles.json');
 
 const sessions = new Map(); // token -> userId (in-memory at this stage)
+const visitsStore = store('visits.json');
+const searchesStore = store('searches.json');
+function clientIpHash(req) {
+  const fwd = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const ip = fwd || (req.socket && req.socket.remoteAddress) || 'unknown';
+  return crypto.createHash('sha256').update('mmn-visit-salt:' + ip).digest('hex').slice(0, 16);
+}
+function logVisit(req, p) {
+  try {
+    const visits = visitsStore.read();
+    visits.push({ t: new Date().toISOString(), path: p, ip: clientIpHash(req) });
+    if (visits.length > 20000) visits.splice(0, visits.length - 20000);
+    visitsStore.write(visits);
+  } catch (e) {}
+}
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || ''; // founder admin passphrase, set as env var on the host
 const adminSessions = new Set(); // admin token strings (in-memory; re-login after each deploy)
 
@@ -145,6 +160,7 @@ function parseMultipart(req) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const p = url.pathname;
+  if (req.method === 'GET' && !p.startsWith('/api/') && !p.startsWith('/uploads/')) logVisit(req, p);
   try {
     // ---------- Accounts ----------
     if (p === '/api/register' && req.method === 'POST') {
@@ -265,6 +281,14 @@ const server = http.createServer(async (req, res) => {
       const city = (url.searchParams.get('city') || '').toLowerCase();
       const state = (url.searchParams.get('state') || '').toLowerCase();
       const service = url.searchParams.get('service') || '';
+      if (city || state) {
+        try {
+          const searches = searchesStore.read();
+          searches.push({ t: new Date().toISOString(), city, state, service, ip: clientIpHash(req) });
+          if (searches.length > 20000) searches.splice(0, searches.length - 20000);
+          searchesStore.write(searches);
+        } catch (e) {}
+      }
       const frozenIds = new Set(usersStore.read().filter(mechanicFrozen).map(u => u.id));
       let list = businessesStore.read().filter(b => b.published && !frozenIds.has(b.userId));
       if (state) list = list.filter(b => b.state.toLowerCase() === state);
@@ -296,7 +320,7 @@ const server = http.createServer(async (req, res) => {
         ...r,
         quotes: quotes.filter(q => q.requestId === r.id).map(q => {
           const biz = businessesStore.read().find(b => b.id === q.businessId);
-          return { ...q, businessName: biz ? biz.name : 'Mobile mechanic', businessCity: biz ? `${biz.city}, ${biz.state}` : '' };
+          return { ...q, businessName: biz ? biz.name : 'Mobile mechanic', businessCity: biz ? `${biz.city}, ${biz.state}` : '', businessLogo: biz && biz.logoUrl ? biz.logoUrl : '', businessPhone: biz ? (biz.phone || '') : '' };
         }),
       }));
       return sendJson(res, 200, { requests: mine });
@@ -321,16 +345,27 @@ const server = http.createServer(async (req, res) => {
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
       if (mechanicFrozen(user)) return frozenError(res);
       const biz = myBusiness(user.id);
-      const { requestId, price, message } = await parseBody(req);
+      const { requestId, price, message, items, notes } = await parseBody(req);
       const row = requestsStore.read().find(r => r.id === requestId);
       if (!row || row.status !== 'open' || !requestMatchesBusiness(row, biz))
         return sendJson(res, 400, { error: 'That request is not open in your service area.' });
-      const amount = Number(price);
-      if (!amount || amount <= 0) return sendJson(res, 400, { error: 'Enter a price for your quote.' });
+      let cleanItems = [];
+      if (Array.isArray(items)) for (const it of items.slice(0, 50)) {
+        const desc = String((it && it.desc) || '').trim().slice(0, 200);
+        const amount = Math.round(Number(it && it.amount) * 100) / 100;
+        if (desc && amount > 0) cleanItems.push({ desc, amount });
+      }
+      let total;
+      if (cleanItems.length) total = Math.round(cleanItems.reduce((s, i) => s + i.amount, 0) * 100) / 100;
+      else {
+        const amount = Number(price);
+        if (!amount || amount <= 0) return sendJson(res, 400, { error: 'Add at least one line item to your quote.' });
+        total = amount;
+      }
       const quotes = quotesStore.read();
       if (quotes.some(q => q.requestId === requestId && q.businessId === biz.id && q.status === 'pending'))
         return sendJson(res, 409, { error: 'You already quoted this request.' });
-      const quote = { id: crypto.randomUUID(), requestId, businessId: biz.id, mechanicId: user.id, price: amount, message: String(message || ''), status: 'pending', createdAt: new Date().toISOString() };
+      const quote = { id: crypto.randomUUID(), requestId, businessId: biz.id, mechanicId: user.id, items: cleanItems, notes: String(notes || '').slice(0, 1000), total, price: total, message: String(message || ''), status: 'pending', createdAt: new Date().toISOString() };
       quotes.push(quote); quotesStore.write(quotes);
       return sendJson(res, 201, { quote });
     }
@@ -632,6 +667,24 @@ const server = http.createServer(async (req, res) => {
       const requests = requestsStore.read();
       const quotes = quotesStore.read();
       const users = usersStore.read();
+      const visits = visitsStore.read();
+      const searches = searchesStore.read();
+      const dayOf = iso => String(iso || '').slice(0, 10);
+      const today = new Date().toISOString().slice(0, 10);
+      const byDay = {};
+      for (const v of visits) {
+        const k = dayOf(v.t);
+        byDay[k] = byDay[k] || { visits: 0, ips: new Set() };
+        byDay[k].visits++; byDay[k].ips.add(v.ip);
+      }
+      const todayStats = byDay[today] || { visits: 0, ips: new Set() };
+      const pageCounts = {};
+      for (const v of visits) pageCounts[v.path] = (pageCounts[v.path] || 0) + 1;
+      const cityCounts = {};
+      for (const s of searches) {
+        const k = [s.city, s.state].filter(Boolean).join(', ');
+        if (k) cityCounts[k] = (cityCounts[k] || 0) + 1;
+      }
       return sendJson(res, 200, {
         counts: {
           owners: users.filter(u => u.role === 'owner').length,
@@ -640,6 +693,17 @@ const server = http.createServer(async (req, res) => {
           publishedBusinesses: businesses.filter(b => b.published).length,
           requests: requests.length,
           quotes: quotes.length,
+        },
+        analytics: {
+          totalVisits: visits.length,
+          uniqueVisitors: new Set(visits.map(v => v.ip)).size,
+          visitsToday: todayStats.visits,
+          uniquesToday: todayStats.ips.size,
+          totalSearches: searches.length,
+          byDay: Object.keys(byDay).sort().slice(-14).map(k => ({ date: k, visits: byDay[k].visits, uniques: byDay[k].ips.size })),
+          topPages: Object.entries(pageCounts).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([path, count]) => ({ path, count })),
+          topCities: Object.entries(cityCounts).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([city, count]) => ({ city, count })),
+          recentSearches: searches.slice(-50).reverse().map(s => ({ t: s.t, city: s.city, state: s.state, service: s.service })),
         },
         users: users.map(publicUser),
         businesses: businesses.map(b => ({ ...publicBusiness(b), published: !!b.published, createdAt: b.createdAt })),
@@ -657,6 +721,34 @@ const server = http.createServer(async (req, res) => {
       biz.published = !!published;
       businessesStore.write(businesses);
       return sendJson(res, 200, { business: { id: biz.id, published: biz.published } });
+    }
+    const adminUserDel = p.match(/^\/api\/admin\/users\/([0-9a-f-]+)$/);
+    if (adminUserDel && req.method === 'DELETE') {
+      if (!adminAuthed(req)) return sendJson(res, 401, { error: 'Not authorized.' });
+      const uid = adminUserDel[1];
+      const users = usersStore.read();
+      const idx = users.findIndex(u => u.id === uid);
+      if (idx === -1) return sendJson(res, 404, { error: 'Account not found.' });
+      users.splice(idx, 1); usersStore.write(users);
+      const businesses = businessesStore.read();
+      const doomed = businesses.filter(b => b.userId === uid);
+      const bizIds = doomed.map(b => b.id);
+      for (const b of doomed) for (const url of [b.logoUrl, b.coverUrl, ...(b.gallery || [])]) {
+        if (typeof url === 'string' && url.startsWith('/uploads/')) {
+          const name = url.slice('/uploads/'.length);
+          if (/^[A-Za-z0-9._-]+$/.test(name)) { try { fs.unlinkSync(path.join(DATA_DIR, 'uploads', name)); } catch (e) {} }
+        }
+      }
+      businessesStore.write(businesses.filter(b => b.userId !== uid));
+      promotionsStore.write(promotionsStore.read().filter(x => !bizIds.includes(x.businessId)));
+      ticketsStore.write(ticketsStore.read().filter(x => x.userId !== uid));
+      const requests = requestsStore.read();
+      const reqIds = requests.filter(r => r.ownerId === uid).map(r => r.id);
+      requestsStore.write(requests.filter(r => r.ownerId !== uid));
+      quotesStore.write(quotesStore.read().filter(q => q.mechanicId !== uid && !reqIds.includes(q.requestId)));
+      vehiclesStore.write(vehiclesStore.read().filter(v => v.ownerId !== uid));
+      for (const [tok, sessUid] of sessions) if (sessUid === uid) sessions.delete(tok);
+      return sendJson(res, 200, { deleted: uid });
     }
 
     // ---------- Pages ----------
