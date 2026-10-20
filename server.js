@@ -81,7 +81,9 @@ function getSessionUser(req) {
   const match = (req.headers.cookie || '').match(/mmn_session=([a-f0-9]+)/);
   if (!match) return null;
   const userId = sessions.get(match[1]);
-  return userId ? usersStore.read().find(u => u.id === userId) || null : null;
+  const user = userId ? usersStore.read().find(u => u.id === userId) || null : null;
+  if (user) ensureTrial(user);
+  return user;
 }
 function startSession(res, status, user, payload) {
   const token = crypto.randomBytes(32).toString('hex');
@@ -90,6 +92,18 @@ function startSession(res, status, user, payload) {
   res.end(JSON.stringify(payload));
 }
 function myBusiness(userId) { return businessesStore.read().find(b => b.userId === userId) || null; }
+
+// Backfill the 90-day trial for mechanic accounts created before trials existed.
+function ensureTrial(user) {
+  if (!user || user.role !== 'mechanic' || user.trialEndsAt) return false;
+  const base = user.createdAt ? new Date(user.createdAt).getTime() : Date.now();
+  user.trialEndsAt = new Date(base + 90 * 24 * 3600 * 1000).toISOString();
+  if (!user.billingStatus) user.billingStatus = 'trialing';
+  const users = usersStore.read();
+  const ix = users.findIndex(u => u.id === user.id);
+  if (ix !== -1) { users[ix] = user; usersStore.write(users); }
+  return true;
+}
 
 // Build an estimate ticket from an accepted quote. Returns the ticket object or null.
 function ticketFromAcceptedQuote(quote, row) {
@@ -645,6 +659,27 @@ const server = http.createServer(async (req, res) => {
       t.type = 'receipt'; t.paidAt = new Date().toISOString(); t.paymentMethod = pm;
       ticketsStore.write(tickets);
       return sendJson(res, 200, { ticket: t });
+    }
+    if (p === '/api/tickets/customers' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const map = new Map();
+      for (const t of ticketsStore.read().filter(t => t.mechanicId === user.id)) {
+        const name = String(t.customerName || '').trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (!map.has(key)) map.set(key, { name, vehicles: new Map() });
+        const v = String(t.vehicle || '').trim();
+        if (v) {
+          const vk = v.toLowerCase();
+          const entry = map.get(key);
+          if (!entry.vehicles.has(vk)) entry.vehicles.set(vk, { vehicle: v, vin: t.vin || '' });
+          else if (t.vin && !entry.vehicles.get(vk).vin) entry.vehicles.get(vk).vin = t.vin;
+        }
+      }
+      const customers = [...map.values()].map(c => ({ name: c.name, vehicles: [...c.vehicles.values()] }));
+      return sendJson(res, 200, { customers });
     }
     const ticketDel = p.match(/^\/api\/tickets\/([0-9a-f-]+)$/);
     if (ticketDel && req.method === 'DELETE') {
