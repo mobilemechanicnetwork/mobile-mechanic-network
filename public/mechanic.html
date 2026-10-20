@@ -138,6 +138,7 @@
         <div><div id="t-totals" class="muted" style="padding-top:24px"></div></div>
       </div>
       <label for="t-notes">Notes (optional)</label><textarea id="t-notes" rows="2"></textarea>
+      <label for="t-warranty">Warranty (optional)</label><textarea id="t-warranty" rows="2" placeholder="e.g. 12 months / 12,000 miles on parts and labor"></textarea>
       <button class="primary" type="submit">Create ticket</button>
       <div class="err" id="t-err"></div><div class="ok" id="t-ok"></div>
     </form>
@@ -362,8 +363,8 @@ $('ticket-form').onsubmit = async (e) => {
   const rows = [...document.querySelectorAll('#t-items .itemrow')];
   const items = rows.map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value }; });
   try {
-    const d = await post('/api/tickets', { type: $('t-type').value, customerName: $('t-customer').value, vehicle: $('t-vehicle').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, notes: $('t-notes').value });
-    $('t-customer').value = ''; $('t-vehicle').value = ''; $('t-notes').value = '';
+    const d = await post('/api/tickets', { type: $('t-type').value, customerName: $('t-customer').value, vehicle: $('t-vehicle').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, notes: $('t-notes').value, warranty: $('t-warranty').value });
+    $('t-customer').value = ''; $('t-vehicle').value = ''; $('t-notes').value = ''; $('t-warranty').value = '';
     $('t-labor-desc').value = ''; $('t-labor').value = ''; $('t-taxrate').value = '';
     $('t-items').innerHTML = ''; addItemRow('', '', '');
     $('t-ok').textContent = 'Ticket created.';

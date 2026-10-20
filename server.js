@@ -502,7 +502,7 @@ const server = http.createServer(async (req, res) => {
       if (mechanicFrozen(user)) return frozenError(res);
       const biz = myBusiness(user.id);
       if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
-      const { type, customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate } = await parseBody(req);
+      const { type, customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty } = await parseBody(req);
       if (!['estimate', 'invoice', 'receipt'].includes(type)) return sendJson(res, 400, { error: 'Pick estimate, invoice, or receipt.' });
       if (!customerName || !Array.isArray(items) || !items.length) return sendJson(res, 400, { error: 'Customer name and at least one line item are required.' });
       const cleanItems = items.slice(0, 50)
@@ -517,7 +517,7 @@ const server = http.createServer(async (req, res) => {
       const taxAmount = r2(taxable * rate / 100);
       const total = r2(partsSubtotal + labor.amount + taxAmount);
       const tickets = ticketsStore.read();
-      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, customerName: String(customerName).trim().slice(0, 120), vehicle: String(vehicle || '').trim().slice(0, 120), items: cleanItems, laborDesc: labor.desc, laborAmount: labor.amount, taxRate: rate, subtotal: partsSubtotal, taxAmount, notes: String(notes || '').trim().slice(0, 1000), total, createdAt: new Date().toISOString() };
+      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, customerName: String(customerName).trim().slice(0, 120), vehicle: String(vehicle || '').trim().slice(0, 120), items: cleanItems, laborDesc: labor.desc, laborAmount: labor.amount, taxRate: rate, subtotal: partsSubtotal, taxAmount, notes: String(notes || '').trim().slice(0, 1000), warranty: String(warranty || '').trim().slice(0, 2000), total, createdAt: new Date().toISOString() };
       tickets.push(ticket); ticketsStore.write(tickets);
       return sendJson(res, 201, { ticket });
     }
