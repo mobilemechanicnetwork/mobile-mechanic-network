@@ -25,6 +25,7 @@
     <select id="service" required></select>
     <label for="vehicle">Vehicle (year, make, model)</label>
     <input id="vehicle" required placeholder="2019 Ford F-150">
+    <div id="my-vehicles-row" style="margin-top:6px" hidden><label for="my-vehicles" style="margin-top:0">Or pick one of your saved vehicles</label><select id="my-vehicles"><option value="">Choose…</option></select></div>
     <label for="city">City</label>
     <input id="city" required>
     <label for="state">State</label>
@@ -48,6 +49,14 @@
     const d = await (await fetch('/api/services')).json();
     const sel = document.getElementById('service');
     d.services.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
+    if (me.user.phone) document.getElementById('phone').value = me.user.phone;
+    const v = await (await fetch('/api/vehicles/me')).json().catch(() => ({}));
+    if (v.vehicles && v.vehicles.length) {
+      const vsel = document.getElementById('my-vehicles');
+      v.vehicles.forEach(x => { const o = document.createElement('option'); o.value = `${x.year} ${x.make} ${x.model}`; o.textContent = o.value; vsel.appendChild(o); });
+      document.getElementById('my-vehicles-row').hidden = false;
+      vsel.onchange = () => { if (vsel.value) document.getElementById('vehicle').value = vsel.value; };
+    }
   })();
   document.getElementById('form').onsubmit = async (e) => {
     e.preventDefault(); err.textContent = ''; ok.textContent = '';
