@@ -35,6 +35,12 @@
     const sel = document.getElementById('service');
     d.services.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
   }
+  const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', website: 'Website' };
+  function socialLinks(soc) {
+    soc = soc || {};
+    const links = Object.keys(SOC_LABELS).filter(k => soc[k]).map(k => `<a href="${String(soc[k]).replace(/"/g, '')}" target="_blank" rel="noopener">${SOC_LABELS[k]}</a>`);
+    return links.length ? `<div style="margin-top:6px">${links.join(' · ')}</div>` : '';
+  }
   async function search() {
     const city = document.getElementById('city').value.trim();
     const state = document.getElementById('state').value.trim();
@@ -42,7 +48,7 @@
     const q = new URLSearchParams({ city, state, service: document.getElementById('service').value });
     const d = await (await fetch('/api/mechanics?' + q)).json();
       if (!d.mechanics.length) { results.innerHTML = '<p class="muted">We are sorry, mobile mechanics in your area coming soon.</p><p class="muted">You can still <a href="/request">request quotes</a> and mechanics will be able to quote as they join.</p>'; return; }
-    results.innerHTML = d.mechanics.map(m => `<div class="card">${m.coverUrl ? `<div style="margin:-16px -16px 12px;border-radius:10px 10px 0 0;overflow:hidden;max-height:160px"><img src="${m.coverUrl}" alt="" style="width:100%;display:block;object-fit:cover"></div>` : ''}<h3>${m.logoUrl ? `<img src="${m.logoUrl}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}${m.name}</h3><div class="muted">${m.city}, ${m.state} — ${m.mechanicName}</div>${m.phone ? `<div style="margin-top:6px"><a href="tel:${m.phone.replace(/[^+\d]/g, '')}">Call ${m.phone}</a></div>` : ''}${m.promotion ? `<div style="margin-top:8px;border-left:4px solid #2563eb;padding:6px 10px;background:#0b1e3a;border-radius:0 8px 8px 0"><strong style="font-size:.85rem">Special:</strong> <strong>${m.promotion.title}</strong><div class="muted" style="font-size:.82rem">${m.promotion.description}${m.promotion.validUntil ? ' · ' + m.promotion.validUntil : ''}</div></div>` : ''}<div class="muted">Serves: ${[m.city, ...(m.serviceCities || [])].join(', ')}</div><p>${m.about || ''}</p><div>${m.services.map(s => `<span class="tag">${s}</span>`).join('')}</div></div>`).join('');
+    results.innerHTML = d.mechanics.map(m => `<div class="card">${m.coverUrl ? `<div style="margin:-16px -16px 12px;border-radius:10px 10px 0 0;overflow:hidden;max-height:160px"><img src="${m.coverUrl}" alt="" style="width:100%;display:block;object-fit:cover"></div>` : ''}<h3>${m.logoUrl ? `<img src="${m.logoUrl}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}${m.name}</h3><div class="muted">${m.city}, ${m.state} — ${m.mechanicName}</div>${m.phone ? `<div style="margin-top:6px"><a href="tel:${m.phone.replace(/[^+\d]/g, '')}">Call ${m.phone}</a></div>` : ''}${socialLinks(m.socials)}${m.promotion ? `<div style="margin-top:8px;border-left:4px solid #2563eb;padding:6px 10px;background:#0b1e3a;border-radius:0 8px 8px 0"><strong style="font-size:.85rem">Special:</strong> <strong>${m.promotion.title}</strong><div class="muted" style="font-size:.82rem">${m.promotion.description}${m.promotion.validUntil ? ' · ' + m.promotion.validUntil : ''}</div></div>` : ''}<div class="muted">Serves: ${[m.city, ...(m.serviceCities || [])].join(', ')}</div><p>${m.about || ''}</p><div>${m.services.map(s => `<span class="tag">${s}</span>`).join('')}</div></div>`).join('');
   }
   document.getElementById('search').onclick = search;
   loadServices();
