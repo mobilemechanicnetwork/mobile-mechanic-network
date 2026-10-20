@@ -528,9 +528,22 @@ const server = http.createServer(async (req, res) => {
       const tickets = ticketsStore.read().filter(t => t.mechanicId === user.id);
       return sendJson(res, 200, { tickets });
     }
-    const ticketDel = p.match(/^\/api\/tickets\/([0-9a-f-]+)$/);
-    if (ticketDel && req.method === 'DELETE') {
+    const ticketPaid = p.match(/^\/api\/tickets\/([0-9a-f-]+)\/paid$/);
+    if (ticketPaid && req.method === 'POST') {
       const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
+      const tickets = ticketsStore.read();
+      const t = tickets.find(x => x.id === ticketPaid[1] && x.mechanicId === user.id);
+      if (!t) return sendJson(res, 404, { error: 'Not found.' });
+      if (t.type !== 'invoice') return sendJson(res, 400, { error: 'Only invoices can be marked as paid.' });
+      t.type = 'receipt'; t.paidAt = new Date().toISOString();
+      ticketsStore.write(tickets);
+      return sendJson(res, 200, { ticket: t });
+    }
+    const ticketDel = p.match(/^\/api\/tickets\/([0-9a-f-]+)$/);
+    if (ticketDel && req.method === 'DELETE') {      const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (mechanicFrozen(user)) return frozenError(res);
       const tickets = ticketsStore.read();
