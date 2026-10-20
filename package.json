@@ -1,0 +1,1 @@
+{"description":"Mobile Mechanic Network website: public site, accounts, mechanic business pages, quote requests.","engines":{"node":">=18"},"main":"server.js","name":"mobile-mechanic-network","private":true,"scripts":{"start":"node server.js"},"version":"1.0.0"}
