@@ -546,6 +546,27 @@ const server = http.createServer(async (req, res) => {
       const tickets = ticketsStore.read().filter(t => t.mechanicId === user.id);
       return sendJson(res, 200, { tickets });
     }
+    const ticketConvert = p.match(/^\/api\/tickets\/([0-9a-f-]+)\/convert$/);
+    if (ticketConvert && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
+      const tickets = ticketsStore.read();
+      const t = tickets.find(x => x.id === ticketConvert[1] && x.mechanicId === user.id);
+      if (!t) return sendJson(res, 404, { error: 'Not found.' });
+      if (t.type !== 'estimate') return sendJson(res, 400, { error: 'Only estimates can be converted to invoices.' });
+      const { vin } = await parseBody(req);
+      let v = t.vin || '';
+      if (!v && vin && String(vin).trim()) {
+        v = cleanVin(vin);
+        if (!v) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
+      }
+      if (!v) return sendJson(res, 400, { error: 'A VIN is required on invoices.' });
+      t.vin = v; t.type = 'invoice';
+      ticketsStore.write(tickets);
+      return sendJson(res, 200, { ticket: t });
+    }
     const ticketPaid = p.match(/^\/api\/tickets\/([0-9a-f-]+)\/paid$/);
     if (ticketPaid && req.method === 'POST') {
       const user = getSessionUser(req);
