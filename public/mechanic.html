@@ -203,14 +203,16 @@ async function loadInbox() {
     <strong>${esc(b.service)}</strong> — ${esc(b.vehicle)}${b.vin ? ' · VIN ' + esc(b.vin) : ''} <span class="ok">Booked</span><div class="muted">${esc(b.city)}, ${esc(b.state)} · ${esc(b.ownerName)} · <a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(b.phone)}</a>${b.date ? ' · Needed by ' + esc(b.date) : ''}</div>
     <p>${esc(b.description)}</p>
     <p><strong>Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}</strong></p>
-    <p><button type="button" class="ghost" onclick="bookedToTicket('${b.id}')">Create ticket</button></p>
+    <p>${b.hasTicket ? '<span class="ok">Ticket created</span>' : `<button type="button" class="primary" onclick="bookedToTicket('${b.id}')">Create ticket from quote</button>`}</p>
   </div>`).join('') : '<p class="muted">No booked jobs yet. When a customer accepts your quote, it shows up here.</p>';
 }
-window.bookedToTicket = (bid) => {
-  const b = (window._booked || []).find(x => x.id === bid);
-  document.querySelector('[data-tab="tickets"]').click();
-  if (b) { $('t-customer').value = b.ownerName || ''; $('t-vehicle').value = b.vehicle || ''; $('t-vin').value = b.vin || ''; updateVinRequired(); showTicketForm(true); }
-  window.scrollTo(0, 0);
+window.bookedToTicket = async (bid) => {
+  try {
+    const d = await post('/api/tickets/from-request/' + bid, {});
+    document.querySelector('[data-tab="tickets"]').click();
+    loadTickets(); loadInbox();
+    window.scrollTo(0, 0);
+  } catch (e) { alert(e.message); }
 };
 window.addQuoteRow = (rid) => {
   const wrap = document.getElementById('qi-' + rid);
