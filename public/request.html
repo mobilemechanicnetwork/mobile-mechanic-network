@@ -26,6 +26,8 @@
     <label for="vehicle">Vehicle (year, make, model)</label>
     <input id="vehicle" required>
     <div id="my-vehicles-row" style="margin-top:6px" hidden><label for="my-vehicles" style="margin-top:0">Or pick one of your saved vehicles</label><select id="my-vehicles"><option value="">Choose…</option></select></div>
+    <label for="vin">VIN (optional, 17 characters)</label>
+    <input id="vin" maxlength="17" placeholder="e.g. 1HGCM82633A004352" style="text-transform:uppercase">
     <label for="city">City</label>
     <input id="city" required>
     <label for="state">State</label>
@@ -71,7 +73,7 @@
   })();
   document.getElementById('form').onsubmit = async (e) => {
     e.preventDefault(); err.textContent = ''; ok.textContent = '';
-    const body = { service: document.getElementById('service').value, vehicle: document.getElementById('vehicle').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: document.getElementById('description').value, phone: document.getElementById('phone').value, date: document.getElementById('date').value };
+    const body = { service: document.getElementById('service').value, vehicle: document.getElementById('vehicle').value, vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: document.getElementById('description').value, phone: document.getElementById('phone').value, date: document.getElementById('date').value };
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { err.textContent = d.error || 'Something went wrong.'; return; }
