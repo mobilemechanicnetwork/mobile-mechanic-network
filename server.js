@@ -401,6 +401,22 @@ const server = http.createServer(async (req, res) => {
       if (quoteAction[2] === 'accept') {
         quote.status = 'accepted'; row.status = 'accepted';
         quotes.forEach(q => { if (q.requestId === row.id && q.id !== quote.id && q.status === 'pending') q.status = 'declined'; });
+        // Auto-create an estimate ticket from the accepted quote
+        const r2 = n => Math.round(n * 100) / 100;
+        let ticketItems = (quote.items || [])
+          .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), qty: 1, price: r2(Math.max(0, Number(it.amount) || 0)) }))
+          .filter(it => it.desc && it.price > 0);
+        if (!ticketItems.length && Number(quote.total) > 0)
+          ticketItems = [{ desc: row.service, qty: 1, price: r2(Number(quote.total)) }];
+        let autoTicket = null;
+        if (ticketItems.length) {
+          const subtotal = r2(ticketItems.reduce((s, it) => s + it.qty * it.price, 0));
+          const tickets = ticketsStore.read();
+          autoTicket = { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'estimate', customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', items: ticketItems, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: '', requestId: row.id, quoteId: quote.id, total: subtotal, createdAt: new Date().toISOString() };
+          tickets.push(autoTicket); ticketsStore.write(tickets);
+        }
+        quotesStore.write(quotes); requestsStore.write(rows);
+        return sendJson(res, 200, { quote, requestStatus: row.status, ticket: autoTicket });
       } else quote.status = 'declined';
       quotesStore.write(quotes); requestsStore.write(rows);
       return sendJson(res, 200, { quote, requestStatus: row.status });
