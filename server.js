@@ -15,6 +15,12 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 
 const SERVICES = ['Diagnostics', 'Brakes', 'Battery & starting', 'Oil & maintenance', 'Engine repair', 'Pre-purchase inspection', 'Other'];
 
+// VIN: 17 chars, letters I/O/Q never used. Returns the cleaned VIN or null.
+function cleanVin(v) {
+  const s = String(v || '').toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '');
+  return /^[A-HJ-NPR-Z0-9]{17}$/.test(s) ? s : null;
+}
+
 fs.mkdirSync(DATA_DIR, { recursive: true });
 function store(name) {
   const file = path.join(DATA_DIR, name);
@@ -303,11 +309,16 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'owner') return sendJson(res, 403, { error: 'Only vehicle owner accounts can request quotes.' });
-      const { city, state, service, vehicle, description, phone, date } = await parseBody(req);
+      const { city, state, service, vehicle, description, phone, date, vin } = await parseBody(req);
       if (!city || !state || !SERVICES.includes(service) || !vehicle || !description || !phone)
         return sendJson(res, 400, { error: 'City, state, service, vehicle, a description, and a phone number are required.' });
+      let cleanVinValue = '';
+      if (vin && String(vin).trim()) {
+        cleanVinValue = cleanVin(vin);
+        if (!cleanVinValue) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
+      }
       const rows = requestsStore.read();
-      const row = { id: crypto.randomUUID(), ownerId: user.id, ownerName: user.name, phone: String(phone).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), description: String(description).trim(), date: String(date || '').slice(0, 20), status: 'open', createdAt: new Date().toISOString() };
+      const row = { id: crypto.randomUUID(), ownerId: user.id, ownerName: user.name, phone: String(phone).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), status: 'open', createdAt: new Date().toISOString() };
       rows.push(row); requestsStore.write(rows);
       const matches = businessesStore.read().filter(b => requestMatchesBusiness(row, b)).length;
       return sendJson(res, 201, { request: row, mechanicsNotified: matches });
@@ -339,7 +350,7 @@ const server = http.createServer(async (req, res) => {
         .filter(r => r.status === 'accepted')
         .map(r => {
           const q = quotes.find(q => q.requestId === r.id && q.businessId === biz.id && q.status === 'accepted');
-          return q ? { id: r.id, service: r.service, vehicle: r.vehicle, description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price } : null;
+          return q ? { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price } : null;
         })
         .filter(Boolean);
       return sendJson(res, 200, { requests: inbox, booked });
@@ -502,9 +513,16 @@ const server = http.createServer(async (req, res) => {
       if (mechanicFrozen(user)) return frozenError(res);
       const biz = myBusiness(user.id);
       if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
-      const { type, customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty } = await parseBody(req);
+      const { type, customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin } = await parseBody(req);
       if (!['estimate', 'invoice', 'receipt'].includes(type)) return sendJson(res, 400, { error: 'Pick estimate, invoice, or receipt.' });
       if (!customerName || !Array.isArray(items) || !items.length) return sendJson(res, 400, { error: 'Customer name and at least one line item are required.' });
+      let ticketVin = '';
+      if (vin && String(vin).trim()) {
+        ticketVin = cleanVin(vin);
+        if (!ticketVin) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
+      }
+      if ((type === 'invoice' || type === 'receipt') && !ticketVin)
+        return sendJson(res, 400, { error: 'A VIN is required on invoices and receipts.' });
       const cleanItems = items.slice(0, 50)
         .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), qty: Math.max(0, Number(it.qty) || 0), price: Math.max(0, Number(it.price) || 0) }))
         .filter(it => it.desc && it.qty > 0 && it.price >= 0);
@@ -517,7 +535,7 @@ const server = http.createServer(async (req, res) => {
       const taxAmount = r2(taxable * rate / 100);
       const total = r2(partsSubtotal + labor.amount + taxAmount);
       const tickets = ticketsStore.read();
-      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, customerName: String(customerName).trim().slice(0, 120), vehicle: String(vehicle || '').trim().slice(0, 120), items: cleanItems, laborDesc: labor.desc, laborAmount: labor.amount, taxRate: rate, subtotal: partsSubtotal, taxAmount, notes: String(notes || '').trim().slice(0, 1000), warranty: String(warranty || '').trim().slice(0, 2000), total, createdAt: new Date().toISOString() };
+      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, customerName: String(customerName).trim().slice(0, 120), vehicle: String(vehicle || '').trim().slice(0, 120), vin: ticketVin, items: cleanItems, laborDesc: labor.desc, laborAmount: labor.amount, taxRate: rate, subtotal: partsSubtotal, taxAmount, notes: String(notes || '').trim().slice(0, 1000), warranty: String(warranty || '').trim().slice(0, 2000), total, createdAt: new Date().toISOString() };
       tickets.push(ticket); ticketsStore.write(tickets);
       return sendJson(res, 201, { ticket });
     }
