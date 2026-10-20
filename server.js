@@ -89,6 +89,19 @@ function startSession(res, status, user, payload) {
   res.end(JSON.stringify(payload));
 }
 function myBusiness(userId) { return businessesStore.read().find(b => b.userId === userId) || null; }
+
+// Build an estimate ticket from an accepted quote. Returns the ticket object or null.
+function ticketFromAcceptedQuote(quote, row) {
+  const r2 = n => Math.round(n * 100) / 100;
+  let items = (quote.items || [])
+    .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), qty: 1, price: r2(Math.max(0, Number(it.amount) || 0)) }))
+    .filter(it => it.desc && it.price > 0);
+  if (!items.length && Number(quote.total) > 0)
+    items = [{ desc: row.service, qty: 1, price: r2(Number(quote.total)) }];
+  if (!items.length) return null;
+  const subtotal = r2(items.reduce((s, it) => s + it.qty * it.price, 0));
+  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'estimate', customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: '', requestId: row.id, quoteId: quote.id, total: subtotal, createdAt: new Date().toISOString() };
+}
 function servedCities(biz) {
   const list = [biz.city, ...(Array.isArray(biz.serviceCities) ? biz.serviceCities : [])];
   return list.map(c => String(c).trim().toLowerCase()).filter(Boolean);
@@ -343,6 +356,7 @@ const server = http.createServer(async (req, res) => {
       const biz = myBusiness(user.id);
       if (!biz || !biz.published) return sendJson(res, 200, { requests: [], booked: [], needsBusiness: true });
       const quotes = quotesStore.read();
+      const myTickets = ticketsStore.read().filter(t => t.mechanicId === user.id);
       const inbox = requestsStore.read()
         .filter(r => r.status === 'open' && requestMatchesBusiness(r, biz))
         .map(r => ({ ...r, myQuote: quotes.find(q => q.requestId === r.id && q.businessId === biz.id) || null }));
@@ -350,7 +364,7 @@ const server = http.createServer(async (req, res) => {
         .filter(r => r.status === 'accepted')
         .map(r => {
           const q = quotes.find(q => q.requestId === r.id && q.businessId === biz.id && q.status === 'accepted');
-          return q ? { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price } : null;
+          return q ? { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, hasTicket: myTickets.some(t => t.requestId === r.id) } : null;
         })
         .filter(Boolean);
       return sendJson(res, 200, { requests: inbox, booked });
@@ -402,19 +416,9 @@ const server = http.createServer(async (req, res) => {
         quote.status = 'accepted'; row.status = 'accepted';
         quotes.forEach(q => { if (q.requestId === row.id && q.id !== quote.id && q.status === 'pending') q.status = 'declined'; });
         // Auto-create an estimate ticket from the accepted quote
-        const r2 = n => Math.round(n * 100) / 100;
-        let ticketItems = (quote.items || [])
-          .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), qty: 1, price: r2(Math.max(0, Number(it.amount) || 0)) }))
-          .filter(it => it.desc && it.price > 0);
-        if (!ticketItems.length && Number(quote.total) > 0)
-          ticketItems = [{ desc: row.service, qty: 1, price: r2(Number(quote.total)) }];
         let autoTicket = null;
-        if (ticketItems.length) {
-          const subtotal = r2(ticketItems.reduce((s, it) => s + it.qty * it.price, 0));
-          const tickets = ticketsStore.read();
-          autoTicket = { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'estimate', customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', items: ticketItems, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: '', requestId: row.id, quoteId: quote.id, total: subtotal, createdAt: new Date().toISOString() };
-          tickets.push(autoTicket); ticketsStore.write(tickets);
-        }
+        const built = ticketFromAcceptedQuote(quote, row);
+        if (built) { const tickets = ticketsStore.read(); tickets.push(built); ticketsStore.write(tickets); autoTicket = built; }
         quotesStore.write(quotes); requestsStore.write(rows);
         return sendJson(res, 200, { quote, requestStatus: row.status, ticket: autoTicket });
       } else quote.status = 'declined';
@@ -582,6 +586,26 @@ const server = http.createServer(async (req, res) => {
       t.vin = v; t.type = 'invoice';
       ticketsStore.write(tickets);
       return sendJson(res, 200, { ticket: t });
+    }
+    const ticketFromReq = p.match(/^\/api\/tickets\/from-request\/([0-9a-f-]+)$/);
+    if (ticketFromReq && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
+      const biz = myBusiness(user.id);
+      if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
+      const row = requestsStore.read().find(r => r.id === ticketFromReq[1]);
+      if (!row || row.status !== 'accepted') return sendJson(res, 404, { error: 'Not found.' });
+      const quote = quotesStore.read().find(q => q.requestId === row.id && q.businessId === biz.id && q.status === 'accepted');
+      if (!quote) return sendJson(res, 404, { error: 'No accepted quote for that job.' });
+      const tickets = ticketsStore.read();
+      const existing = tickets.find(t => t.requestId === row.id && t.mechanicId === user.id);
+      if (existing) return sendJson(res, 200, { ticket: existing, already: true });
+      const t = ticketFromAcceptedQuote(quote, row);
+      if (!t) return sendJson(res, 400, { error: 'That quote has no priced items.' });
+      tickets.push(t); ticketsStore.write(tickets);
+      return sendJson(res, 201, { ticket: t });
     }
     const ticketPaid = p.match(/^\/api\/tickets\/([0-9a-f-]+)\/paid$/);
     if (ticketPaid && req.method === 'POST') {
