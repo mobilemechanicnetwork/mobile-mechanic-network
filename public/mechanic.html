@@ -74,6 +74,15 @@
       <div class="checks" id="b-services"></div>
       <label for="b-about">About your business</label><textarea id="b-about" rows="3"></textarea>
       <label for="b-phone">Business phone number (shown on your public listing so customers can call you)</label><input id="b-phone" type="tel" placeholder="(504) 555-0100">
+      <label>Social media <span class="muted">(optional — links shown on your public listing)</span></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <input id="b-soc-facebook" placeholder="Facebook URL">
+        <input id="b-soc-instagram" placeholder="Instagram URL">
+        <input id="b-soc-tiktok" placeholder="TikTok URL">
+        <input id="b-soc-youtube" placeholder="YouTube URL">
+        <input id="b-soc-x" placeholder="X URL">
+        <input id="b-soc-website" placeholder="Website URL">
+      </div>
       <label for="b-logo">Logo</label><input id="b-logo" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
       <img id="b-logo-preview" class="thumb" alt="Logo preview" style="display:none">
       <label for="b-cover">Cover photo</label><input id="b-cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
@@ -187,6 +196,7 @@ async function loadProfile() {
     $('b-name').value = b.name; $('b-city').value = b.city; $('b-state').value = b.state;
     $('b-cities').value = (b.serviceCities || []).join(', '); $('b-about').value = b.about || '';
     $('b-phone').value = b.phone || ''; $('b-published').checked = !!b.published;
+    for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website']) $('b-soc-' + k).value = (b.socials && b.socials[k]) || '';
     document.querySelectorAll('#b-services input').forEach(c => { c.checked = (b.services || []).includes(c.value); });
     if (b.logoUrl) { $('b-logo-preview').src = b.logoUrl; $('b-logo-preview').style.display = 'block'; }
     if (b.coverUrl) { $('b-cover-preview').src = b.coverUrl; $('b-cover-preview').style.display = 'block'; }
@@ -208,7 +218,9 @@ $('biz-form').onsubmit = async (e) => {
   e.preventDefault(); $('b-err').textContent = ''; $('b-ok').textContent = '';
   const services = [...document.querySelectorAll('#b-services input:checked')].map(c => c.value);
   try {
-    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked };
+    const socials = {};
+    for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website']) socials[k] = $('b-soc-' + k).value;
+    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked, socials };
     if ($('b-logo').files.length) body.logoUrl = await uploadImage('logo', $('b-logo').files[0]);
     if ($('b-cover').files.length) body.coverUrl = await uploadImage('cover', $('b-cover').files[0]);
     await post('/api/business', body);
@@ -307,10 +319,11 @@ async function loadBilling() {
     const statusLine = b.status === 'active' ? '<span class="ok">Subscription active</span>'
       : b.status === 'past_due' ? '<span class="err">Payment failed — update your card</span>'
       : b.status === 'canceled' ? '<span class="muted">Subscription canceled</span>'
-      : `<span class="ok">Free trial — ${b.daysLeft} day${b.daysLeft === 1 ? '' : 's'} left (ends ${trial})</span>`;
+      : b.daysLeft > 0 ? `<div style="font-size:2.5rem;font-weight:800;line-height:1">${b.daysLeft}</div><div class="muted">days left in your free trial (ends ${trial})</div>`
+      : '<span class="err">Free trial ended</span>';
     const plans = b.configured
       ? b.plans.map(p => `<div class="card"><strong>${p.label}</strong><div style="margin-top:8px"><button class="primary" data-plan="${p.id}">Choose ${p.id === 'yearly' ? 'yearly' : 'monthly'}</button></div></div>`).join('')
-      : '<p class="muted">Online payments are being connected. Your free trial keeps running — nothing is due until this is ready.</p>';
+      : '<p class="muted">Billing information not required until promo ends.</p>';
     box.innerHTML = `${note}<div class="card"><div>${statusLine}</div>
       <p class="muted">Your first 90 days are free, no payment information needed. After the trial it's $24.99/month or $200/year. If no payment method is on file when the trial ends, your account pauses until one is added. Cancel anytime. Cards are handled through Stripe's secure checkout.</p></div>${plans}`;
     box.querySelectorAll('[data-plan]').forEach(btn => {
