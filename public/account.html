@@ -48,6 +48,10 @@
       <label><input type="radio" name="role" value="owner" checked><span>Vehicle owner</span></label>
       <label><input type="radio" name="role" value="mechanic"><span>Mobile mechanic</span></label>
     </div>
+    <div id="mech-promo" hidden style="margin:12px 0;padding:14px;border:1px solid #2563eb;border-radius:10px;background:#0b1e3a">
+      <strong>Mobile mechanics: your first 90 days are free.</strong>
+      <div class="muted" style="margin-top:6px">Then $24.99/month or $200/year. Cancel anytime. Your card is only charged after the free trial ends.</div>
+    </div>
     <label for="rg-name">Full name</label>
     <input id="rg-name" type="text" required autocomplete="name">
     <label for="rg-email">Email</label>
@@ -66,8 +70,7 @@
   const formLogin = document.getElementById('form-login');
   const formRegister = document.getElementById('form-register');
   function show(which) {
-    const login = which === 'login';
-    formLogin.hidden = !login; formRegister.hidden = login;
+    const login = which === 'login';    formLogin.hidden = !login; formRegister.hidden = login;
     tabLogin.classList.toggle('active', login); tabRegister.classList.toggle('active', !login);
   }
   tabLogin.onclick = () => show('login');
@@ -78,6 +81,11 @@
     if (!r.ok) throw new Error(data.error || 'Something went wrong.');
     return data;
   }
+  document.querySelectorAll('input[name="role"]').forEach(r => {
+    r.addEventListener('change', () => {
+      document.getElementById('mech-promo').hidden = document.querySelector('input[name="role"]:checked').value !== 'mechanic';
+    });
+  });
   formLogin.onsubmit = async (e) => {
     e.preventDefault();
     const err = document.getElementById('err-login'); err.textContent = '';

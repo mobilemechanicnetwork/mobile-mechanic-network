@@ -55,6 +55,7 @@
     <button data-tab="promos">Promotions</button>
     <button data-tab="photos">Photos</button>
     <button data-tab="tickets">Tickets</button>
+    <button data-tab="billing">Billing</button>
   </div>
 
   <section class="tab active" id="tab-requests">
@@ -122,6 +123,11 @@
       <div class="err" id="t-err"></div><div class="ok" id="t-ok"></div>
     </form>
     <div id="ticket-list"></div>
+  </section>
+
+  <section class="tab" id="tab-billing">
+    <h2>Billing</h2>
+    <div id="billing-box"><p class="muted">Loading…</p></div>
   </section>
 </main>
 <script>
@@ -288,6 +294,37 @@ $('ticket-form').onsubmit = async (e) => {
   } catch (ex) { $('t-err').textContent = ex.message; }
 };
 
+/* ---------- Billing ---------- */
+async function loadBilling() {
+  const box = $('billing-box');
+  const params = new URLSearchParams(location.search);
+  let note = '';
+  if (params.get('billing') === 'success') note = '<p class="ok">Payment method saved. Your subscription is active.</p>';
+  if (params.get('billing') === 'cancelled') note = '<p class="muted">Checkout was cancelled. Nothing was charged.</p>';
+  try {
+    const b = await api('/api/billing');
+    const trial = b.trialEndsAt ? new Date(b.trialEndsAt).toLocaleDateString() : '—';
+    const statusLine = b.status === 'active' ? '<span class="ok">Subscription active</span>'
+      : b.status === 'past_due' ? '<span class="err">Payment failed — update your card</span>'
+      : b.status === 'canceled' ? '<span class="muted">Subscription canceled</span>'
+      : `<span class="ok">Free trial — ${b.daysLeft} day${b.daysLeft === 1 ? '' : 's'} left (ends ${trial})</span>`;
+    const plans = b.configured
+      ? b.plans.map(p => `<div class="card"><strong>${p.label}</strong><div style="margin-top:8px"><button class="primary" data-plan="${p.id}">Choose ${p.id === 'yearly' ? 'yearly' : 'monthly'}</button></div></div>`).join('')
+      : '<p class="muted">Online payments are being connected. Your free trial keeps running — nothing is due until this is ready.</p>';
+    box.innerHTML = `${note}<div class="card"><div>${statusLine}</div>
+      <p class="muted">Mobile mechanics get the first 90 days free. After the trial: $24.99/month or $200/year. Cancel anytime. Your card is added through Stripe's secure checkout and is only charged after the free trial ends.</p></div>${plans}`;
+    box.querySelectorAll('[data-plan]').forEach(btn => {
+      btn.onclick = async () => {
+        try {
+          const d = await post('/api/billing/checkout', { plan: btn.dataset.plan });
+          location.href = d.url;
+        } catch (e) { alert(e.message); }
+      };
+    });
+    if (params.get('billing')) history.replaceState(null, '', '/mechanic');
+  } catch (e) { box.innerHTML = note + '<p class="err">' + e.message + '</p>'; }
+}
+
 /* ---------- init ---------- */
 (async () => {
   const me = await api('/api/me').catch(() => null);
@@ -299,6 +336,7 @@ $('ticket-form').onsubmit = async (e) => {
   await loadInbox();
   await loadPromos();
   await loadTickets();
+  await loadBilling();
   addItemRow('', '');
 })();
 </script>
