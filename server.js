@@ -105,6 +105,39 @@ function ensureTrial(user) {
   return true;
 }
 
+// Validate and normalize ticket fields. Returns {error} or the cleaned fields.
+function cleanTicketBody(body, type) {
+  const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin } = body || {};
+  if (!customerName || !String(customerName).trim()) return { error: 'Customer name is required.' };
+  if (!Array.isArray(items) || !items.length) return { error: 'At least one line item is required.' };
+  let ticketVin = '';
+  if (vin && String(vin).trim()) {
+    ticketVin = cleanVin(vin);
+    if (!ticketVin) return { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' };
+  }
+  if ((type === 'invoice' || type === 'receipt') && !ticketVin)
+    return { error: 'A VIN is required on invoices and receipts.' };
+  const r2 = n => Math.round(n * 100) / 100;
+  const cleanItems = items.slice(0, 50)
+    .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), qty: Math.max(0, Number(it.qty) || 0), price: Math.max(0, Number(it.price) || 0) }))
+    .filter(it => it.desc && it.qty > 0 && it.price >= 0);
+  if (!cleanItems.length) return { error: 'Add at least one line item with a quantity and price.' };
+  const partsSubtotal = r2(cleanItems.reduce((s, it) => s + it.qty * it.price, 0));
+  const laborAmountNum = r2(Math.max(0, Number(laborAmount) || 0));
+  const rate = Math.max(0, Math.min(100, Number(taxRate) || 0));
+  const taxAmount = r2(r2(partsSubtotal + laborAmountNum) * rate / 100);
+  const total = r2(partsSubtotal + laborAmountNum + taxAmount);
+  return {
+    customerName: String(customerName).trim().slice(0, 120),
+    vehicle: String(vehicle || '').trim().slice(0, 120),
+    vin: ticketVin, items: cleanItems,
+    laborDesc: String(laborDesc || '').trim().slice(0, 200), laborAmount: laborAmountNum,
+    taxRate: rate, subtotal: partsSubtotal, taxAmount,
+    notes: String(notes || '').trim().slice(0, 1000),
+    warranty: String(warranty || '').trim().slice(0, 2000),
+    total
+  };
+}
 // Build an estimate ticket from an accepted quote. Returns the ticket object or null.
 function ticketFromAcceptedQuote(quote, row) {
   const r2 = n => Math.round(n * 100) / 100;
@@ -569,31 +602,32 @@ const server = http.createServer(async (req, res) => {
       if (mechanicFrozen(user)) return frozenError(res);
       const biz = myBusiness(user.id);
       if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
-      const { type, customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin } = await parseBody(req);
+      const body = await parseBody(req);
+      const { type } = body;
       if (!['estimate', 'invoice', 'receipt'].includes(type)) return sendJson(res, 400, { error: 'Pick estimate, invoice, or receipt.' });
-      if (!customerName || !Array.isArray(items) || !items.length) return sendJson(res, 400, { error: 'Customer name and at least one line item are required.' });
-      let ticketVin = '';
-      if (vin && String(vin).trim()) {
-        ticketVin = cleanVin(vin);
-        if (!ticketVin) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
-      }
-      if ((type === 'invoice' || type === 'receipt') && !ticketVin)
-        return sendJson(res, 400, { error: 'A VIN is required on invoices and receipts.' });
-      const cleanItems = items.slice(0, 50)
-        .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), qty: Math.max(0, Number(it.qty) || 0), price: Math.max(0, Number(it.price) || 0) }))
-        .filter(it => it.desc && it.qty > 0 && it.price >= 0);
-      if (!cleanItems.length) return sendJson(res, 400, { error: 'Add at least one line item with a quantity and price.' });
-      const r2 = n => Math.round(n * 100) / 100;
-      const partsSubtotal = r2(cleanItems.reduce((s, it) => s + it.qty * it.price, 0));
-      const labor = { desc: String(laborDesc || '').trim().slice(0, 200), amount: r2(Math.max(0, Number(laborAmount) || 0)) };
-      const rate = Math.max(0, Math.min(100, Number(taxRate) || 0));
-      const taxable = r2(partsSubtotal + labor.amount);
-      const taxAmount = r2(taxable * rate / 100);
-      const total = r2(partsSubtotal + labor.amount + taxAmount);
+      const clean = cleanTicketBody(body, type);
+      if (clean.error) return sendJson(res, 400, { error: clean.error });
       const tickets = ticketsStore.read();
-      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, customerName: String(customerName).trim().slice(0, 120), vehicle: String(vehicle || '').trim().slice(0, 120), vin: ticketVin, items: cleanItems, laborDesc: labor.desc, laborAmount: labor.amount, taxRate: rate, subtotal: partsSubtotal, taxAmount, notes: String(notes || '').trim().slice(0, 1000), warranty: String(warranty || '').trim().slice(0, 2000), total, createdAt: new Date().toISOString() };
+      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, ...clean, createdAt: new Date().toISOString() };
       tickets.push(ticket); ticketsStore.write(tickets);
       return sendJson(res, 201, { ticket });
+    }
+    const ticketUpdate = p.match(/^\/api\/tickets\/([0-9a-f-]+)$/);
+    if (ticketUpdate && (req.method === 'PUT' || req.method === 'PATCH')) {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
+      const tickets = ticketsStore.read();
+      const t = tickets.find(x => x.id === ticketUpdate[1] && x.mechanicId === user.id);
+      if (!t) return sendJson(res, 404, { error: 'Not found.' });
+      if (t.type === 'receipt') return sendJson(res, 400, { error: 'Paid receipts cannot be edited.' });
+      const body = await parseBody(req);
+      const clean = cleanTicketBody(body, t.type);
+      if (clean.error) return sendJson(res, 400, { error: clean.error });
+      Object.assign(t, clean, { updatedAt: new Date().toISOString() });
+      ticketsStore.write(tickets);
+      return sendJson(res, 200, { ticket: t });
     }
     if (p === '/api/tickets/me' && req.method === 'GET') {
       const user = getSessionUser(req);
