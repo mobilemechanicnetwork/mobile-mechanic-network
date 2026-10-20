@@ -62,10 +62,11 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;
         <div><span>Vehicle</span>${esc(t.vehicle || '—')}</div>
         ${t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : ''}
         <div><span>Ticket</span>#${esc(t.id.slice(0, 8))}</div>
-        ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}</div>` : ''}
+        ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}${t.paymentMethod ? ' via ' + esc(t.paymentMethod) : ''}</div>` : ''}
       </div>
       <table>${headRow}${itemRows}${subRow}${laborRow}${taxRow}</table>
       <div class="total">Total: ${money(t.total)}</div>
+      ${t.type === 'receipt' && t.paidAt ? `<div class="total">Balance due: $0.00</div>` : ''}
       ${t.notes ? `<div class="notes"><strong>Notes:</strong> ${esc(t.notes)}</div>` : ''}
       ${t.warranty ? `<div class="notes"><strong>Warranty:</strong> ${esc(t.warranty)}</div>` : ''}
       <div class="foot">Prepared by ${esc(b ? b.name : '')}${b && b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network</div>`;
