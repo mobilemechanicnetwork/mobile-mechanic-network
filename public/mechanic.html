@@ -394,8 +394,7 @@ async function loadTickets() {
     <div class="muted">${esc(t.customerName)}${t.vehicle ? ' · ' + esc(t.vehicle) : ''} · ${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() + (t.paymentMethod ? ' via ' + esc(t.paymentMethod) : '') : ''}</div>
     <p><a href="/ticket?id=${t.id}" target="_blank"><button class="ghost" type="button">View / Print</button></a>
     ${t.type === 'estimate' ? `<button class="primary" data-convertticket="${t.id}" data-hasvin="${t.vin ? '1' : ''}">Convert to invoice</button>` : ''}
-    ${t.type === 'invoice' ? `<button class="primary" data-paidticket="${t.id}">Mark as paid</button>` : ''}
-    <button class="danger" data-delticket="${t.id}">Delete</button></p>
+    ${t.type === 'invoice' ? `<button class="primary" data-paidticket="${t.id}">Mark as paid</button>` : ''}</p>
   </div>`).join('') : '<p class="muted">No tickets yet.</p>';
   document.querySelectorAll('[data-convertticket]').forEach(b => {
     b.onclick = async () => {
@@ -417,9 +416,6 @@ async function loadTickets() {
       try { await post('/api/tickets/' + b.dataset.paidticket + '/paid', { paymentMethod: pm.trim() }); loadTickets(); }
       catch (e) { alert(e.message); }
     };
-  });
-  document.querySelectorAll('[data-delticket]').forEach(b => {
-    b.onclick = async () => { if (!confirm('Delete this ticket?')) return; await api('/api/tickets/' + b.dataset.delticket, { method: 'DELETE' }); loadTickets(); };
   });
 }
 $('ticket-form').onsubmit = async (e) => {
