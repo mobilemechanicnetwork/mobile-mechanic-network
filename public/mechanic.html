@@ -47,7 +47,7 @@
 <body>
 <main>
   <div class="top">
-    <div><h1 id="hello">My shop</h1><div class="muted"><a href="#" id="portal-home">Home</a> · <a href="#" id="logout">Sign out</a></div></div>
+    <div><h1 id="hello">My shop</h1><div class="muted"><a href="#" id="portal-home">Home</a> · <span id="adminLink"></span><a href="#" id="logout">Sign out</a></div></div>
   </div>
   <div class="tabs noprint">
     <button data-tab="requests" class="active">Requests</button>
@@ -366,6 +366,7 @@ async function loadBilling() {
   if (!me || !me.user) { location.href = '/account'; return; }
   if (me.user.role !== 'mechanic') { location.href = '/dashboard'; return; }
   $('hello').textContent = 'My shop — ' + me.user.name;
+  if (me.user.isAdmin) $('adminLink').innerHTML = '<a href="/admin">Admin</a> · ';
   if (me.user.frozen) {
     const banner = document.createElement('div');
     banner.className = 'card';
