@@ -39,6 +39,16 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;
     if (!r.ok) throw new Error('Ticket not found.');
     const { ticket: t, business: b } = await r.json();
     const money = n => '$' + Number(n).toFixed(2);
+    const isNew = t.items && t.items.length && t.items[0].qty !== undefined;
+    const itemRows = (t.items || []).map(i => isNew
+      ? `<tr><td>${esc(i.desc)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`
+      : `<tr><td>${esc(i.desc)}</td><td class="num">${money(i.amount)}</td></tr>`).join('');
+    const headRow = isNew
+      ? `<tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr>`
+      : `<tr><th>Description</th><th class="num">Amount</th></tr>`;
+    const laborRow = (t.laborAmount > 0) ? `<tr><td>Labor${t.laborDesc ? ' — ' + esc(t.laborDesc) : ''}</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.laborAmount)}</td></tr>` : '';
+    const taxRow = (t.taxAmount > 0) ? `<tr><td>Tax (${esc(t.taxRate)}%)</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.taxAmount)}</td></tr>` : '';
+    const subRow = (isNew && (t.laborAmount > 0 || t.taxAmount > 0)) ? `<tr><td>Parts subtotal</td><td class="num"></td><td class="num"></td><td class="num">${money(t.subtotal)}</td></tr>` : '';
     box.innerHTML = `
       <div class="head">
         ${b && b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
@@ -52,9 +62,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;
         <div><span>Vehicle</span>${esc(t.vehicle || '—')}</div>
         <div><span>Ticket</span>#${esc(t.id.slice(0, 8))}</div>
       </div>
-      <table><tr><th>Description</th><th class="num">Amount</th></tr>
-      ${t.items.map(i => `<tr><td>${esc(i.desc)}</td><td class="num">${money(i.amount)}</td></tr>`).join('')}
-      </table>
+      <table>${headRow}${itemRows}${subRow}${laborRow}${taxRow}</table>
       <div class="total">Total: ${money(t.total)}</div>
       ${t.notes ? `<div class="notes"><strong>Notes:</strong> ${esc(t.notes)}</div>` : ''}
       <div class="foot">Prepared by ${esc(b ? b.name : '')}${b && b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network</div>`;
