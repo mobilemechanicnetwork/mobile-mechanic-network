@@ -34,6 +34,8 @@
     <input id="city" required>
     <label for="state">State</label>
     <input id="state" required maxlength="2">
+    <label for="zip">ZIP code (optional)</label>
+    <input id="zip" inputmode="numeric" maxlength="10" placeholder="e.g. 70460">
     <label for="description">What is going on with the vehicle?</label>
     <textarea id="description" rows="4" required></textarea>
     <label for="date">When do you need it? (optional)</label>
@@ -77,7 +79,7 @@
   })();
   document.getElementById('form').onsubmit = async (e) => {
     e.preventDefault(); err.textContent = ''; ok.textContent = '';
-    const body = { service: document.getElementById('service').value, vehicle: document.getElementById('vehicle').value, vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: document.getElementById('description').value, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: isUrgent };
+    const body = { service: document.getElementById('service').value, vehicle: document.getElementById('vehicle').value, vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: document.getElementById('description').value, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: isUrgent, zip: document.getElementById('zip').value };
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { err.textContent = d.error || 'Something went wrong.'; return; }

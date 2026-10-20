@@ -371,7 +371,7 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'owner') return sendJson(res, 403, { error: 'Only vehicle owner accounts can request quotes.' });
-      const { city, state, service, vehicle, description, phone, date, vin, urgent } = await parseBody(req);
+      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip } = await parseBody(req);
       if (!city || !state || !SERVICES.includes(service) || !vehicle || !description || !phone)
         return sendJson(res, 400, { error: 'City, state, service, vehicle, a description, and a phone number are required.' });
       let cleanVinValue = '';
@@ -380,7 +380,7 @@ const server = http.createServer(async (req, res) => {
         if (!cleanVinValue) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
       }
       const rows = requestsStore.read();
-      const row = { id: crypto.randomUUID(), ownerId: user.id, ownerName: user.name, phone: String(phone).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), status: 'open', urgent: urgent === true, createdAt: new Date().toISOString() };
+      const row = { id: crypto.randomUUID(), ownerId: user.id, ownerName: user.name, phone: String(phone).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), status: 'open', urgent: urgent === true, createdAt: new Date().toISOString() };
       rows.push(row); requestsStore.write(rows);
       const matches = businessesStore.read().filter(b => requestMatchesBusiness(row, b)).length;
       return sendJson(res, 201, { request: row, mechanicsNotified: matches });

@@ -26,7 +26,7 @@
 <body>
 <main>
   <h1>Mobile Mechanic Network</h1>
-  <p class="sub">Log in, or create your free account.</p>
+  <p class="sub" id="page-sub">Log in, or create your free account.</p>
 
   <div class="tabs">
     <button id="tab-login" class="active" type="button">Log in</button>
@@ -69,9 +69,18 @@
   const tabRegister = document.getElementById('tab-register');
   const formLogin = document.getElementById('form-login');
   const formRegister = document.getElementById('form-register');
+  const pageSub = document.getElementById('page-sub');
+  function syncSub() {
+    const login = !tabRegister.classList.contains('active');
+    const mechanic = document.querySelector('input[name="role"]:checked').value === 'mechanic';
+    pageSub.textContent = login ? 'Log in, or create your free account.'
+      : mechanic ? 'Create your account — first 90 days free.'
+      : 'Create your free account.';
+  }
   function show(which) {
     const login = which === 'login';    formLogin.hidden = !login; formRegister.hidden = login;
     tabLogin.classList.toggle('active', login); tabRegister.classList.toggle('active', !login);
+    syncSub();
   }
   tabLogin.onclick = () => show('login');
   tabRegister.onclick = () => show('register');
@@ -84,6 +93,7 @@
   document.querySelectorAll('input[name="role"]').forEach(r => {
     r.addEventListener('change', () => {
       document.getElementById('mech-promo').hidden = document.querySelector('input[name="role"]:checked').value !== 'mechanic';
+      syncSub();
     });
   });
   formLogin.onsubmit = async (e) => {
