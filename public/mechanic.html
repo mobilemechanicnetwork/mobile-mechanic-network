@@ -172,20 +172,42 @@ async function loadInbox() {
   box.innerHTML = inbox.requests.map(r => `<div class="card">
     <strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
     <p>${esc(r.description)}</p>
-    ${r.myQuote ? `<p class="ok">You quoted $${esc(r.myQuote.price)} (${esc(r.myQuote.status)}).</p>` : `
-    <form onsubmit="return sendQuote(event,'${r.id}')">
-      <label>Your price ($)</label><input name="price" type="number" min="1" step="0.01" required style="max-width:180px">
-      <label>Message (optional)</label><input name="message">
-      <p><button class="primary" type="submit">Send quote</button></p>
-    </form>`}
+    ${r.myQuote ? `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p>` : `
+    <div id="qb-${r.id}">
+      <p style="margin:8px 0 4px"><strong>Build your itemized quote</strong> <span class="muted">— sent under your business name</span></p>
+      <div id="qi-${r.id}"></div>
+      <p style="margin:6px 0"><button type="button" class="ghost" onclick="addQuoteRow('${r.id}')">+ Add line item</button></p>
+      <label>Notes (optional)</label><input id="qn-${r.id}" placeholder="e.g. Parts are OEM, labor includes diagnostic">
+      <p style="margin:8px 0"><strong>Total: $<span id="qt-${r.id}">0.00</span></strong></p>
+      <p><button class="primary" type="button" onclick="sendItemizedQuote('${r.id}')">Send quote</button></p>
+    </div>`}
   </div>`).join('');
+  inbox.requests.forEach(r => { if (!r.myQuote) addQuoteRow(r.id); });
 }
-window.sendQuote = async (e, requestId) => {
-  e.preventDefault();
-  const f = e.target;
-  try { await post('/api/quotes', { requestId, price: f.price.value, message: f.message.value }); loadInbox(); }
-  catch (ex) { alert(ex.message); }
-  return false;
+window.addQuoteRow = (rid) => {
+  const wrap = document.getElementById('qi-' + rid);
+  if (!wrap) return;
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;margin:6px 0';
+  row.innerHTML = `<input placeholder="Description (e.g. Brake pads — parts)" style="flex:2" aria-label="Line item description"><input type="number" min="0.01" step="0.01" placeholder="$" style="flex:1;max-width:110px" aria-label="Line item amount"><button type="button" class="ghost" aria-label="Remove line item">✕</button>`;
+  const ins = row.querySelectorAll('input');
+  ins.forEach(i => i.oninput = () => updateQuoteTotal(rid));
+  row.querySelector('button').onclick = () => { row.remove(); updateQuoteTotal(rid); };
+  wrap.appendChild(row);
+};
+window.updateQuoteTotal = (rid) => {
+  let t = 0;
+  document.querySelectorAll('#qi-' + rid + ' input[type="number"]').forEach(i => { t += Number(i.value) || 0; });
+  document.getElementById('qt-' + rid).textContent = t.toFixed(2);
+};
+window.sendItemizedQuote = async (rid) => {
+  const items = [];
+  document.querySelectorAll('#qi-' + rid + ' > div').forEach(row => {
+    const ins = row.querySelectorAll('input');
+    items.push({ desc: ins[0].value, amount: ins[1].value });
+  });
+  try { await post('/api/quotes', { requestId: rid, items, notes: document.getElementById('qn-' + rid).value }); loadInbox(); }
+  catch (e) { alert(e.message); }
 };
 
 /* ---------- Business profile ---------- */

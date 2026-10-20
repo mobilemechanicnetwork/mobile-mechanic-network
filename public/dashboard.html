@@ -99,8 +99,9 @@
       <strong>${r.service}</strong> — ${r.vehicle}<div class="muted">${r.city}, ${r.state} · ${new Date(r.createdAt).toLocaleDateString()}${r.date ? ' · Needed by ' + r.date : ''} · ${pill(r.status)}</div>
       <p>${r.description}</p>
       ${r.quotes.length ? r.quotes.map(q => `<div class="card">
-        <span class="price">$${q.price}</span> from <strong>${q.businessName}</strong> <span class="muted">(${q.businessCity})</span>
-        ${q.message ? `<p>${q.message}</p>` : ''}
+        <div>${q.businessLogo ? `<img src="${q.businessLogo}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}<strong>${q.businessName}</strong> <span class="muted">(${q.businessCity})</span>${q.businessPhone ? ` · <a href="tel:${q.businessPhone.replace(/[^+\d]/g, '')}">${q.businessPhone}</a>` : ''}</div>
+        ${(q.items && q.items.length) ? `<div style="margin:10px 0">${q.items.map(i => `<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid #1e293b"><span>${i.desc}</span><span>$${Number(i.amount).toFixed(2)}</span></div>`).join('')}<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;font-weight:700"><span>Total</span><span>$${Number(q.total != null ? q.total : q.price).toFixed(2)}</span></div></div>` : `<div style="margin:10px 0"><span class="price">$${q.price}</span></div>`}
+        ${q.notes ? `<p>${q.notes}</p>` : ''}${q.message ? `<p>${q.message}</p>` : ''}
         <div class="muted">Quote: ${q.status}</div>
         ${q.status === 'pending' && r.status === 'open' ? `<button onclick="actQuote('${q.id}','accept')">Accept</button> <button class="decline" onclick="actQuote('${q.id}','decline')">Decline</button>` : ''}
       </div>`).join('') : '<p class="muted">No quotes yet.</p>'}
@@ -136,20 +137,42 @@
     box.innerHTML = inbox.requests.map(r => `<div class="card">
       <strong>${r.service}</strong> — ${r.vehicle}<div class="muted">${r.city}, ${r.state} · ${r.ownerName}</div>
       <p>${r.description}</p>
-      ${r.myQuote ? `<p class="ok">You quoted $${r.myQuote.price} (${r.myQuote.status}).</p>` : `
-      <form onsubmit="return sendQuote(event,'${r.id}')">
-        <label>Your price ($)</label><input name="price" type="number" min="1" step="0.01" required style="max-width:180px">
-        <label>Message (optional)</label><input name="message">
-        <p><button type="submit">Send quote</button></p>
-      </form>`}
+      ${r.myQuote ? `<p class="ok">You quoted $${r.myQuote.total != null ? r.myQuote.total : r.myQuote.price} (${r.myQuote.status}).</p>` : `
+      <div id="qb-${r.id}">
+        <p style="margin:8px 0 4px"><strong>Build your itemized quote</strong> <span class="muted">— sent under your business name</span></p>
+        <div id="qi-${r.id}"></div>
+        <p style="margin:6px 0"><button type="button" class="ghost" onclick="addQuoteRow('${r.id}')">+ Add line item</button></p>
+        <label>Notes (optional)</label><input id="qn-${r.id}">
+        <p style="margin:8px 0"><strong>Total: $<span id="qt-${r.id}">0.00</span></strong></p>
+        <p><button class="primary" type="button" onclick="sendItemizedQuote('${r.id}')">Send quote</button></p>
+      </div>`}
     </div>`).join('');
+    inbox.requests.forEach(r => { if (!r.myQuote) addQuoteRow(r.id); });
   }
-  window.sendQuote = async (e, requestId) => {
-    e.preventDefault();
-    const f = e.target;
-    try { await post('/api/quotes', { requestId, price: f.price.value, message: f.message.value }); loadMechanic(); }
-    catch (ex) { alert(ex.message); }
-    return false;
+  window.addQuoteRow = (rid) => {
+    const wrap = document.getElementById('qi-' + rid);
+    if (!wrap) return;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;margin:6px 0';
+    row.innerHTML = `<input placeholder="Description (e.g. Brake pads — parts)" style="flex:2"><input type="number" min="0.01" step="0.01" placeholder="$" style="flex:1;max-width:110px"><button type="button" class="ghost">✕</button>`;
+    const ins = row.querySelectorAll('input');
+    ins.forEach(i => i.oninput = () => updateQuoteTotal(rid));
+    row.querySelector('button').onclick = () => { row.remove(); updateQuoteTotal(rid); };
+    wrap.appendChild(row);
+  };
+  window.updateQuoteTotal = (rid) => {
+    let t = 0;
+    document.querySelectorAll('#qi-' + rid + ' input[type="number"]').forEach(i => { t += Number(i.value) || 0; });
+    document.getElementById('qt-' + rid).textContent = t.toFixed(2);
+  };
+  window.sendItemizedQuote = async (rid) => {
+    const items = [];
+    document.querySelectorAll('#qi-' + rid + ' > div').forEach(row => {
+      const ins = row.querySelectorAll('input');
+      items.push({ desc: ins[0].value, amount: ins[1].value });
+    });
+    try { await post('/api/quotes', { requestId: rid, items, notes: document.getElementById('qn-' + rid).value }); loadMechanic(); }
+    catch (e) { alert(e.message); }
   };
   async function uploadImage(kind, input) {
     if (!input.files.length) return null;
