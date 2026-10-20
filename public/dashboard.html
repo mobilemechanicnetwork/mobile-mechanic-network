@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My dashboard — Mobile Mechanic Network</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:0;background:#0b1220;color:#e8eef7}
+  main{max-width:760px;margin:4vh auto;padding:24px}
+  h1{font-size:1.5rem} h2{font-size:1.15rem;margin-top:32px} a{color:#93c5fd}
+  .muted{color:#9fb3c8;font-size:.9rem}
+  .card{border:1px solid #334155;border-radius:10px;padding:16px;margin:12px 0;background:#0f1a2e}
+  label{display:block;margin:12px 0 6px;font-size:.9rem;color:#c7d5e8}
+  input,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0b1220;color:#fff;box-sizing:border-box}
+  button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:9px 16px;cursor:pointer}
+  button.ghost{background:transparent;border:1px solid #334155}
+  button.decline{background:transparent;border:1px solid #7f1d1d;color:#fca5a5}
+  .checks label{display:inline-block;margin:4px 10px 4px 0}
+  .err{color:#fca5a5;font-size:.9rem} .ok{color:#86efac;font-size:.9rem}
+  .price{font-size:1.2rem;font-weight:700}
+</style>
+</head>
+<body>
+<main>
+  <h1 id="hello">My dashboard</h1>
+  <p class="muted" id="who"></p>
+  <p><a href="/">Home</a> · <a href="/mechanics">Find a mobile mechanic</a> · <a href="#" id="logout">Log out</a></p>
+
+  <section id="owner" hidden>
+    <p><a href="/request"><button type="button">Request quotes</button></a></p>
+    <h2>My requests</h2>
+    <div id="my-requests"></div>
+  </section>
+
+  <section id="mechanic" hidden>
+    <h2>My business page</h2>
+    <form id="biz-form">
+      <label for="b-name">Business name</label><input id="b-name" required>
+      <label for="b-city">City you are based in</label><input id="b-city" required>
+      <label for="b-state">State</label><input id="b-state" required maxlength="2" placeholder="LA">
+      <label for="b-cities">Other cities you serve (separate with commas). Requests are only sent to you for cities you serve. Your base city is always included.</label><textarea id="b-cities" rows="2" placeholder="Covington, Mandeville, Pearl River"></textarea>
+      <label>Services you offer</label>
+      <div class="checks" id="b-services"></div>
+      <label for="b-about">About your business</label><textarea id="b-about" rows="3"></textarea>
+      <label><input type="checkbox" id="b-published" style="width:auto"> Published (visible in search, can receive requests)</label>
+      <button type="submit">Save business page</button>
+      <div class="err" id="b-err"></div><div class="ok" id="b-ok"></div>
+    </form>
+    <h2>Requests in your area</h2>
+    <div id="inbox"></div>
+  </section>
+</main>
+<script>
+  const $ = id => document.getElementById(id);
+  let SERVICES = [];
+  async function api(url, opts) { const r = await fetch(url, opts); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Something went wrong.'); return d; }
+  async function post(url, body) { return api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+
+  $('logout').onclick = async (e) => { e.preventDefault(); await fetch('/api/logout', { method: 'POST' }); location.href = '/'; };
+
+  async function loadOwner() {
+    const d = await api('/api/requests/mine');
+    const box = $('my-requests');
+    if (!d.requests.length) { box.innerHTML = '<p class="muted">No requests yet. Send your first request and mechanics in your area can quote it.</p>'; return; }
+    box.innerHTML = d.requests.map(r => `<div class="card">
+      <strong>${r.service}</strong> — ${r.vehicle}<div class="muted">${r.city}, ${r.state} · Status: ${r.status}</div>
+      <p>${r.description}</p>
+      ${r.quotes.length ? r.quotes.map(q => `<div class="card">
+        <span class="price">$${q.price}</span> from <strong>${q.businessName}</strong> <span class="muted">(${q.businessCity})</span>
+        ${q.message ? `<p>${q.message}</p>` : ''}
+        <div class="muted">Status: ${q.status}</div>
+        ${q.status === 'pending' && r.status === 'open' ? `<button onclick="actQuote('${q.id}','accept')">Accept</button> <button class="decline" onclick="actQuote('${q.id}','decline')">Decline</button>` : ''}
+      </div>`).join('') : '<p class="muted">No quotes yet.</p>'}
+    </div>`).join('');
+  }
+  window.actQuote = async (id, action) => { try { await post(`/api/quotes/${id}/${action}`, {}); loadOwner(); } catch (e) { alert(e.message); } };
+
+  async function loadMechanic() {
+    const checks = $('b-services');
+    checks.innerHTML = SERVICES.map(s => `<label><input type="checkbox" value="${s}" style="width:auto"> ${s}</label>`).join('');
+    const d = await api('/api/business/me');
+    if (d.business) {
+      $('b-name').value = d.business.name; $('b-city').value = d.business.city; $('b-state').value = d.business.state; $('b-cities').value = (d.business.serviceCities || []).join(', '); $('b-about').value = d.business.about || ''; $('b-published').checked = true;
+      checks.querySelectorAll('input').forEach(c => { c.checked = d.business.services.includes(c.value); });
+    }
+    const inbox = await api('/api/requests/inbox');
+    const box = $('inbox');
+    if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Publish your business page above to start receiving requests in your area.</p>'; return; }
+    if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
+    box.innerHTML = inbox.requests.map(r => `<div class="card">
+      <strong>${r.service}</strong> — ${r.vehicle}<div class="muted">${r.city}, ${r.state} · ${r.ownerName}</div>
+      <p>${r.description}</p>
+      ${r.myQuote ? `<p class="ok">You quoted $${r.myQuote.price} (${r.myQuote.status}).</p>` : `
+      <form onsubmit="return sendQuote(event,'${r.id}')">
+        <label>Your price ($)</label><input name="price" type="number" min="1" step="0.01" required style="max-width:180px">
+        <label>Message (optional)</label><input name="message">
+        <p><button type="submit">Send quote</button></p>
+      </form>`}
+    </div>`).join('');
+  }
+  window.sendQuote = async (e, requestId) => {
+    e.preventDefault();
+    const f = e.target;
+    try { await post('/api/quotes', { requestId, price: f.price.value, message: f.message.value }); loadMechanic(); }
+    catch (ex) { alert(ex.message); }
+    return false;
+  };
+  $('biz-form').onsubmit = async (e) => {
+    e.preventDefault(); $('b-err').textContent = ''; $('b-ok').textContent = '';
+    const services = [...$('b-services').querySelectorAll('input:checked')].map(c => c.value);
+    try {
+      await post('/api/business', { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, published: $('b-published').checked });
+      $('b-ok').textContent = 'Saved.'; loadMechanic();
+    } catch (ex) { $('b-err').textContent = ex.message; }
+  };
+
+  (async () => {
+    const me = await api('/api/me').catch(() => null);
+    if (!me) { location.href = '/account'; return; }
+    $('hello').textContent = 'Welcome, ' + me.user.name;
+    $('who').textContent = me.user.email + ' · ' + (me.user.role === 'mechanic' ? 'Mobile mechanic' : 'Vehicle owner');
+    SERVICES = (await api('/api/services')).services;
+    if (me.user.role === 'mechanic') { $('mechanic').hidden = false; loadMechanic(); }
+    else { $('owner').hidden = false; loadOwner(); }
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log in / Create account — Mobile Mechanic Network</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:0;background:#0b1220;color:#e8eef7}
+  main{max-width:420px;margin:6vh auto;padding:24px}
+  h1{font-size:1.4rem;margin-bottom:4px} p.sub{color:#9fb3c8;margin-top:0}
+  .tabs{display:flex;gap:8px;margin:20px 0}
+  .tabs button{flex:1;padding:10px;border-radius:8px;border:1px solid #334155;background:#111c30;color:#e8eef7;cursor:pointer}
+  .tabs button.active{background:#2563eb;border-color:#2563eb;color:#fff}
+  label{display:block;margin:14px 0 6px;font-size:.9rem;color:#c7d5e8}
+  input,select{width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f1a2e;color:#fff;box-sizing:border-box}
+  button.submit{width:100%;margin-top:20px;background:#2563eb;color:#fff;border:0;border-radius:8px;padding:12px;cursor:pointer;font-size:1rem}
+  .err{color:#fca5a5;min-height:1.2em;margin-top:12px;font-size:.9rem}
+  .roles{display:flex;gap:8px}
+  .roles label{flex:1;border:1px solid #334155;border-radius:8px;padding:10px;text-align:center;cursor:pointer;margin:0}
+  .roles input{display:none}
+  .roles input:checked + span{color:#fff;font-weight:600}
+  .roles label:has(input:checked){background:#1e3a8a;border-color:#2563eb}
+  a{color:#93c5fd}
+</style>
+</head>
+<body>
+<main>
+  <h1>Mobile Mechanic Network</h1>
+  <p class="sub">Log in, or create your free account.</p>
+
+  <div class="tabs">
+    <button id="tab-login" class="active" type="button">Log in</button>
+    <button id="tab-register" type="button">Create account</button>
+  </div>
+
+  <form id="form-login">
+    <label for="li-email">Email</label>
+    <input id="li-email" type="email" required autocomplete="email">
+    <label for="li-password">Password</label>
+    <input id="li-password" type="password" required autocomplete="current-password">
+    <button class="submit" type="submit">Log in</button>
+    <div class="err" id="err-login"></div>
+  </form>
+
+  <form id="form-register" hidden>
+    <label>I am a</label>
+    <div class="roles">
+      <label><input type="radio" name="role" value="owner" checked><span>Vehicle owner</span></label>
+      <label><input type="radio" name="role" value="mechanic"><span>Mobile mechanic</span></label>
+    </div>
+    <label for="rg-name">Full name</label>
+    <input id="rg-name" type="text" required autocomplete="name">
+    <label for="rg-email">Email</label>
+    <input id="rg-email" type="email" required autocomplete="email">
+    <label for="rg-password">Password (8+ characters)</label>
+    <input id="rg-password" type="password" required minlength="8" autocomplete="new-password">
+    <button class="submit" type="submit">Create account</button>
+    <div class="err" id="err-register"></div>
+  </form>
+
+  <p><a href="/">Back to the home page</a></p>
+</main>
+<script>
+  const tabLogin = document.getElementById('tab-login');
+  const tabRegister = document.getElementById('tab-register');
+  const formLogin = document.getElementById('form-login');
+  const formRegister = document.getElementById('form-register');
+  function show(which) {
+    const login = which === 'login';
+    formLogin.hidden = !login; formRegister.hidden = login;
+    tabLogin.classList.toggle('active', login); tabRegister.classList.toggle('active', !login);
+  }
+  tabLogin.onclick = () => show('login');
+  tabRegister.onclick = () => show('register');
+  async function post(url, body) {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Something went wrong.');
+    return data;
+  }
+  formLogin.onsubmit = async (e) => {
+    e.preventDefault();
+    const err = document.getElementById('err-login'); err.textContent = '';
+    try {
+      await post('/api/login', { email: document.getElementById('li-email').value, password: document.getElementById('li-password').value });
+      location.href = '/dashboard';
+    } catch (ex) { err.textContent = ex.message; }
+  };
+  formRegister.onsubmit = async (e) => {
+    e.preventDefault();
+    const err = document.getElementById('err-register'); err.textContent = '';
+    try {
+      await post('/api/register', {
+        name: document.getElementById('rg-name').value,
+        email: document.getElementById('rg-email').value,
+        password: document.getElementById('rg-password').value,
+        role: document.querySelector('input[name="role"]:checked').value,
+      });
+      location.href = '/dashboard';
+    } catch (ex) { err.textContent = ex.message; }
+  };
+</script>
+</body>
+</html>
