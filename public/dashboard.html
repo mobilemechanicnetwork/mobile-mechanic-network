@@ -42,6 +42,11 @@
       <label>Services you offer</label>
       <div class="checks" id="b-services"></div>
       <label for="b-about">About your business</label><textarea id="b-about" rows="3"></textarea>
+      <label for="b-phone">Business phone number (shown on your public listing so customers can call you)</label><input id="b-phone" type="tel" placeholder="(504) 555-0100">
+      <label for="b-logo">Logo</label><input id="b-logo" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+      <img id="b-logo-preview" alt="Logo preview" style="max-width:120px;display:none;margin:6px 0;border-radius:8px">
+      <label for="b-cover">Cover photo</label><input id="b-cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+      <img id="b-cover-preview" alt="Cover preview" style="max-width:100%;display:none;margin:6px 0;border-radius:8px">
       <label><input type="checkbox" id="b-published" style="width:auto"> Published (visible in search, can receive requests)</label>
       <button type="submit">Save business page</button>
       <div class="err" id="b-err"></div><div class="ok" id="b-ok"></div>
@@ -80,8 +85,10 @@
     checks.innerHTML = SERVICES.map(s => `<label><input type="checkbox" value="${s}" style="width:auto"> ${s}</label>`).join('');
     const d = await api('/api/business/me');
     if (d.business) {
-      $('b-name').value = d.business.name; $('b-city').value = d.business.city; $('b-state').value = d.business.state; $('b-cities').value = (d.business.serviceCities || []).join(', '); $('b-about').value = d.business.about || ''; $('b-published').checked = true;
+      $('b-name').value = d.business.name; $('b-city').value = d.business.city; $('b-state').value = d.business.state; $('b-cities').value = (d.business.serviceCities || []).join(', '); $('b-about').value = d.business.about || ''; $('b-phone').value = d.business.phone || ''; $('b-published').checked = true;
       checks.querySelectorAll('input').forEach(c => { c.checked = d.business.services.includes(c.value); });
+      if (d.business.logoUrl) { $('b-logo-preview').src = d.business.logoUrl; $('b-logo-preview').style.display = 'block'; }
+      if (d.business.coverUrl) { $('b-cover-preview').src = d.business.coverUrl; $('b-cover-preview').style.display = 'block'; }
     }
     const inbox = await api('/api/requests/inbox');
     const box = $('inbox');
@@ -105,11 +112,28 @@
     catch (ex) { alert(ex.message); }
     return false;
   };
+  async function uploadImage(kind, input) {
+    if (!input.files.length) return null;
+    const fd = new FormData();
+    fd.append('kind', kind);
+    fd.append('file', input.files[0]);
+    const r = await fetch('/api/upload', { method: 'POST', body: fd });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Image upload failed.');
+    return d.url;
+  }
+  $('b-logo').onchange = () => { const f = $('b-logo').files[0]; if (f) { $('b-logo-preview').src = URL.createObjectURL(f); $('b-logo-preview').style.display = 'block'; } };
+  $('b-cover').onchange = () => { const f = $('b-cover').files[0]; if (f) { $('b-cover-preview').src = URL.createObjectURL(f); $('b-cover-preview').style.display = 'block'; } };
   $('biz-form').onsubmit = async (e) => {
     e.preventDefault(); $('b-err').textContent = ''; $('b-ok').textContent = '';
     const services = [...$('b-services').querySelectorAll('input:checked')].map(c => c.value);
     try {
-      await post('/api/business', { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, published: $('b-published').checked });
+      const logoUrl = await uploadImage('logo', $('b-logo'));
+      const coverUrl = await uploadImage('cover', $('b-cover'));
+      const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked };
+      if (logoUrl) body.logoUrl = logoUrl;
+      if (coverUrl) body.coverUrl = coverUrl;
+      await post('/api/business', body);
       $('b-ok').textContent = 'Saved.'; loadMechanic();
     } catch (ex) { $('b-err').textContent = ex.message; }
   };

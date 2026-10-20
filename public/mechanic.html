@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My shop — Mobile Mechanic Network</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0b1220;color:#e8eef7}
+  main{max-width:900px;margin:0 auto;padding:20px 16px 80px}
+  h1{font-size:1.4rem;margin:0 0 4px}
+  .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  .muted{color:#9fb3c8;font-size:.9rem}
+  a{color:#93c5fd}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0}
+  .tabs button{background:#0f1a2e;border:1px solid #334155;color:#c7d5e8;border-radius:999px;padding:9px 16px;cursor:pointer;font-size:.9rem}
+  .tabs button.active{background:#2563eb;border-color:#2563eb;color:#fff}
+  section.tab{display:none}
+  section.tab.active{display:block}
+  label{display:block;margin:12px 0 4px;font-size:.9rem;color:#c7d5e8}
+  input,select,textarea{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f1a2e;color:#fff;font-size:1rem}
+  textarea{resize:vertical}
+  .checks{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0}
+  .checks label{display:flex;gap:8px;align-items:center;margin:0;font-size:.95rem}
+  .checks input{width:auto}
+  button.primary{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:11px 20px;cursor:pointer;font-size:1rem;margin-top:14px}
+  button.ghost{background:#1e293b;color:#e8eef7;border:1px solid #334155;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:.85rem}
+  button.danger{background:#7f1d1d;color:#fecaca;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:.85rem}
+  .card{border:1px solid #334155;border-radius:10px;padding:16px;margin:12px 0;background:#0f1a2e}
+  .card h3{margin:0 0 6px;font-size:1.05rem}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+  .row > div{flex:1;min-width:140px}
+  .err{color:#fca5a5;min-height:20px;font-size:.9rem}
+  .ok{color:#86efac;min-height:20px;font-size:.9rem}
+  .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px}
+  .gallery figure{margin:0;position:relative}
+  .gallery img{width:100%;height:120px;object-fit:cover;border-radius:8px;display:block}
+  .gallery button{position:absolute;top:6px;right:6px;padding:4px 10px}
+  .itemrow{display:flex;gap:8px;margin-bottom:8px}
+  .itemrow input:first-child{flex:2}
+  .itemrow input:last-child{flex:1}
+  .promo{border-left:4px solid #2563eb}
+  .thumb{max-width:120px;border-radius:8px;display:block;margin:6px 0}
+  .coverprev{max-width:100%;border-radius:8px;display:block;margin:6px 0}
+  @media print{ .noprint{display:none} }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div><h1 id="hello">My shop</h1><div class="muted"><a href="/">Home</a> · <a href="/mechanics">Public directory</a> · <a href="#" id="logout">Sign out</a></div></div>
+  </div>
+  <div class="tabs noprint">
+    <button data-tab="requests" class="active">Requests</button>
+    <button data-tab="profile">Business profile</button>
+    <button data-tab="promos">Promotions</button>
+    <button data-tab="photos">Photos</button>
+    <button data-tab="tickets">Tickets</button>
+  </div>
+
+  <section class="tab active" id="tab-requests">
+    <h2>Requests in your area</h2>
+    <div id="inbox"></div>
+  </section>
+
+  <section class="tab" id="tab-profile">
+    <h2>Business profile</h2>
+    <form id="biz-form">
+      <label for="b-name">Business name</label><input id="b-name" required>
+      <label for="b-city">City you are based in</label><input id="b-city" required>
+      <label for="b-state">State</label><input id="b-state" required maxlength="2" placeholder="LA">
+      <label for="b-cities">Other cities you serve (separate with commas). Requests are only sent to you for cities you serve. Your base city is always included.</label><textarea id="b-cities" rows="2" placeholder="Covington, Mandeville, Pearl River"></textarea>
+      <label>Services you offer</label>
+      <div class="checks" id="b-services"></div>
+      <label for="b-about">About your business</label><textarea id="b-about" rows="3"></textarea>
+      <label for="b-phone">Business phone number (shown on your public listing so customers can call you)</label><input id="b-phone" type="tel" placeholder="(504) 555-0100">
+      <label for="b-logo">Logo</label><input id="b-logo" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+      <img id="b-logo-preview" class="thumb" alt="Logo preview" style="display:none">
+      <label for="b-cover">Cover photo</label><input id="b-cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+      <img id="b-cover-preview" class="coverprev" alt="Cover preview" style="display:none">
+      <label><input type="checkbox" id="b-published" style="width:auto"> Published (visible in search, can receive requests)</label>
+      <button class="primary" type="submit">Save business page</button>
+      <div class="err" id="b-err"></div><div class="ok" id="b-ok"></div>
+    </form>
+  </section>
+
+  <section class="tab" id="tab-promos">
+    <h2>Promotions</h2>
+    <p class="muted">Specials and deals shown on your public listing.</p>
+    <form id="promo-form">
+      <label for="p-title">Title</label><input id="p-title" required maxlength="120" placeholder="$20 off brake jobs">
+      <label for="p-desc">Description</label><textarea id="p-desc" rows="2" required maxlength="500"></textarea>
+      <label for="p-valid">Valid until (optional)</label><input id="p-valid" maxlength="60" placeholder="End of December">
+      <button class="primary" type="submit">Add promotion</button>
+      <div class="err" id="p-err"></div><div class="ok" id="p-ok"></div>
+    </form>
+    <div id="promo-list"></div>
+  </section>
+
+  <section class="tab" id="tab-photos">
+    <h2>Photo gallery</h2>
+    <p class="muted">Show off your work. JPG, PNG, WebP or GIF, under 5 MB each.</p>
+    <input id="g-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+    <div><button class="primary" id="g-upload" type="button">Upload photo</button></div>
+    <div class="err" id="g-err"></div><div class="ok" id="g-ok"></div>
+    <div class="gallery" id="gallery"></div>
+  </section>
+
+  <section class="tab" id="tab-tickets">
+    <h2>Tickets</h2>
+    <p class="muted">Create estimates, invoices, and receipts branded with your logo and contact info. Open a ticket to print or save it as a PDF.</p>
+    <form id="ticket-form">
+      <div class="row">
+        <div><label for="t-type">Type</label><select id="t-type"><option value="estimate">Estimate</option><option value="invoice">Invoice</option><option value="receipt">Receipt</option></select></div>
+        <div><label for="t-customer">Customer name</label><input id="t-customer" required></div>
+      </div>
+      <label for="t-vehicle">Vehicle</label><input id="t-vehicle" placeholder="2019 Ford F-150">
+      <label>Line items</label>
+      <div id="t-items"></div>
+      <div><button class="ghost" type="button" id="t-additem">+ Add line item</button></div>
+      <label for="t-notes">Notes (optional)</label><textarea id="t-notes" rows="2"></textarea>
+      <button class="primary" type="submit">Create ticket</button>
+      <div class="err" id="t-err"></div><div class="ok" id="t-ok"></div>
+    </form>
+    <div id="ticket-list"></div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function api(url, opts) { const r = await fetch(url, opts); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Something went wrong.'); return d; }
+async function post(url, body) { return api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+
+document.querySelectorAll('.tabs button').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('section.tab').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    $('tab-' + b.dataset.tab).classList.add('active');
+  };
+});
+$('logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout', {}); location.href = '/'; };
+
+let SERVICES = [];
+async function loadServices() {
+  const d = await api('/api/services');
+  SERVICES = d.services;
+  $('b-services').innerHTML = SERVICES.map(s => `<label><input type="checkbox" value="${esc(s)}"> ${esc(s)}</label>`).join('');
+}
+
+/* ---------- Requests inbox ---------- */
+async function loadInbox() {
+  const inbox = await api('/api/requests/inbox');
+  const box = $('inbox');
+  if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Publish your business page to start receiving requests in your area.</p>'; return; }
+  if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
+  box.innerHTML = inbox.requests.map(r => `<div class="card">
+    <strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}</div>
+    <p>${esc(r.description)}</p>
+    ${r.myQuote ? `<p class="ok">You quoted $${esc(r.myQuote.price)} (${esc(r.myQuote.status)}).</p>` : `
+    <form onsubmit="return sendQuote(event,'${r.id}')">
+      <label>Your price ($)</label><input name="price" type="number" min="1" step="0.01" required style="max-width:180px">
+      <label>Message (optional)</label><input name="message">
+      <p><button class="primary" type="submit">Send quote</button></p>
+    </form>`}
+  </div>`).join('');
+}
+window.sendQuote = async (e, requestId) => {
+  e.preventDefault();
+  const f = e.target;
+  try { await post('/api/quotes', { requestId, price: f.price.value, message: f.message.value }); loadInbox(); }
+  catch (ex) { alert(ex.message); }
+  return false;
+};
+
+/* ---------- Business profile ---------- */
+async function loadProfile() {
+  const d = await api('/api/business/me');
+  if (d.business) {
+    const b = d.business;
+    $('b-name').value = b.name; $('b-city').value = b.city; $('b-state').value = b.state;
+    $('b-cities').value = (b.serviceCities || []).join(', '); $('b-about').value = b.about || '';
+    $('b-phone').value = b.phone || ''; $('b-published').checked = !!b.published;
+    document.querySelectorAll('#b-services input').forEach(c => { c.checked = (b.services || []).includes(c.value); });
+    if (b.logoUrl) { $('b-logo-preview').src = b.logoUrl; $('b-logo-preview').style.display = 'block'; }
+    if (b.coverUrl) { $('b-cover-preview').src = b.coverUrl; $('b-cover-preview').style.display = 'block'; }
+    renderGallery(b.gallery || []);
+  }
+}
+async function uploadImage(kind, file) {
+  const fd = new FormData();
+  fd.append('kind', kind);
+  fd.append('file', file);
+  const r = await fetch('/api/upload', { method: 'POST', body: fd });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Image upload failed.');
+  return d.url;
+}
+$('b-logo').onchange = () => { const f = $('b-logo').files[0]; if (f) { $('b-logo-preview').src = URL.createObjectURL(f); $('b-logo-preview').style.display = 'block'; } };
+$('b-cover').onchange = () => { const f = $('b-cover').files[0]; if (f) { $('b-cover-preview').src = URL.createObjectURL(f); $('b-cover-preview').style.display = 'block'; } };
+$('biz-form').onsubmit = async (e) => {
+  e.preventDefault(); $('b-err').textContent = ''; $('b-ok').textContent = '';
+  const services = [...document.querySelectorAll('#b-services input:checked')].map(c => c.value);
+  try {
+    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked };
+    if ($('b-logo').files.length) body.logoUrl = await uploadImage('logo', $('b-logo').files[0]);
+    if ($('b-cover').files.length) body.coverUrl = await uploadImage('cover', $('b-cover').files[0]);
+    await post('/api/business', body);
+    $('b-ok').textContent = 'Saved.';
+    $('b-logo').value = ''; $('b-cover').value = '';
+    loadProfile(); loadInbox();
+  } catch (ex) { $('b-err').textContent = ex.message; }
+};
+
+/* ---------- Promotions ---------- */
+async function loadPromos() {
+  const d = await api('/api/promotions/me');
+  $('promo-list').innerHTML = d.promotions.length ? d.promotions.map(p => `<div class="card promo">
+    <h3>${esc(p.title)}</h3><p>${esc(p.description)}</p>
+    <div class="muted">${p.validUntil ? 'Valid: ' + esc(p.validUntil) + ' · ' : ''}Added ${new Date(p.createdAt).toLocaleDateString()}</div>
+    <p><button class="danger" data-delpromo="${p.id}">Delete</button></p>
+  </div>`).join('') : '<p class="muted">No promotions yet.</p>';
+  document.querySelectorAll('[data-delpromo]').forEach(b => {
+    b.onclick = async () => { if (!confirm('Delete this promotion?')) return; await api('/api/promotions/' + b.dataset.delpromo, { method: 'DELETE' }); loadPromos(); };
+  });
+}
+$('promo-form').onsubmit = async (e) => {
+  e.preventDefault(); $('p-err').textContent = ''; $('p-ok').textContent = '';
+  try {
+    await post('/api/promotions', { title: $('p-title').value, description: $('p-desc').value, validUntil: $('p-valid').value });
+    $('p-title').value = ''; $('p-desc').value = ''; $('p-valid').value = '';
+    $('p-ok').textContent = 'Promotion added.';
+    loadPromos();
+  } catch (ex) { $('p-err').textContent = ex.message; }
+};
+
+/* ---------- Photos ---------- */
+function renderGallery(urls) {
+  $('gallery').innerHTML = urls.length ? urls.map(u => `<figure><img src="${esc(u)}" alt="Shop photo"><button class="danger" data-delimg="${esc(u)}">Remove</button></figure>`).join('') : '<p class="muted">No photos yet.</p>';
+  document.querySelectorAll('[data-delimg]').forEach(b => {
+    b.onclick = async () => { if (!confirm('Remove this photo?')) return; await post('/api/gallery/remove', { url: b.dataset.delimg }); loadProfile(); };
+  });
+}
+$('g-upload').onclick = async () => {
+  $('g-err').textContent = ''; $('g-ok').textContent = '';
+  const f = $('g-file').files[0];
+  if (!f) { $('g-err').textContent = 'Choose a photo first.'; return; }
+  try {
+    await uploadImage('gallery', f);
+    $('g-file').value = '';
+    $('g-ok').textContent = 'Photo added.';
+    loadProfile();
+  } catch (ex) { $('g-err').textContent = ex.message; }
+};
+
+/* ---------- Tickets ---------- */
+function addItemRow(desc, amount) {
+  const div = document.createElement('div');
+  div.className = 'itemrow';
+  div.innerHTML = `<input placeholder="Description" value="${esc(desc || '')}" required><input type="number" placeholder="$" min="0" step="0.01" value="${amount || ''}" required><button class="danger" type="button">×</button>`;
+  div.querySelector('button').onclick = () => div.remove();
+  $('t-items').appendChild(div);
+}
+$('t-additem').onclick = () => addItemRow('', '');
+async function loadTickets() {
+  const d = await api('/api/tickets/me');
+  $('ticket-list').innerHTML = d.tickets.length ? d.tickets.map(t => `<div class="card">
+    <h3 style="text-transform:capitalize">${esc(t.type)} — $${esc(t.total)}</h3>
+    <div class="muted">${esc(t.customerName)}${t.vehicle ? ' · ' + esc(t.vehicle) : ''} · ${new Date(t.createdAt).toLocaleDateString()}</div>
+    <p><a href="/ticket?id=${t.id}" target="_blank"><button class="ghost" type="button">View / Print</button></a>
+    <button class="danger" data-delticket="${t.id}">Delete</button></p>
+  </div>`).join('') : '<p class="muted">No tickets yet.</p>';
+  document.querySelectorAll('[data-delticket]').forEach(b => {
+    b.onclick = async () => { if (!confirm('Delete this ticket?')) return; await api('/api/tickets/' + b.dataset.delticket, { method: 'DELETE' }); loadTickets(); };
+  });
+}
+$('ticket-form').onsubmit = async (e) => {
+  e.preventDefault(); $('t-err').textContent = ''; $('t-ok').textContent = '';
+  const rows = [...document.querySelectorAll('#t-items .itemrow')];
+  const items = rows.map(r => ({ desc: r.querySelectorAll('input')[0].value, amount: r.querySelectorAll('input')[1].value }));
+  try {
+    const d = await post('/api/tickets', { type: $('t-type').value, customerName: $('t-customer').value, vehicle: $('t-vehicle').value, items, notes: $('t-notes').value });
+    $('t-customer').value = ''; $('t-vehicle').value = ''; $('t-notes').value = '';
+    $('t-items').innerHTML = ''; addItemRow('', '');
+    $('t-ok').textContent = 'Ticket created.';
+    loadTickets();
+    window.open('/ticket?id=' + d.ticket.id, '_blank');
+  } catch (ex) { $('t-err').textContent = ex.message; }
+};
+
+/* ---------- init ---------- */
+(async () => {
+  const me = await api('/api/me').catch(() => null);
+  if (!me || !me.user) { location.href = '/account'; return; }
+  if (me.user.role !== 'mechanic') { location.href = '/dashboard'; return; }
+  $('hello').textContent = 'My shop — ' + me.user.name;
+  await loadServices();
+  await loadProfile();
+  await loadInbox();
+  await loadPromos();
+  await loadTickets();
+  addItemRow('', '');
+})();
+</script>
+</body>
+</html>

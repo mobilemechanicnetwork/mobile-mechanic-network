@@ -82,21 +82,21 @@
     e.preventDefault();
     const err = document.getElementById('err-login'); err.textContent = '';
     try {
-      await post('/api/login', { email: document.getElementById('li-email').value, password: document.getElementById('li-password').value });
-      location.href = '/dashboard';
+      const d = await post('/api/login', { email: document.getElementById('li-email').value, password: document.getElementById('li-password').value });
+      location.href = d.user.role === 'mechanic' ? '/mechanic' : '/dashboard';
     } catch (ex) { err.textContent = ex.message; }
   };
   formRegister.onsubmit = async (e) => {
     e.preventDefault();
     const err = document.getElementById('err-register'); err.textContent = '';
     try {
-      await post('/api/register', {
+      const d = await post('/api/register', {
         name: document.getElementById('rg-name').value,
         email: document.getElementById('rg-email').value,
         password: document.getElementById('rg-password').value,
         role: document.querySelector('input[name="role"]:checked').value,
       });
-      location.href = '/dashboard';
+      location.href = d.user.role === 'mechanic' ? '/mechanic' : '/dashboard';
     } catch (ex) { err.textContent = ex.message; }
   };
 </script>

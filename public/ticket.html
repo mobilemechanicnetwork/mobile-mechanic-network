@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ticket — Mobile Mechanic Network</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f1f5f9;color:#0f172a}
+  .page{max-width:720px;margin:24px auto;background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+  .head{display:flex;gap:16px;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:16px;margin-bottom:16px}
+  .head img{width:72px;height:72px;object-fit:cover;border-radius:10px}
+  .head h1{margin:0;font-size:1.5rem}
+  .head .sub{color:#475569;font-size:.9rem}
+  .type{display:inline-block;background:#0f172a;color:#fff;border-radius:6px;padding:4px 12px;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+  .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 20px;font-size:.95rem}
+  .meta div span{color:#64748b;font-size:.8rem;display:block;text-transform:uppercase;letter-spacing:.04em}
+  table{width:100%;border-collapse:collapse;margin:8px 0 16px}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #e2e8f0}
+  th{font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+  td.num,th.num{text-align:right}
+  .total{text-align:right;font-size:1.3rem;font-weight:700;margin:8px 0}
+  .notes{background:#f8fafc;border-radius:8px;padding:12px;font-size:.95rem;margin-top:12px}
+  .foot{margin-top:28px;padding-top:12px;border-top:1px solid #e2e8f0;color:#64748b;font-size:.85rem;text-align:center}
+  .actions{text-align:center;margin:16px 0}
+  .actions button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:11px 24px;font-size:1rem;cursor:pointer}
+  @media print{ .actions{display:none} body{background:#fff} .page{box-shadow:none;margin:0;max-width:none} }
+</style>
+</head>
+<body>
+<div class="actions"><button onclick="window.print()">Print / Save as PDF</button></div>
+<div class="page" id="ticket"><p>Loading…</p></div>
+<script>
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+(async () => {
+  const id = new URLSearchParams(location.search).get('id');
+  const box = document.getElementById('ticket');
+  try {
+    const r = await fetch('/api/ticket?id=' + encodeURIComponent(id || ''));
+    if (!r.ok) throw new Error('Ticket not found.');
+    const { ticket: t, business: b } = await r.json();
+    const money = n => '$' + Number(n).toFixed(2);
+    box.innerHTML = `
+      <div class="head">
+        ${b && b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
+        <div><h1>${esc(b ? b.name : 'Mobile mechanic')}</h1>
+        <div class="sub">${b ? esc(b.city) + ', ' + esc(b.state) : ''}${b && b.phone ? ' · ' + esc(b.phone) : ''}</div></div>
+      </div>
+      <div class="type">${esc(t.type)}</div>
+      <div class="meta">
+        <div><span>Customer</span>${esc(t.customerName)}</div>
+        <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
+        <div><span>Vehicle</span>${esc(t.vehicle || '—')}</div>
+        <div><span>Ticket</span>#${esc(t.id.slice(0, 8))}</div>
+      </div>
+      <table><tr><th>Description</th><th class="num">Amount</th></tr>
+      ${t.items.map(i => `<tr><td>${esc(i.desc)}</td><td class="num">${money(i.amount)}</td></tr>`).join('')}
+      </table>
+      <div class="total">Total: ${money(t.total)}</div>
+      ${t.notes ? `<div class="notes"><strong>Notes:</strong> ${esc(t.notes)}</div>` : ''}
+      <div class="foot">Prepared by ${esc(b ? b.name : '')}${b && b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network</div>`;
+    document.title = t.type.charAt(0).toUpperCase() + t.type.slice(1) + ' — ' + (b ? b.name : '');
+  } catch (e) { box.innerHTML = '<p>' + esc(e.message) + '</p>'; }
+})();
+</script>
+</body>
+</html>
