@@ -125,9 +125,9 @@
     <form id="ticket-form" hidden>
       <div class="row">
         <div><label for="t-type">Type</label><select id="t-type"><option value="estimate">Estimate</option><option value="invoice">Invoice</option><option value="receipt">Receipt</option></select></div>
-        <div><label for="t-customer">Customer name</label><input id="t-customer" required></div>
+        <div><label for="t-customer">Customer name</label><input id="t-customer" list="t-customer-list" required autocomplete="off"><datalist id="t-customer-list"></datalist></div>
       </div>
-      <label for="t-vehicle">Vehicle</label><input id="t-vehicle" placeholder="2019 Ford F-150">
+      <label for="t-vehicle">Vehicle</label><input id="t-vehicle" list="t-vehicle-list" placeholder="2019 Ford F-150" autocomplete="off"><datalist id="t-vehicle-list"></datalist>
       <label for="t-vin">VIN <span class="muted" id="t-vin-note">(required on invoices and receipts)</span></label><input id="t-vin" maxlength="17" placeholder="17 characters" style="text-transform:uppercase">
       <label>Line items</label>
       <div id="t-items"></div>
@@ -336,13 +336,40 @@ $('g-upload').onclick = async () => {
 };
 
 /* ---------- Tickets ---------- */
+let KNOWN_CUSTOMERS = [];
+async function loadCustomerCache() {
+  try {
+    const d = await api('/api/tickets/customers');
+    KNOWN_CUSTOMERS = d.customers || [];
+    $('t-customer-list').innerHTML = KNOWN_CUSTOMERS.map(c => `<option value="${esc(c.name)}">`).join('');
+  } catch (e) { /* non-fatal */ }
+}
+function knownCustomer() {
+  const v = $('t-customer').value.trim().toLowerCase();
+  return KNOWN_CUSTOMERS.find(x => x.name.toLowerCase() === v) || null;
+}
+function refreshVehicleList() {
+  const c = knownCustomer();
+  const vs = c ? c.vehicles : [];
+  $('t-vehicle-list').innerHTML = vs.map(x => `<option value="${esc(x.vehicle)}">`).join('');
+  fillVinFromVehicle();
+}
+function fillVinFromVehicle() {
+  const c = knownCustomer();
+  if (!c) return;
+  const v = $('t-vehicle').value.trim().toLowerCase();
+  const match = c.vehicles.find(x => x.vehicle.toLowerCase() === v);
+  if (match && match.vin) $('t-vin').value = match.vin;
+}
 function showTicketForm(show) {
   $('ticket-form').hidden = !show;
   $('t-new').hidden = !!show;
   if (show) window.scrollTo(0, 0);
 }
-$('t-new').onclick = () => showTicketForm(true);
+$('t-new').onclick = () => { showTicketForm(true); loadCustomerCache(); };
 $('t-cancel').onclick = () => showTicketForm(false);
+$('t-customer').addEventListener('input', refreshVehicleList);
+$('t-vehicle').addEventListener('input', fillVinFromVehicle);
 
 /* ---------- Help ---------- */
 $('help-form').onsubmit = async (e) => {
@@ -425,6 +452,7 @@ $('ticket-form').onsubmit = async (e) => {
   try {
     const d = await post('/api/tickets', { type: $('t-type').value, customerName: $('t-customer').value, vehicle: $('t-vehicle').value, vin: $('t-vin').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, notes: $('t-notes').value, warranty: $('t-warranty').value });
     $('t-customer').value = ''; $('t-vehicle').value = ''; $('t-vin').value = ''; $('t-notes').value = ''; $('t-warranty').value = '';
+    refreshVehicleList();
     $('t-labor-desc').value = ''; $('t-labor').value = ''; $('t-taxrate').value = '';
     $('t-items').innerHTML = ''; addItemRow('', '', '');
     $('t-ok').textContent = 'Ticket created.';
@@ -488,6 +516,7 @@ async function loadBilling() {
   await loadPromos();
   await loadTickets();
   await loadBilling();
+  await loadCustomerCache();
   addItemRow('', '');
 })();
 </script>
