@@ -4,6 +4,7 @@
 // Dependency-free Node.js. Portable: runs on any host that runs Node.
 // Storage is JSON files for the pre-deploy stage; swap for Postgres at deploy.
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -140,6 +141,10 @@ const server = http.createServer(async (req, res) => {
       const users = usersStore.read();
       if (users.some(u => u.email === String(email).toLowerCase())) return sendJson(res, 409, { error: 'An account with this email already exists.' });
       const user = makeUser({ name: String(name).trim(), email: String(email).trim(), password: String(password), role });
+      if (role === 'mechanic') {
+        user.trialEndsAt = new Date(Date.now() + 90 * 24 * 3600 * 1000).toISOString();
+        user.billingStatus = 'trialing';
+      }
       users.push(user); usersStore.write(users);
       return startSession(res, 201, user, { user: publicUser(user) });
     }
@@ -458,6 +463,111 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { ticket: t, business: biz ? publicBusiness(biz) : null });
     }
 
+    // ---------- Billing (90-day free trial, then Stripe subscription) ----------
+    const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
+    const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+    const STRIPE_PRICE_MONTHLY = process.env.STRIPE_PRICE_MONTHLY || '';
+    const STRIPE_PRICE_YEARLY = process.env.STRIPE_PRICE_YEARLY || '';
+    const stripeConfigured = !!(STRIPE_SECRET_KEY && STRIPE_PRICE_MONTHLY && STRIPE_PRICE_YEARLY);
+    function stripeRequest(path, params) {
+      return new Promise((resolve, reject) => {
+        const body = new URLSearchParams(params).toString();
+        const req = https.request({
+          hostname: 'api.stripe.com', path, method: 'POST',
+          headers: {
+            'Authorization': 'Basic ' + Buffer.from(STRIPE_SECRET_KEY + ':').toString('base64'),
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': Buffer.byteLength(body),
+          },
+        }, (res) => {
+          let data = '';
+          res.on('data', c => { data += c; });
+          res.on('end', () => { try { resolve({ status: res.statusCode, json: JSON.parse(data) }); } catch (e) { reject(new Error('Stripe response error.')); } });
+        });
+        req.on('error', reject);
+        req.end(body);
+      });
+    }
+    if (p === '/api/billing' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const daysLeft = user.trialEndsAt ? Math.max(0, Math.ceil((new Date(user.trialEndsAt) - Date.now()) / 86400000)) : 0;
+      return sendJson(res, 200, {
+        configured: stripeConfigured,
+        status: user.billingStatus || 'trialing',
+        trialEndsAt: user.trialEndsAt || null,
+        daysLeft,
+        plans: [
+          { id: 'monthly', label: '$24.99 / month' },
+          { id: 'yearly', label: '$200 / year' },
+        ],
+      });
+    }
+    if (p === '/api/billing/checkout' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (!stripeConfigured) return sendJson(res, 400, { error: 'Online payments are not set up yet.' });
+      const { plan } = await parseBody(req);
+      const price = plan === 'yearly' ? STRIPE_PRICE_YEARLY : STRIPE_PRICE_MONTHLY;
+      const base = 'https://' + req.headers.host;
+      const trialEnd = user.trialEndsAt ? Math.floor(new Date(user.trialEndsAt).getTime() / 1000) : undefined;
+      try {
+        const params = {
+          'payment_method_types[]': 'card',
+          mode: 'subscription',
+          'line_items[0][price]': price,
+          'line_items[0][quantity]': '1',
+          success_url: base + '/mechanic?billing=success',
+          cancel_url: base + '/mechanic?billing=cancelled',
+          customer_email: user.email,
+          'metadata[userId]': user.id,
+        };
+        if (trialEnd && trialEnd > Math.floor(Date.now() / 1000)) params['subscription_data[trial_end]'] = String(trialEnd);
+        const r = await stripeRequest('/v1/checkout/sessions', params);
+        if (r.status !== 200 || !r.json.url) return sendJson(res, 400, { error: (r.json.error && r.json.error.message) || 'Could not start checkout.' });
+        return sendJson(res, 200, { url: r.json.url });
+      } catch (e) { return sendJson(res, 500, { error: 'Could not start checkout.' }); }
+    }
+    if (p === '/api/billing/webhook' && req.method === 'POST') {
+      if (!STRIPE_WEBHOOK_SECRET) { res.writeHead(400); return res.end('webhook not configured'); }
+      const chunks = [];
+      req.on('data', c => chunks.push(c));
+      req.on('end', () => {
+        try {
+          const raw = Buffer.concat(chunks);
+          const sig = req.headers['stripe-signature'] || '';
+          const t = (sig.match(/t=(\d+)/) || [])[1];
+          const v1 = (sig.match(/v1=([a-f0-9]+)/) || [])[1];
+          if (!t || !v1) { res.writeHead(400); return res.end('bad signature'); }
+          const expected = crypto.createHmac('sha256', STRIPE_WEBHOOK_SECRET).update(t + '.' + raw.toString('utf8')).digest('hex');
+          if (expected.length !== v1.length || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1))) { res.writeHead(400); return res.end('bad signature'); }
+          const event = JSON.parse(raw.toString('utf8'));
+          const users = usersStore.read();
+          const findByMeta = (obj) => {
+            const uid = obj && obj.metadata && obj.metadata.userId;
+            return uid ? users.find(u => u.id === uid) : null;
+          };
+          if (event.type === 'checkout.session.completed') {
+            const s = event.data.object;
+            const u = findByMeta(s) || users.find(x => x.email === (s.customer_email || '').toLowerCase());
+            if (u) { u.stripeCustomerId = s.customer; u.stripeSubscriptionId = s.subscription; u.billingStatus = 'active'; usersStore.write(users); }
+          } else if (event.type === 'customer.subscription.deleted') {
+            const sub = event.data.object;
+            const u = users.find(x => x.stripeSubscriptionId === sub.id || x.stripeCustomerId === sub.customer);
+            if (u) { u.billingStatus = 'canceled'; usersStore.write(users); }
+          } else if (event.type === 'invoice.payment_failed') {
+            const inv = event.data.object;
+            const u = users.find(x => x.stripeSubscriptionId === inv.subscription || x.stripeCustomerId === inv.customer);
+            if (u) { u.billingStatus = 'past_due'; usersStore.write(users); }
+          }
+          res.writeHead(200); return res.end('ok');
+        } catch (e) { res.writeHead(400); return res.end('webhook error'); }
+      });
+      return;
+    }
+
     // ---------- Founder admin (token-gated; set ADMIN_TOKEN env var on the host) ----------
     function adminAuthed(req) {
       const match = (req.headers.cookie || '').match(/mmn_admin=([a-f0-9]+)/);
@@ -515,6 +625,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ---------- Pages ----------
+    if (p === '/account') return serveFile(res, path.join(PUBLIC_DIR, 'account.html'));
     if (p === '/admin') return serveFile(res, path.join(PUBLIC_DIR, 'admin.html'));
     if (p === '/mechanic') {
       const u = getSessionUser(req);
