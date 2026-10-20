@@ -50,6 +50,17 @@
     <div id="my-requests"></div>
   </section>
 
+  <section id="help">
+    <h2>Help</h2>
+    <p class="muted">Something not working or have a question? Describe it below and it goes straight to us.</p>
+    <form id="help-form">
+      <label for="h-subject">Subject (optional)</label><input id="h-subject" maxlength="120" placeholder="e.g. Can't see my quotes">
+      <label for="h-message">What's going on?</label><textarea id="h-message" rows="4" required placeholder="Describe the issue or concern"></textarea>
+      <button type="submit">Send</button>
+      <div class="err" id="h-err"></div><div class="ok" id="h-ok"></div>
+    </form>
+  </section>
+
   <section id="mechanic" hidden>
     <h2>My business page</h2>
     <form id="biz-form">
@@ -119,6 +130,15 @@
     catch (e) { $('v-err').textContent = e.message; }
   };
   window.delVehicle = async (id) => { if (!confirm('Remove this vehicle?')) return; await api('/api/vehicles/' + id, { method: 'DELETE' }); loadOwner(); };
+
+  document.getElementById('help-form').onsubmit = async (e) => {
+    e.preventDefault(); $('h-err').textContent = ''; $('h-ok').textContent = '';
+    try {
+      await post('/api/help', { subject: $('h-subject').value, message: $('h-message').value });
+      $('h-subject').value = ''; $('h-message').value = '';
+      $('h-ok').textContent = 'Sent. We will take a look.';
+    } catch (ex) { $('h-err').textContent = ex.message; }
+  };
   window.actQuote = async (id, action) => { try { await post(`/api/quotes/${id}/${action}`, {}); loadOwner(); } catch (e) { alert(e.message); } };
 
   async function loadMechanic() {
