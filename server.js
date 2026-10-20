@@ -577,7 +577,10 @@ const server = http.createServer(async (req, res) => {
       const t = tickets.find(x => x.id === ticketPaid[1] && x.mechanicId === user.id);
       if (!t) return sendJson(res, 404, { error: 'Not found.' });
       if (t.type !== 'invoice') return sendJson(res, 400, { error: 'Only invoices can be marked as paid.' });
-      t.type = 'receipt'; t.paidAt = new Date().toISOString();
+      const { paymentMethod } = await parseBody(req);
+      const pm = String(paymentMethod || '').trim().slice(0, 50);
+      if (!pm) return sendJson(res, 400, { error: 'Say how it was paid (cash, card, check, etc.).' });
+      t.type = 'receipt'; t.paidAt = new Date().toISOString(); t.paymentMethod = pm;
       ticketsStore.write(tickets);
       return sendJson(res, 200, { ticket: t });
     }
