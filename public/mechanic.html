@@ -366,8 +366,39 @@ function showTicketForm(show) {
   $('t-new').hidden = !!show;
   if (show) window.scrollTo(0, 0);
 }
-$('t-new').onclick = () => { showTicketForm(true); loadCustomerCache(); };
-$('t-cancel').onclick = () => showTicketForm(false);
+$('t-new').onclick = () => { resetTicketForm(); showTicketForm(true); loadCustomerCache(); };
+$('t-cancel').onclick = () => { resetTicketForm(); showTicketForm(false); };
+let EDITING_TICKET = null;
+window.editTicket = (id) => {
+  const t = (window._tickets || []).find(x => x.id === id);
+  if (!t) return;
+  EDITING_TICKET = id;
+  $('t-type').value = t.type; $('t-type').disabled = true; updateVinRequired();
+  $('t-customer').value = t.customerName || '';
+  $('t-vehicle').value = t.vehicle || '';
+  $('t-vin').value = t.vin || '';
+  $('t-items').innerHTML = '';
+  (t.items || []).forEach(it => addItemRow(it.desc, it.qty, it.price));
+  if (!(t.items || []).length) addItemRow('', '', '');
+  $('t-labor-desc').value = t.laborDesc || '';
+  $('t-labor').value = t.laborAmount || '';
+  $('t-taxrate').value = t.taxRate || '';
+  $('t-notes').value = t.notes || '';
+  $('t-warranty').value = t.warranty || '';
+  updateTicketTotals();
+  refreshVehicleList();
+  document.querySelector('#ticket-form button[type="submit"]').textContent = 'Update ticket';
+  showTicketForm(true);
+};
+function resetTicketForm() {
+  EDITING_TICKET = null;
+  $('t-type').disabled = false;
+  document.querySelector('#ticket-form button[type="submit"]').textContent = 'Create ticket';
+  $('t-customer').value = ''; $('t-vehicle').value = ''; $('t-vin').value = ''; $('t-notes').value = ''; $('t-warranty').value = '';
+  $('t-labor-desc').value = ''; $('t-labor').value = ''; $('t-taxrate').value = '';
+  $('t-items').innerHTML = ''; addItemRow('', '', '');
+  updateVinRequired(); refreshVehicleList();
+}
 $('t-customer').addEventListener('input', refreshVehicleList);
 $('t-vehicle').addEventListener('input', fillVinFromVehicle);
 
@@ -416,10 +447,12 @@ $('t-type').onchange = updateVinRequired;
 updateVinRequired();
 async function loadTickets() {
   const d = await api('/api/tickets/me');
+  window._tickets = d.tickets || [];
   $('ticket-list').innerHTML = d.tickets.length ? d.tickets.map(t => `<div class="card">
     <h3 style="text-transform:capitalize">${esc(t.type)} — $${esc(t.total)}</h3>
     <div class="muted">${esc(t.customerName)}${t.vehicle ? ' · ' + esc(t.vehicle) : ''} · ${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() + (t.paymentMethod ? ' via ' + esc(t.paymentMethod) : '') : ''}</div>
     <p><a href="/ticket?id=${t.id}" target="_blank"><button class="ghost" type="button">View / Print</button></a>
+    ${(t.type === 'estimate' || t.type === 'invoice') ? `<button class="ghost" type="button" onclick="editTicket('${t.id}')">Edit</button>` : ''}
     ${t.type === 'estimate' ? `<button class="primary" data-convertticket="${t.id}" data-hasvin="${t.vin ? '1' : ''}">Convert to invoice</button>` : ''}
     ${t.type === 'invoice' ? `<button class="primary" data-paidticket="${t.id}">Mark as paid</button>` : ''}</p>
   </div>`).join('') : '<p class="muted">No tickets yet.</p>';
@@ -449,16 +482,20 @@ $('ticket-form').onsubmit = async (e) => {
   e.preventDefault(); $('t-err').textContent = ''; $('t-ok').textContent = '';
   const rows = [...document.querySelectorAll('#t-items .itemrow')];
   const items = rows.map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value }; });
+  const payload = { type: $('t-type').value, customerName: $('t-customer').value, vehicle: $('t-vehicle').value, vin: $('t-vin').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, notes: $('t-notes').value, warranty: $('t-warranty').value };
   try {
-    const d = await post('/api/tickets', { type: $('t-type').value, customerName: $('t-customer').value, vehicle: $('t-vehicle').value, vin: $('t-vin').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, notes: $('t-notes').value, warranty: $('t-warranty').value });
-    $('t-customer').value = ''; $('t-vehicle').value = ''; $('t-vin').value = ''; $('t-notes').value = ''; $('t-warranty').value = '';
-    refreshVehicleList();
-    $('t-labor-desc').value = ''; $('t-labor').value = ''; $('t-taxrate').value = '';
-    $('t-items').innerHTML = ''; addItemRow('', '', '');
-    $('t-ok').textContent = 'Ticket created.';
+    let d;
+    if (EDITING_TICKET) {
+      d = await api('/api/tickets/' + EDITING_TICKET, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      $('t-ok').textContent = 'Ticket updated.';
+    } else {
+      d = await post('/api/tickets', payload);
+      $('t-ok').textContent = 'Ticket created.';
+      window.open('/ticket?id=' + d.ticket.id, '_blank');
+    }
+    resetTicketForm();
     loadTickets();
     showTicketForm(false);
-    window.open('/ticket?id=' + d.ticket.id, '_blank');
   } catch (ex) { $('t-err').textContent = ex.message; }
 };
 
