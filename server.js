@@ -29,6 +29,8 @@ const requestsStore = store('requests.json');
 const quotesStore = store('quotes.json');
 
 const sessions = new Map(); // token -> userId (in-memory at this stage)
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || ''; // founder admin passphrase, set as env var on the host
+const adminSessions = new Set(); // admin token strings (in-memory; re-login after each deploy)
 
 function hashPassword(password, salt) { return crypto.scryptSync(password, salt, 64).toString('hex'); }
 function makeUser({ name, email, password, role }) {
@@ -229,8 +231,64 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { quote, requestStatus: row.status });
     }
 
+    // ---------- Founder admin (token-gated; set ADMIN_TOKEN env var on the host) ----------
+    function adminAuthed(req) {
+      const match = (req.headers.cookie || '').match(/mmn_admin=([a-f0-9]+)/);
+      return !!match && adminSessions.has(match[1]);
+    }
+    if (p === '/api/admin/login' && req.method === 'POST') {
+      const { token } = await parseBody(req);
+      let ok = false;
+      if (ADMIN_TOKEN && typeof token === 'string' && token.length === ADMIN_TOKEN.length) {
+        ok = crypto.timingSafeEqual(Buffer.from(token), Buffer.from(ADMIN_TOKEN));
+      }
+      if (!ok) return sendJson(res, 401, { error: 'Not authorized.' });
+      const t = crypto.randomBytes(32).toString('hex');
+      adminSessions.add(t);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `mmn_admin=${t}; HttpOnly; SameSite=Lax; Path=/` });
+      return res.end('{}');
+    }
+    if (p === '/api/admin/logout' && req.method === 'POST') {
+      const match = (req.headers.cookie || '').match(/mmn_admin=([a-f0-9]+)/);
+      if (match) adminSessions.delete(match[1]);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'mmn_admin=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0' });
+      return res.end('{}');
+    }
+    if (p === '/api/admin/data' && req.method === 'GET') {
+      if (!adminAuthed(req)) return sendJson(res, 401, { error: 'Not authorized.' });
+      const businesses = businessesStore.read();
+      const requests = requestsStore.read();
+      const quotes = quotesStore.read();
+      const users = usersStore.read();
+      return sendJson(res, 200, {
+        counts: {
+          owners: users.filter(u => u.role === 'owner').length,
+          mechanics: users.filter(u => u.role === 'mechanic').length,
+          businesses: businesses.length,
+          publishedBusinesses: businesses.filter(b => b.published).length,
+          requests: requests.length,
+          quotes: quotes.length,
+        },
+        users: users.map(publicUser),
+        businesses: businesses.map(b => ({ ...publicBusiness(b), published: !!b.published, createdAt: b.createdAt })),
+        requests: requests.map(r => ({ id: r.id, ownerName: r.ownerName, phone: r.phone, city: r.city, state: r.state, service: r.service, vehicle: r.vehicle, status: r.status, createdAt: r.createdAt })),
+        quotes: quotes.map(q => ({ id: q.id, requestId: q.requestId, price: q.price, status: q.status, createdAt: q.createdAt })),
+      });
+    }
+    const adminBizToggle = p.match(/^\/api\/admin\/business\/([0-9a-f-]+)$/);
+    if (adminBizToggle && req.method === 'POST') {
+      if (!adminAuthed(req)) return sendJson(res, 401, { error: 'Not authorized.' });
+      const { published } = await parseBody(req);
+      const businesses = businessesStore.read();
+      const biz = businesses.find(b => b.id === adminBizToggle[1]);
+      if (!biz) return sendJson(res, 404, { error: 'Business not found.' });
+      biz.published = !!published;
+      businessesStore.write(businesses);
+      return sendJson(res, 200, { business: { id: biz.id, published: biz.published } });
+    }
+
     // ---------- Pages ----------
-    if (p === '/account') return serveFile(res, path.join(PUBLIC_DIR, 'account.html'));
+    if (p === '/admin') return serveFile(res, path.join(PUBLIC_DIR, 'admin.html'));
     if (p === '/mechanics') return serveFile(res, path.join(PUBLIC_DIR, 'mechanics.html'));
     if (p === '/request') return serveFile(res, path.join(PUBLIC_DIR, 'request.html'));
     if (p === '/dashboard') {
