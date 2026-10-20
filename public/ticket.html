@@ -65,6 +65,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;
       <table>${headRow}${itemRows}${subRow}${laborRow}${taxRow}</table>
       <div class="total">Total: ${money(t.total)}</div>
       ${t.notes ? `<div class="notes"><strong>Notes:</strong> ${esc(t.notes)}</div>` : ''}
+      ${t.warranty ? `<div class="notes"><strong>Warranty:</strong> ${esc(t.warranty)}</div>` : ''}
       <div class="foot">Prepared by ${esc(b ? b.name : '')}${b && b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network</div>`;
     document.title = t.type.charAt(0).toUpperCase() + t.type.slice(1) + ' — ' + (b ? b.name : '');
   } catch (e) { box.innerHTML = '<p>' + esc(e.message) + '</p>'; }
