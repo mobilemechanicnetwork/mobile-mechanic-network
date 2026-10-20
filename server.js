@@ -73,8 +73,10 @@ function servedCities(biz) {
   return list.map(c => String(c).trim().toLowerCase()).filter(Boolean);
 }
 function requestMatchesBusiness(reqRow, biz) {
-  return biz && biz.published
-    && biz.state.toLowerCase() === reqRow.state.toLowerCase()
+  if (!biz || !biz.published) return false;
+  const owner = usersStore.read().find(u => u.id === biz.userId);
+  if (mechanicFrozen(owner)) return false;
+  return biz.state.toLowerCase() === reqRow.state.toLowerCase()
     && biz.services.includes(reqRow.service)
     && servedCities(biz).includes(reqRow.city.toLowerCase());
 }
@@ -87,6 +89,18 @@ function latestPromotion(businessId) {
   all.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const p = all[0];
   return p ? { title: p.title, description: p.description, validUntil: p.validUntil } : null;
+}
+// A mechanic is frozen when the 90-day trial is over and no active subscription exists.
+// Frozen mechanics are hidden from search, get no requests, and cannot write —
+// but they can always sign in and reach the Billing tab to add payment.
+function mechanicFrozen(user) {
+  if (!user || user.role !== 'mechanic') return false;
+  if (user.billingStatus === 'active') return false;
+  if (!user.trialEndsAt) return false;
+  return Date.now() > new Date(user.trialEndsAt).getTime();
+}
+function frozenError(res) {
+  return sendJson(res, 402, { error: 'Your 90-day free trial has ended. Add a payment method on the Billing tab to reactivate your account.', frozen: true });
 }
 
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.json': 'application/json' };
@@ -163,7 +177,14 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/me' && req.method === 'GET') {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
-      return sendJson(res, 200, { user: publicUser(user) });
+      const me = publicUser(user);
+      if (user.role === 'mechanic') {
+        me.frozen = mechanicFrozen(user);
+        me.daysLeft = user.trialEndsAt ? Math.max(0, Math.ceil((new Date(user.trialEndsAt) - Date.now()) / 86400000)) : 0;
+        me.trialEndsAt = user.trialEndsAt || null;
+        me.billingStatus = user.billingStatus || 'trialing';
+      }
+      return sendJson(res, 200, { user: me });
     }
     if (p === '/api/profile' && req.method === 'POST') {
       const user = getSessionUser(req);
@@ -212,6 +233,7 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Only mobile mechanic accounts have a business page.' });
+      if (mechanicFrozen(user)) return frozenError(res);
       const { name, city, state, serviceCities, services, about, published, phone, logoUrl, coverUrl } = await parseBody(req);
       if (!name || !city || !state || !Array.isArray(services) || services.length === 0)
         return sendJson(res, 400, { error: 'Business name, city, state, and at least one service are required.' });
@@ -238,7 +260,8 @@ const server = http.createServer(async (req, res) => {
       const city = (url.searchParams.get('city') || '').toLowerCase();
       const state = (url.searchParams.get('state') || '').toLowerCase();
       const service = url.searchParams.get('service') || '';
-      let list = businessesStore.read().filter(b => b.published);
+      const frozenIds = new Set(usersStore.read().filter(mechanicFrozen).map(u => u.id));
+      let list = businessesStore.read().filter(b => b.published && !frozenIds.has(b.userId));
       if (state) list = list.filter(b => b.state.toLowerCase() === state);
       if (city) list = list.filter(b => b.city.toLowerCase() === city);
       if (service) list = list.filter(b => b.services.includes(service));
@@ -251,11 +274,11 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'owner') return sendJson(res, 403, { error: 'Only vehicle owner accounts can request quotes.' });
-      const { city, state, service, vehicle, description, phone } = await parseBody(req);
+      const { city, state, service, vehicle, description, phone, date } = await parseBody(req);
       if (!city || !state || !SERVICES.includes(service) || !vehicle || !description || !phone)
         return sendJson(res, 400, { error: 'City, state, service, vehicle, a description, and a phone number are required.' });
       const rows = requestsStore.read();
-      const row = { id: crypto.randomUUID(), ownerId: user.id, ownerName: user.name, phone: String(phone).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), description: String(description).trim(), status: 'open', createdAt: new Date().toISOString() };
+      const row = { id: crypto.randomUUID(), ownerId: user.id, ownerName: user.name, phone: String(phone).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), description: String(description).trim(), date: String(date || '').slice(0, 20), status: 'open', createdAt: new Date().toISOString() };
       rows.push(row); requestsStore.write(rows);
       const matches = businessesStore.read().filter(b => requestMatchesBusiness(row, b)).length;
       return sendJson(res, 201, { request: row, mechanicsNotified: matches });
@@ -291,6 +314,7 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
       const biz = myBusiness(user.id);
       const { requestId, price, message } = await parseBody(req);
       const row = requestsStore.read().find(r => r.id === requestId);
@@ -329,6 +353,7 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
       const biz = myBusiness(user.id);
       if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
       let parts;
@@ -365,6 +390,7 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
       const { url } = await parseBody(req);
       const businesses = businessesStore.read();
       const biz = businesses.find(b => b.userId === user.id);
@@ -391,6 +417,7 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
       const biz = myBusiness(user.id);
       if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
       const { title, description, validUntil } = await parseBody(req);
@@ -412,6 +439,7 @@ const server = http.createServer(async (req, res) => {
     if (promoDel && req.method === 'DELETE') {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (mechanicFrozen(user)) return frozenError(res);
       const promos = promotionsStore.read();
       const ix = promos.findIndex(x => x.id === promoDel[1] && x.mechanicId === user.id);
       if (ix === -1) return sendJson(res, 404, { error: 'Not found.' });
@@ -424,6 +452,7 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
       const biz = myBusiness(user.id);
       if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
       const { type, customerName, vehicle, items, notes } = await parseBody(req);
@@ -449,6 +478,7 @@ const server = http.createServer(async (req, res) => {
     if (ticketDel && req.method === 'DELETE') {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (mechanicFrozen(user)) return frozenError(res);
       const tickets = ticketsStore.read();
       const ix = tickets.findIndex(x => x.id === ticketDel[1] && x.mechanicId === user.id);
       if (ix === -1) return sendJson(res, 404, { error: 'Not found.' });
@@ -626,6 +656,7 @@ const server = http.createServer(async (req, res) => {
 
     // ---------- Pages ----------
     if (p === '/account') return serveFile(res, path.join(PUBLIC_DIR, 'account.html'));
+    if (p === '/find') return serveFile(res, path.join(PUBLIC_DIR, 'find.html'));
     if (p === '/admin') return serveFile(res, path.join(PUBLIC_DIR, 'admin.html'));
     if (p === '/mechanic') {
       const u = getSessionUser(req);
