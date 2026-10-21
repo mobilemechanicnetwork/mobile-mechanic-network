@@ -200,6 +200,25 @@ function cleanCertifications(raw) {
   const arr = Array.isArray(raw) ? raw : String(raw || '').split(/[\n,]/);
   return [...new Set(arr.map(s => String(s).trim().slice(0, 60)).filter(Boolean))].slice(0, 10);
 }
+// Twilio SMS. Needs TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER env vars.
+// Returns { sent: true } or { sent: false, reason } — never throws.
+async function sendSms(to, body) {
+  try {
+    const sid = process.env.TWILIO_ACCOUNT_SID, tok = process.env.TWILIO_AUTH_TOKEN, from = process.env.TWILIO_FROM_NUMBER;
+    if (!sid || !tok || !from) return { sent: false, reason: 'twilio-not-configured' };
+    const digits = String(to || '').replace(/\D/g, '');
+    const e164 = digits.length === 10 ? '+1' + digits : digits.length === 11 && digits[0] === '1' ? '+' + digits : null;
+    if (!e164) return { sent: false, reason: 'bad-phone' };
+    const auth = Buffer.from(sid + ':' + tok).toString('base64');
+    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: 'POST',
+      headers: { Authorization: 'Basic ' + auth, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ To: e164, From: from, Body: String(body).slice(0, 1500) }).toString(),
+    });
+    if (!r.ok) return { sent: false, reason: 'twilio-' + r.status };
+    return { sent: true };
+  } catch (e) { return { sent: false, reason: 'error' }; }
+}
 function latestPromotion(businessId) {
   const all = promotionsStore.read().filter(x => x.businessId === businessId);
   all.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
@@ -913,7 +932,18 @@ const server = http.createServer(async (req, res) => {
       if (!pm) return sendJson(res, 400, { error: 'Say how it was paid (cash, card, check, etc.).' });
       t.type = 'receipt'; t.paidAt = new Date().toISOString(); t.paymentMethod = pm;
       ticketsStore.write(tickets);
-      return sendJson(res, 200, { ticket: t });
+      // Review prompt: text the customer a review link when a job tied to a request is paid.
+      let smsSent = false;
+      if (t.requestId) {
+        const row = requestsStore.read().find(x => x.id === t.requestId);
+        const already = reviewsStore.read().some(x => x.requestId === t.requestId);
+        if (row && row.phone && !already) {
+          const biz = businessesStore.read().find(b => b.id === t.businessId);
+          const r = await sendSms(row.phone, `Thanks for choosing ${biz ? biz.name : 'your mobile mechanic'}! How was your experience? Leave a review: https://mobilemechanicsinmyarea.com/dashboard`);
+          smsSent = r.sent;
+        }
+      }
+      return sendJson(res, 200, { ticket: t, smsSent });
     }
     if (p === '/api/tickets/customers' && req.method === 'GET') {
       const user = getSessionUser(req);
