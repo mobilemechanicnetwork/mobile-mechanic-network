@@ -10,6 +10,8 @@
   h1{font-size:1.5rem} h2{font-size:1.15rem;margin-top:32px} a{color:#93c5fd}
   .muted{color:#9fb3c8;font-size:.9rem}
   .card{border:1px solid #334155;border-radius:10px;padding:16px;margin:12px 0;background:#0f1a2e}
+  .stars{font-size:1.8rem;cursor:pointer;color:#f59e0b;letter-spacing:2px;margin-top:6px}
+  .stars span{cursor:pointer}
   label{display:block;margin:12px 0 6px;font-size:.9rem;color:#c7d5e8}
   input,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0b1220;color:#fff;box-sizing:border-box}
   button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:9px 16px;cursor:pointer}
@@ -118,6 +120,14 @@
         <div class="muted">Quote: ${q.status}</div>
         ${q.status === 'pending' && r.status === 'open' ? `<button onclick="actQuote('${q.id}','accept')">Accept</button> <button class="decline" onclick="actQuote('${q.id}','decline')">Decline</button>` : ''}
       </div>`).join('') : '<p class="muted">No quotes yet.</p>'}
+      ${r.paid && !r.reviewed ? `<div class="card" id="rev-${r.id}">
+        <strong>How was the work?</strong>
+        <div class="stars" id="stars-${r.id}">${[1, 2, 3, 4, 5].map(n => `<span data-n="${n}" onclick="setStars('${r.id}',${n})">☆</span>`).join('')}</div>
+        <textarea id="revtext-${r.id}" rows="2" placeholder="Tell others about your experience (optional)" style="width:100%;margin-top:8px"></textarea>
+        <div style="margin-top:8px"><button onclick="sendReview('${r.id}')">Submit review</button> <span class="err" id="reverr-${r.id}"></span></div>
+      </div>` : ''}
+      ${r.paid && r.reviewed ? '<p class="muted">Thanks, you reviewed this job.</p>' : ''}
+      ${r.status === 'accepted' && !r.paid && !r.reviewed ? '<p class="muted">You can leave a review once this job is paid.</p>' : ''}
     </div>`).join('');
   }
   window.saveProfile = async () => {
@@ -141,6 +151,14 @@
     } catch (ex) { $('h-err').textContent = ex.message; }
   };
   window.actQuote = async (id, action) => { try { await post(`/api/quotes/${id}/${action}`, {}); loadOwner(); } catch (e) { alert(e.message); } };
+  const starVals = {};
+  window.setStars = (rid, n) => { starVals[rid] = n; document.querySelectorAll(`#stars-${rid} span`).forEach(s => { s.textContent = Number(s.dataset.n) <= n ? '★' : '☆'; }); };
+  window.sendReview = async (rid) => {
+    $('reverr-' + rid).textContent = '';
+    if (!starVals[rid]) { $('reverr-' + rid).textContent = 'Tap the stars to pick a rating.'; return; }
+    try { await post('/api/reviews', { requestId: rid, rating: starVals[rid], text: $('revtext-' + rid).value }); loadOwner(); }
+    catch (e) { $('reverr-' + rid).textContent = e.message; }
+  };
 
   async function loadMechanic() {
     const checks = $('b-services');

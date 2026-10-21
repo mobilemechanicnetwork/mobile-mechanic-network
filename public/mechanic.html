@@ -26,6 +26,11 @@
   button.ghost{background:#1e293b;color:#e8eef7;border:1px solid #334155;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:.85rem}
   button.danger{background:#7f1d1d;color:#fecaca;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:.85rem}
   .card{border:1px solid #334155;border-radius:10px;padding:16px;margin:12px 0;background:#0f1a2e}
+  .badges{display:inline-flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+  .badge{display:inline-block;font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:999px;background:#1e293b;border:1px solid #334155;color:#e2e8f0}
+  .badge-fr{background:#052e1b;border-color:#16a34a;color:#86efac}
+  .badge-hr{background:#3b2f04;border-color:#d97706;color:#fcd34d}
+  .badge-cert{background:#1e1b4b;border-color:#6366f1;color:#c7d2fe}
   #tab-inspections{background:#ffffff;border-radius:12px;padding:6px 18px 18px;color:#0f172a}
   #tab-inspections h2,#tab-inspections h3{color:#0f172a}
   #tab-inspections>p{color:#334155}
@@ -96,6 +101,8 @@
       <label style="margin-top:10px"><input type="checkbox" id="b-urgent"> Accept urgent requests <span class="muted">— urgent jobs from vehicle owners who need help now will be sent to you</span></label>
       <label for="b-about">About your business</label><textarea id="b-about" rows="3"></textarea>
       <label for="b-warranty">Warranty policy (optional — shows on your quotes and tickets)</label><textarea id="b-warranty" rows="2" placeholder="e.g. 12 months / 12,000 miles on parts and labor"></textarea>
+      <label for="b-certs">Certifications (optional — one per line, shown as badges on your listing)</label><textarea id="b-certs" rows="2" placeholder="e.g. ASE Master Certified"></textarea>
+      <div id="b-earned" style="margin:10px 0"></div>
       <label for="b-phone">Business phone number (shown on your public listing so customers can call you)</label><input id="b-phone" type="tel" placeholder="(504) 555-0100">
       <label>Social media <span class="muted">(optional — links shown on your public listing)</span></label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -214,6 +221,19 @@
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* Shared badge renderer: b carries fastResponder, avgRating, reviewCount, certifications */
+function badgeHtml(b) {
+  let h = '';
+  if (b.fastResponder) h += '<span class="badge badge-fr">Fast Responder</span>';
+  if (b.reviewCount >= 3 && b.avgRating >= 4.5) h += `<span class="badge badge-hr">★ ${b.avgRating} Highly Rated</span>`;
+  else if (b.reviewCount > 0) h += `<span class="badge">★ ${b.avgRating} (${b.reviewCount} review${b.reviewCount === 1 ? '' : 's'})</span>`;
+  (b.certifications || []).forEach(c => { h += `<span class="badge badge-cert">${esc(c)}</span>`; });
+  return h;
+}
+function earnedBadgesHtml(b) {
+  const h = badgeHtml(b);
+  return h ? `<strong>Your badges:</strong> <span class="badges">${h}</span>` : '';
+}
 async function api(url, opts) { const r = await fetch(url, opts); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Something went wrong.'); return d; }
 async function post(url, body) { return api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
 
@@ -306,6 +326,8 @@ async function loadProfile() {
     const b = d.business;
     $('b-name').value = b.name; $('b-city').value = b.city; $('b-state').value = b.state;
     $('b-cities').value = (b.serviceCities || []).join(', '); $('b-about').value = b.about || ''; $('b-warranty').value = b.warranty || '';
+    $('b-certs').value = (b.certifications || []).join('\n');
+    $('b-earned').innerHTML = earnedBadgesHtml(b) || '<span class="muted">Earn badges: respond to quote requests quickly and collect 5-star reviews.</span>';
     if ($('t-warranty')) $('t-warranty').placeholder = b.warranty ? 'Leave blank to use profile default: ' + b.warranty.slice(0, 80) : 'e.g. 12 months / 12,000 miles on parts and labor';
     $('b-phone').value = b.phone || ''; $('b-published').checked = !!b.published;
     for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website']) $('b-soc-' + k).value = (b.socials && b.socials[k]) || '';
@@ -333,7 +355,7 @@ $('biz-form').onsubmit = async (e) => {
   try {
     const socials = {};
     for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website']) socials[k] = $('b-soc-' + k).value;
-    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked, socials, warranty: $('b-warranty').value, acceptUrgent: $('b-urgent').checked };
+    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked, socials, warranty: $('b-warranty').value, acceptUrgent: $('b-urgent').checked, certifications: $('b-certs').value.split('\n') };
     if ($('b-logo').files.length) body.logoUrl = await uploadImage('logo', $('b-logo').files[0]);
     if ($('b-cover').files.length) body.coverUrl = await uploadImage('cover', $('b-cover').files[0]);
     await post('/api/business', body);
