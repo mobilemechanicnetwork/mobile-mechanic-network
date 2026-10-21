@@ -22,6 +22,7 @@
   <h1>Request quotes</h1>
   <p class="muted">Describe the job once. Mobile mechanics in your area who offer that service can send you a quote. Your street address stays private until you accept a quote.</p>
   <div class="urgent-banner" id="urgent-banner" hidden><strong>URGENT REQUEST</strong> — mechanics in your area will see this flagged as urgent.</div>
+  <div id="direct-banner" hidden style="border:1px solid #2563eb;border-radius:10px;padding:12px 14px;margin:0 0 6px"><strong id="direct-name"></strong> — only this mechanic will see your request. <a href="/request" id="direct-all">Send to all mechanics in the area instead</a>.</div>
   <form id="form">
     <label for="service">Service</label>
     <select id="service" required></select>
@@ -63,7 +64,24 @@
     try { pre = JSON.parse(sessionStorage.getItem('mmn_find') || '{}'); } catch (e) {}
     const get = k => qp.get(k) || pre[k] || '';
     const isUrgent = qp.get('urgent') === '1';
+    window._isUrgent = isUrgent;
     if (isUrgent) document.getElementById('urgent-banner').hidden = false;
+    window._directBizId = '';
+    let directBizId = qp.get('business') || '';
+    if (directBizId) {
+      try {
+        const bd = await (await fetch('/api/business/public?id=' + encodeURIComponent(directBizId))).json();
+        if (bd.business) {
+          document.getElementById('direct-name').textContent = 'Request for ' + bd.business.name;
+          document.getElementById('direct-banner').hidden = false;
+          const keep = new URLSearchParams(location.search);
+          keep.delete('business');
+          const allHref = '/request' + (keep.toString() ? '?' + keep.toString() : '');
+          document.getElementById('direct-all').href = allHref;
+          window._directBizId = directBizId;
+        }
+      } catch (e) { /* fall through to broadcast */ }
+    }
     if (get('service')) document.getElementById('service').value = get('service');
     if (get('vehicle')) document.getElementById('vehicle').value = get('vehicle');
     if (get('city')) document.getElementById('city').value = get('city');
@@ -79,11 +97,11 @@
   })();
   document.getElementById('form').onsubmit = async (e) => {
     e.preventDefault(); err.textContent = ''; ok.textContent = '';
-    const body = { service: document.getElementById('service').value, vehicle: document.getElementById('vehicle').value, vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: document.getElementById('description').value, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: isUrgent, zip: document.getElementById('zip').value };
+    const body = { service: document.getElementById('service').value, vehicle: document.getElementById('vehicle').value, vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: document.getElementById('description').value, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: window._isUrgent === true, zip: document.getElementById('zip').value, businessId: window._directBizId || undefined };
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { err.textContent = d.error || 'Something went wrong.'; return; }
-    ok.textContent = d.mechanicsNotified > 0 ? `Request sent. ${d.mechanicsNotified} mobile mechanic(s) in your area can quote it. Watch your dashboard for quotes.` : 'Request sent. No mechanics in your area match yet, but your request is posted and will match as mechanics join.';
+    ok.textContent = window._directBizId ? 'Request sent directly to the mechanic. Watch your dashboard for their quote.' : (d.mechanicsNotified > 0 ? `Request sent. ${d.mechanicsNotified} mobile mechanic(s) in your area can quote it. Watch your dashboard for quotes.` : 'Request sent. No mechanics in your area match yet, but your request is posted and will match as mechanics join.');
     try { sessionStorage.removeItem('mmn_find'); } catch (e) {}
     e.target.reset();
   };
