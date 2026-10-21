@@ -514,11 +514,12 @@ const server = http.createServer(async (req, res) => {
           const dv = String(v).trim();
           if (dv) detail[String(k).slice(0, 40)] = dv.slice(0, 300);
         }
+        const photos = Array.isArray(c.photos) ? c.photos.filter(u => typeof u === 'string' && u.startsWith('/uploads/')).slice(0, 8) : [];
         out.push({
           key, label,
           status: PPI_STATUSES.includes(c.status) ? c.status : 'good',
           urgency: PPI_URGENCY.includes(c.urgency) ? c.urgency : 'none',
-          detail, notes: String((c && c.notes) || '').trim().slice(0, 1000),
+          detail, photos, notes: String((c && c.notes) || '').trim().slice(0, 1000),
         });
       }
       return out;
@@ -607,7 +608,7 @@ const server = http.createServer(async (req, res) => {
       const kindPart = parts.find(x => x.name === 'kind' && !x.filename);
       const filePart = parts.find(x => x.filename);
       const kind = kindPart ? kindPart.data.toString().trim() : '';
-      if (!['logo', 'cover', 'gallery'].includes(kind) || !filePart) return sendJson(res, 400, { error: 'Choose a logo, cover photo, or gallery photo to upload.' });
+      if (!['logo', 'cover', 'gallery', 'inspection'].includes(kind) || !filePart) return sendJson(res, 400, { error: 'Choose a logo, cover photo, or gallery photo to upload.' });
       const allowed = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
       const ext = allowed[filePart.contentType];
       if (!ext) return sendJson(res, 400, { error: 'Only JPG, PNG, WebP or GIF images.' });
@@ -625,7 +626,7 @@ const server = http.createServer(async (req, res) => {
       const url = '/uploads/' + fname;
       const businesses = businessesStore.read();
       const row = businesses.find(b => b.id === biz.id);
-      if (row) {
+      if (row && kind !== 'inspection') {
         if (kind === 'gallery') row.gallery = [...(row.gallery || []), url];
         else row[kind === 'logo' ? 'logoUrl' : 'coverUrl'] = url;
         businessesStore.write(businesses);
