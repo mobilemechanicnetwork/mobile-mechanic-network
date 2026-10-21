@@ -38,6 +38,7 @@ const promotionsStore = store('promotions.json');
 const ticketsStore = store('tickets.json');
 const vehiclesStore = store('vehicles.json');
 const helpStore = store('help.json');
+const ppiStore = store('ppi.json');
 
 const sessions = new Map(); // token -> userId (in-memory at this stage)
 const visitsStore = store('visits.json');
@@ -497,6 +498,102 @@ const server = http.createServer(async (req, res) => {
       h.status = resolved ? 'resolved' : 'open';
       helpStore.write(rows);
       return sendJson(res, 200, { ok: true });
+    }
+
+    // ---------- Pre-purchase inspections ----------
+    const PPI_STATUSES = ['good', 'needs_attention', 'fail'];
+    const PPI_URGENCY = ['none', 'monitor', 'soon', 'immediate'];
+    function cleanPpiCategories(raw) {
+      const out = [];
+      if (Array.isArray(raw)) for (const c of raw.slice(0, 30)) {
+        const key = String((c && c.key) || '').trim().slice(0, 40);
+        const label = String((c && c.label) || '').trim().slice(0, 80);
+        if (!key || !label) continue;
+        const detail = {};
+        if (c.detail && typeof c.detail === 'object') for (const [k, v] of Object.entries(c.detail).slice(0, 24)) {
+          const dv = String(v).trim();
+          if (dv) detail[String(k).slice(0, 40)] = dv.slice(0, 300);
+        }
+        out.push({
+          key, label,
+          status: PPI_STATUSES.includes(c.status) ? c.status : 'good',
+          urgency: PPI_URGENCY.includes(c.urgency) ? c.urgency : 'none',
+          detail, notes: String((c && c.notes) || '').trim().slice(0, 1000),
+        });
+      }
+      return out;
+    }
+    if (p === '/api/ppi' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
+      const biz = myBusiness(user.id);
+      if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
+      const { customerName, customerPhone, vehicle, vin, mileage, categories, generalNotes } = await parseBody(req);
+      if (!customerName || !String(customerName).trim() || !vehicle || !String(vehicle).trim())
+        return sendJson(res, 400, { error: 'Customer name and vehicle are required.' });
+      let cleanVinValue = '';
+      if (vin && String(vin).trim()) {
+        cleanVinValue = cleanVin(vin);
+        if (!cleanVinValue) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
+      }
+      const rows = ppiStore.read();
+      const row = {
+        id: crypto.randomUUID(), shareToken: crypto.randomBytes(16).toString('hex'),
+        businessId: biz.id, mechanicId: user.id,
+        customerName: String(customerName).trim(), customerPhone: String(customerPhone || '').trim().slice(0, 30),
+        vehicle: String(vehicle).trim().slice(0, 120), vin: cleanVinValue,
+        mileage: String(mileage || '').trim().slice(0, 20),
+        categories: cleanPpiCategories(categories),
+        generalNotes: String(generalNotes || '').trim().slice(0, 2000),
+        createdAt: new Date().toISOString(),
+      };
+      rows.push(row); ppiStore.write(rows);
+      return sendJson(res, 201, { report: row });
+    }
+    if (p === '/api/ppi' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const mine = ppiStore.read().filter(r => r.mechanicId === user.id)
+        .map(r => ({ id: r.id, shareToken: r.shareToken, customerName: r.customerName, vehicle: r.vehicle, createdAt: r.createdAt }))
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      return sendJson(res, 200, { reports: mine });
+    }
+    const ppiOne = p.match(/^\/api\/ppi\/([0-9a-f-]+)$/);
+    if (ppiOne && (req.method === 'GET' || req.method === 'PUT')) {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const rows = ppiStore.read();
+      const row = rows.find(r => r.id === ppiOne[1] && r.mechanicId === user.id);
+      if (!row) return sendJson(res, 404, { error: 'Not found.' });
+      if (req.method === 'GET') return sendJson(res, 200, { report: row });
+      if (mechanicFrozen(user)) return frozenError(res);
+      const { customerName, customerPhone, vehicle, vin, mileage, categories, generalNotes } = await parseBody(req);
+      if (customerName && String(customerName).trim()) row.customerName = String(customerName).trim();
+      if (typeof customerPhone === 'string') row.customerPhone = customerPhone.trim().slice(0, 30);
+      if (vehicle && String(vehicle).trim()) row.vehicle = String(vehicle).trim().slice(0, 120);
+      if (typeof vin === 'string') {
+        if (vin.trim()) {
+          const v = cleanVin(vin);
+          if (!v) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
+          row.vin = v;
+        } else row.vin = '';
+      }
+      if (typeof mileage === 'string') row.mileage = mileage.trim().slice(0, 20);
+      if (Array.isArray(categories)) row.categories = cleanPpiCategories(categories);
+      if (typeof generalNotes === 'string') row.generalNotes = generalNotes.trim().slice(0, 2000);
+      ppiStore.write(rows);
+      return sendJson(res, 200, { report: row });
+    }
+    if (p === '/api/ppi/public' && req.method === 'GET') {
+      const id = String(url.searchParams.get('id') || ''), token = String(url.searchParams.get('token') || '');
+      const row = ppiStore.read().find(r => r.id === id && r.shareToken === token);
+      if (!row) return sendJson(res, 404, { error: 'Report not found.' });
+      const biz = businessesStore.read().find(b => b.id === row.businessId);
+      return sendJson(res, 200, { report: row, business: biz ? publicBusiness(biz) : null });
     }
     if (p === '/api/upload' && req.method === 'POST') {
       const user = getSessionUser(req);
