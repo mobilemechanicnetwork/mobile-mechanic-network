@@ -516,6 +516,42 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { ok: true });
     }
 
+    // ---------- Earnings stats ----------
+    if (p === '/api/stats' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const r2s = n => Math.round(Number(n || 0) * 100) / 100;
+      const quotes = quotesStore.read().filter(q => q.mechanicId === user.id);
+      const tickets = ticketsStore.read().filter(t => t.mechanicId === user.id);
+      const receipts = tickets.filter(t => t.type === 'receipt');
+      const invoices = tickets.filter(t => t.type === 'invoice');
+      const totalIncome = r2s(receipts.reduce((s, t) => s + (Number(t.total) || 0), 0));
+      const outstanding = r2s(invoices.reduce((s, t) => s + (Number(t.total) || 0), 0));
+      const byMonth = {};
+      receipts.forEach(t => {
+        const m = String(t.paidAt || t.createdAt || '').slice(0, 7);
+        if (!/^\d{4}-\d{2}$/.test(m)) return;
+        byMonth[m] = byMonth[m] || { income: 0, jobs: 0 };
+        byMonth[m].income = r2s(byMonth[m].income + (Number(t.total) || 0));
+        byMonth[m].jobs++;
+      });
+      const months = Object.keys(byMonth).sort().reverse().map(m => ({ month: m, income: byMonth[m].income, jobs: byMonth[m].jobs }));
+      const accepted = quotes.filter(q => q.status === 'accepted').length;
+      return sendJson(res, 200, {
+        quotesSent: quotes.length,
+        quotesAccepted: accepted,
+        acceptanceRate: quotes.length ? Math.round(accepted / quotes.length * 100) : 0,
+        jobsCompleted: receipts.length,
+        totalIncome,
+        outstanding,
+        avgJobValue: receipts.length ? r2s(totalIncome / receipts.length) : 0,
+        byMonth: months,
+        recent: receipts.slice().sort((a, b) => String(b.paidAt || b.createdAt).localeCompare(String(a.paidAt || a.createdAt))).slice(0, 10)
+          .map(t => ({ customerName: t.customerName, vehicle: t.vehicle, total: t.total, paidAt: t.paidAt, paymentMethod: t.paymentMethod || '' })),
+      });
+    }
+
     // ---------- Pre-purchase inspections ----------
     const PPI_STATUSES = ['good', 'needs_attention', 'fail'];
     const PPI_URGENCY = ['none', 'monitor', 'soon', 'immediate'];
