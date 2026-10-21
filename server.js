@@ -39,6 +39,7 @@ const ticketsStore = store('tickets.json');
 const vehiclesStore = store('vehicles.json');
 const helpStore = store('help.json');
 const ppiStore = store('ppi.json');
+const reviewsStore = store('reviews.json');
 
 const sessions = new Map(); // token -> userId (in-memory at this stage)
 const visitsStore = store('visits.json');
@@ -168,7 +169,36 @@ function requestMatchesBusiness(reqRow, biz) {
 }
 function publicBusiness(b) {
   const owner = usersStore.read().find(u => u.id === b.userId);
-  return { id: b.id, name: b.name, city: b.city, state: b.state, serviceCities: b.serviceCities || [], services: b.services, about: b.about, phone: b.phone || '', logoUrl: b.logoUrl || '', coverUrl: b.coverUrl || '', gallery: b.gallery || [], socials: b.socials || {}, warranty: b.warranty || '', acceptUrgent: !!b.acceptUrgent, mechanicName: owner ? owner.name : '' };
+  const rating = businessRating(b.id);
+  return { id: b.id, name: b.name, city: b.city, state: b.state, serviceCities: b.serviceCities || [], services: b.services, about: b.about, phone: b.phone || '', logoUrl: b.logoUrl || '', coverUrl: b.coverUrl || '', gallery: b.gallery || [], socials: b.socials || {}, warranty: b.warranty || '', acceptUrgent: !!b.acceptUrgent, certifications: b.certifications || [], avgRating: rating.avg, reviewCount: rating.count, fastResponder: isFastResponder(b.id), mechanicName: owner ? owner.name : '' };
+}
+function businessRating(businessId) {
+  const revs = reviewsStore.read().filter(r => r.businessId === businessId);
+  if (!revs.length) return { avg: 0, count: 0 };
+  const avg = revs.reduce((s, r) => s + r.rating, 0) / revs.length;
+  return { avg: Math.round(avg * 10) / 10, count: revs.length };
+}
+function isFastResponder(businessId) {
+  // Median time from request to this business's first quote, over recent requests.
+  const quotes = quotesStore.read().filter(q => q.businessId === businessId);
+  if (!quotes.length) return false;
+  const reqs = requestsStore.read();
+  const firstByReq = {};
+  quotes.forEach(q => { if (!firstByReq[q.requestId] || String(q.createdAt) < String(firstByReq[q.requestId])) firstByReq[q.requestId] = q.createdAt; });
+  const mins = [];
+  for (const rid of Object.keys(firstByReq)) {
+    const r = reqs.find(x => x.id === rid);
+    if (!r || !r.createdAt) continue;
+    const m = (new Date(firstByReq[rid]) - new Date(r.createdAt)) / 60000;
+    if (m >= 0 && m < 60 * 24 * 30) mins.push(m);
+  }
+  if (mins.length < 3) return false;
+  mins.sort((a, b) => a - b);
+  return mins[Math.floor(mins.length / 2)] <= 60;
+}
+function cleanCertifications(raw) {
+  const arr = Array.isArray(raw) ? raw : String(raw || '').split(/[\n,]/);
+  return [...new Set(arr.map(s => String(s).trim().slice(0, 60)).filter(Boolean))].slice(0, 10);
 }
 function latestPromotion(businessId) {
   const all = promotionsStore.read().filter(x => x.businessId === businessId);
@@ -321,7 +351,7 @@ const server = http.createServer(async (req, res) => {
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Only mobile mechanic accounts have a business page.' });
       if (mechanicFrozen(user)) return frozenError(res);
-      const { name, city, state, serviceCities, services, about, published, phone, logoUrl, coverUrl, socials, warranty, acceptUrgent } = await parseBody(req);
+      const { name, city, state, serviceCities, services, about, published, phone, logoUrl, coverUrl, socials, warranty, acceptUrgent, certifications } = await parseBody(req);
       if (!name || !city || !state || !Array.isArray(services) || services.length === 0)
         return sendJson(res, 400, { error: 'Business name, city, state, and at least one service are required.' });
       const cleanServices = services.filter(s => SERVICES.includes(s));
@@ -335,7 +365,7 @@ const server = http.createServer(async (req, res) => {
         const v = String(socials[k] || '').trim().slice(0, 300);
         if (v) cleanSocials[k] = v;
       }
-      const fields = { name: String(name).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), serviceCities: cleanCities, services: cleanServices, about: String(about || ''), phone: String(phone || '').trim(), published: !!published, socials: cleanSocials, warranty: String(warranty || '').trim().slice(0, 2000), acceptUrgent: acceptUrgent === true };
+      const fields = { name: String(name).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), serviceCities: cleanCities, services: cleanServices, about: String(about || ''), phone: String(phone || '').trim(), published: !!published, socials: cleanSocials, warranty: String(warranty || '').trim().slice(0, 2000), acceptUrgent: acceptUrgent === true, certifications: cleanCertifications(certifications) };
       if (typeof logoUrl === 'string' && logoUrl.startsWith('/uploads/')) fields.logoUrl = logoUrl;
       if (typeof coverUrl === 'string' && coverUrl.startsWith('/uploads/')) fields.coverUrl = coverUrl;
       if (biz) Object.assign(biz, fields); else { biz = { id: crypto.randomUUID(), userId: user.id, createdAt: new Date().toISOString(), ...fields }; businesses.push(biz); }
@@ -407,8 +437,12 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       const quotes = quotesStore.read();
+      const reviews = reviewsStore.read();
+      const tickets = ticketsStore.read();
       const mine = requestsStore.read().filter(r => r.ownerId === user.id).map(r => ({
         ...r,
+        reviewed: reviews.some(x => x.requestId === r.id),
+        paid: tickets.some(t => t.requestId === r.id && t.type === 'receipt'),
         quotes: quotes.filter(q => q.requestId === r.id).map(q => {
           const biz = businessesStore.read().find(b => b.id === q.businessId);
           return { ...q, businessName: biz ? biz.name : 'Mobile mechanic', businessCity: biz ? `${biz.city}, ${biz.state}` : '', businessLogo: biz && biz.logoUrl ? biz.logoUrl : '', businessPhone: biz ? (biz.phone || '') : '', businessWarranty: biz && biz.warranty ? biz.warranty : '' };
@@ -550,6 +584,36 @@ const server = http.createServer(async (req, res) => {
         recent: receipts.slice().sort((a, b) => String(b.paidAt || b.createdAt).localeCompare(String(a.paidAt || a.createdAt))).slice(0, 10)
           .map(t => ({ customerName: t.customerName, vehicle: t.vehicle, total: t.total, paidAt: t.paidAt, paymentMethod: t.paymentMethod || '' })),
       });
+    }
+
+    // ---------- Reviews ----------
+    if (p === '/api/reviews' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'owner') return sendJson(res, 403, { error: 'Only vehicle owner accounts can leave reviews.' });
+      const { requestId, rating, text } = await parseBody(req);
+      const r = Math.round(Number(rating));
+      if (!requestId || !(r >= 1 && r <= 5)) return sendJson(res, 400, { error: 'A star rating from 1 to 5 is required.' });
+      const row = requestsStore.read().find(x => x.id === String(requestId));
+      if (!row || row.ownerId !== user.id) return sendJson(res, 404, { error: 'Job not found.' });
+      const paid = ticketsStore.read().some(t => t.requestId === row.id && t.type === 'receipt');
+      if (!paid) return sendJson(res, 400, { error: 'You can review a job once it is paid.' });
+      const reviews = reviewsStore.read();
+      if (reviews.some(x => x.requestId === row.id)) return sendJson(res, 409, { error: 'You already reviewed this job.' });
+      const q = quotesStore.read().find(x => x.requestId === row.id && x.status === 'accepted');
+      if (!q) return sendJson(res, 400, { error: 'This job has no accepted quote yet.' });
+      const rev = { id: crypto.randomUUID(), businessId: q.businessId, mechanicId: q.mechanicId, ownerId: user.id, ownerName: user.name || 'A vehicle owner', requestId: row.id, rating: r, text: String(text || '').trim().slice(0, 1000), createdAt: new Date().toISOString() };
+      reviews.push(rev);
+      reviewsStore.write(reviews);
+      return sendJson(res, 200, { ok: true, review: rev });
+    }
+    if (p === '/api/reviews' && req.method === 'GET') {
+      const businessId = String(url.searchParams.get('businessId') || '');
+      if (!businessId) return sendJson(res, 400, { error: 'businessId is required.' });
+      const list = reviewsStore.read().filter(x => x.businessId === businessId)
+        .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+        .map(x => ({ ownerName: x.ownerName, rating: x.rating, text: x.text, createdAt: x.createdAt }));
+      return sendJson(res, 200, { reviews: list });
     }
 
     // ---------- Pre-purchase inspections ----------
