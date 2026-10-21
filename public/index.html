@@ -64,10 +64,10 @@
     .skip:focus { top: 12px; }
 
     .utility { background: #ffffff; color: #111b2c; border-bottom: 1px solid #d6deea; position: relative; z-index: 20; }
-    .utility.chain-header { background: #ffffff url(chain-fullbleed.webp) no-repeat center; background-size: cover; min-height: 220px; display: flex; align-items: center; justify-content: center; padding: 20px 16px; }
-    .brand-plaque { display: block; background: #ffffff; border-radius: 14px; padding: 14px 26px; box-shadow: 0 8px 28px rgba(10,25,47,.22); }
-    .brand-text { display: block; width: min(440px, 78vw); height: auto; }
-    @media (min-width: 700px) { .utility.chain-header { min-height: 250px; } .brand-text { width: 480px; } }
+    .utility.header-logo-bar { background: #111c38; padding: 0; display: block; border-bottom: none; }
+    .header-logo-link { display: block; max-width: 1400px; margin: 0 auto; }
+    .header-logo-img { display: block; width: 100%; height: auto; }
+
     .utility-inner { display: flex; align-items: center; justify-content: center; padding: 12px 0; }
 
     .brand { display: inline-flex; align-items: center; flex: 0 0 auto; overflow: visible; text-decoration: none; color: var(--ink); }
@@ -497,7 +497,7 @@
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
-  <header class="utility chain-header"><a class="brand-plaque" href="#main" aria-label="Mobile Mechanic Network home"><img class="brand-text" src="brand-text.webp" alt="Mobile Mechanic Network — Connecting Vehicle Owners &amp; Mobile Mechanics"></a></header>
+  <header class="utility header-logo-bar"><a class="header-logo-link" href="#main" aria-label="Mobile Mechanic Network home"><img class="header-logo-img" src="header-logo.webp" alt="Mobile Mechanic Network — Connecting drivers and mechanics"></a></header>
 
   <div class="account-bar">
     <div class="wrap account-inner">
@@ -604,6 +604,25 @@
       </div>
     </section>
 
+
+    <section class="driver-view" id="ppi-showcase">
+      <div class="wrap">
+        <div class="section-head"><div><p class="eyebrow">Pre-purchase inspection</p><h2>Know what you're buying before you buy it.</h2></div><p>Thinking of buying a car? Have a mobile mechanic near you perform a pre-purchase inspection and understand exactly what you are getting into.</p></div>
+        <p><strong>This is not a decision to buy or not buy.</strong> It is a clear, honest template showing what concerns the vehicle is presenting now, or may present soon.</p>
+        <ul style="columns:2;column-gap:32px;line-height:2;list-style:none;padding:0;margin:16px 0;max-width:640px">
+          <li>✓ Tire tread depth, measured per tire</li>
+          <li>✓ Brake inspection: pads, rotors, lines</li>
+          <li>✓ Computer scan of all modules</li>
+          <li>✓ Current fluid leaks</li>
+          <li>✓ Belt condition</li>
+          <li>✓ Oil level and fluid checks</li>
+          <li>✓ Suspension, battery, lights, cooling, exhaust</li>
+          <li>✓ Exterior, body and interior</li>
+        </ul>
+        <p>Every item is rated Good, Needs attention, or Fail, with notes and a timeline: monitor it, repair it soon, or fix it now. The mechanic sends you a link to your full report.</p>
+        <a class="btn" href="/find">Find a Mobile Mechanic <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
 
     <section class="launch" id="launch"><div class="wrap launch-box">
       <div><p class="eyebrow">A Network of Mobile Mechanics</p><p class="launch-lead"><strong>Access to mobile mechanics for vehicle owners across America, with nationwide coverage expanding as independent mobile mechanics join the network.</strong></p></div>
