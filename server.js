@@ -515,11 +515,15 @@ const server = http.createServer(async (req, res) => {
           if (dv) detail[String(k).slice(0, 40)] = dv.slice(0, 300);
         }
         const photos = Array.isArray(c.photos) ? c.photos.filter(u => typeof u === 'string' && u.startsWith('/uploads/')).slice(0, 8) : [];
+        const bands = {};
+        if (c.bands && typeof c.bands === 'object') for (const [k, v] of Object.entries(c.bands).slice(0, 24)) {
+          if (['red', 'yellow', 'green'].includes(v)) bands[String(k).slice(0, 40)] = v;
+        }
         out.push({
           key, label,
           status: PPI_STATUSES.includes(c.status) ? c.status : 'good',
           urgency: PPI_URGENCY.includes(c.urgency) ? c.urgency : 'none',
-          detail, photos, notes: String((c && c.notes) || '').trim().slice(0, 1000),
+          detail, bands, photos, notes: String((c && c.notes) || '').trim().slice(0, 1000),
         });
       }
       return out;
