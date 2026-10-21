@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobile mechanic — Mobile Mechanic Network</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:0;background:#0b1220;color:#e8eef7}
+  main{max-width:760px;margin:0 auto;padding:0 0 40px}
+  a{color:#93c5fd}
+  .cover{width:100%;max-height:280px;object-fit:cover;display:block}
+  .cover-ph{height:120px;background:linear-gradient(135deg,#1e3a8a,#0f1a2e)}
+  .body{padding:0 24px}
+  .head{display:flex;gap:16px;align-items:center;margin:-36px 0 12px;position:relative}
+  .head img.logo{width:88px;height:88px;object-fit:cover;border-radius:14px;border:3px solid #0b1220;background:#0f1a2e}
+  .head h1{margin:0;font-size:1.6rem}
+  .muted{color:#9fb3c8;font-size:.92rem}
+  .tag{display:inline-block;border:1px solid #334155;border-radius:999px;padding:3px 12px;margin:2px 4px 2px 0;font-size:.85rem;color:#c7d5e8}
+  .card{border:1px solid #334155;border-radius:10px;padding:16px;margin:14px 0;background:#0f1a2e}
+  .card h3{margin:0 0 8px;font-size:1.05rem}
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+  .btn{display:inline-block;background:#2563eb;color:#fff;border:0;border-radius:8px;padding:12px 22px;font-size:1rem;text-decoration:none;cursor:pointer}
+  .btn.call{background:#16a34a}
+  .gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+  .gallery img{width:100%;height:110px;object-fit:cover;border-radius:8px;cursor:pointer}
+  .promo{border-left:4px solid #2563eb;padding:8px 12px;background:#0b1e3a;border-radius:0 8px 8px 0;margin-top:8px}
+  .soc{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
+  .urgent{display:inline-block;background:#7f1d1d;color:#fecaca;border-radius:6px;padding:3px 10px;font-size:.78rem;font-weight:700}
+  .back{display:inline-block;margin:16px 24px 0;font-size:.9rem}
+  #lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:50;cursor:pointer}
+  #lightbox img{max-width:92vw;max-height:92vh;border-radius:10px}
+</style>
+</head>
+<body>
+<main id="page"><p class="body">Loading…</p></main>
+<div id="lightbox" onclick="this.style.display='none'"><img id="lightbox-img" alt=""></div>
+<script>
+const esc = s => String(s == null ? '' : s).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', website: 'Website' };
+(async () => {
+  const id = new URLSearchParams(location.search).get('id');
+  const page = document.getElementById('page');
+  try {
+    const r = await fetch('/api/business/public?id=' + encodeURIComponent(id || ''));
+    if (!r.ok) throw new Error('Business not found.');
+    const { business: b } = await r.json();
+    document.title = b.name + ' — Mobile Mechanic Network';
+    const soc = b.socials || {};
+    const socLinks = Object.keys(SOC_LABELS).filter(k => soc[k]).map(k => `<a href="${esc(String(soc[k]).replace(/"/g, ''))}" target="_blank" rel="noopener">${SOC_LABELS[k]}</a>`).join('');
+    const gallery = (b.gallery || []).map(u => `<img src="${esc(u)}" alt="" loading="lazy" onclick="document.getElementById('lightbox-img').src=this.src;document.getElementById('lightbox').style.display='flex'">`).join('');
+    page.innerHTML = `
+      <a class="back" href="/mechanics">← Back to directory</a>
+      ${b.coverUrl ? `<img class="cover" src="${esc(b.coverUrl)}" alt="">` : `<div class="cover-ph"></div>`}
+      <div class="body">
+        <div class="head">
+          ${b.logoUrl ? `<img class="logo" src="${esc(b.logoUrl)}" alt="">` : ''}
+          <div><h1>${esc(b.name)}</h1><div class="muted">${esc(b.city)}, ${esc(b.state)}${b.mechanicName ? ' · ' + esc(b.mechanicName) : ''}</div></div>
+        </div>
+        ${b.acceptUrgent ? `<div><span class="urgent">ACCEPTS URGENT REQUESTS</span></div>` : ''}
+        <div class="btnrow">
+          ${b.phone ? `<a class="btn call" href="tel:${esc(b.phone.replace(/[^+\d]/g, ''))}">Call ${esc(b.phone)}</a>` : ''}
+          <a class="btn" href="/request?business=${esc(b.id)}">Request a quote from ${esc(b.name)}</a>
+        </div>
+        ${b.about ? `<div class="card"><h3>About</h3><p style="margin:0">${esc(b.about)}</p></div>` : ''}
+        <div class="card"><h3>Services</h3><div>${(b.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('')}</div></div>
+        <div class="card"><h3>Service area</h3><p class="muted" style="margin:0">${esc([b.city, ...(b.serviceCities || [])].join(', '))}</p></div>
+        ${gallery ? `<div class="card"><h3>Photos</h3><div class="gallery">${gallery}</div></div>` : ''}
+        ${b.promotion ? `<div class="card"><h3>Current special</h3><div class="promo"><strong>${esc(b.promotion.title)}</strong><div class="muted">${esc(b.promotion.description || '')}${b.promotion.validUntil ? ' · Valid until ' + esc(b.promotion.validUntil) : ''}</div></div></div>` : ''}
+        ${b.warranty ? `<div class="card"><h3>Warranty</h3><p style="margin:0">${esc(b.warranty)}</p></div>` : ''}
+        ${socLinks ? `<div class="card"><h3>Follow</h3><div class="soc">${socLinks}</div></div>` : ''}
+      </div>`;
+  } catch (e) { page.innerHTML = '<p class="body">' + esc(e.message) + ' <a href="/mechanics">Back to directory</a>.</p>'; }
+})();
+</script>
+</body>
+</html>
