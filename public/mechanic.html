@@ -71,6 +71,7 @@
     <button data-tab="promos">Promotions</button>
     <button data-tab="photos">Photos</button>
     <button data-tab="tickets">Tickets</button>
+    <button data-tab="earnings">Earnings</button>
     <button data-tab="inspections">Inspections</button>
     <button data-tab="billing">Billing</button>
     <button data-tab="help">Help</button>
@@ -168,6 +169,12 @@
     <div id="ticket-list"></div>
   </section>
 
+  <section class="tab" id="tab-earnings">
+    <h2>Earnings</h2>
+    <p class="muted">Income counts jobs marked paid (receipts). Quotes and booked jobs show up here once they're paid.</p>
+    <div id="stats-box"><p class="muted">Loading…</p></div>
+  </section>
+
   <section class="tab" id="tab-inspections">
     <h2>Pre-Purchase Inspections</h2>
     <p class="muted">Fill out an inspection and send the customer a link to their report. Reports are informational only: they show what concerns the vehicle is presenting now or may present soon, never a decision to buy or not buy.</p>
@@ -237,7 +244,7 @@ async function loadInbox() {
   if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
   inbox.requests.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
   box.innerHTML = inbox.requests.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#1c0a0a"' : ''}>
-    ${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
+    ${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
     <p>${esc(r.description)}</p>
     ${r.myQuote ? `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p>` : `
     <div id="qb-${r.id}">
@@ -747,6 +754,29 @@ $('ppi-form').onsubmit = async (e) => {
   } catch (err) { $('ppi-err').textContent = err.message; }
 };
 
+/* ---------- Earnings ---------- */
+async function loadStats() {
+  const box = $('stats-box');
+  try {
+    const s = await api('/api/stats');
+    const money = n => '$' + Number(n || 0).toFixed(2);
+    const card = (label, val, sub) => `<div class="card" style="margin:0"><div class="muted">${label}</div><div style="font-size:1.7rem;font-weight:800">${val}</div>${sub ? `<div class="muted">${sub}</div>` : ''}</div>`;
+    const monthName = m => { const [y, mo] = m.split('-'); return new Date(y, mo - 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }); };
+    box.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0">
+        ${card('Total income', money(s.totalIncome), s.jobsCompleted + ' jobs completed')}
+        ${card('Jobs quoted', s.quotesSent, s.acceptanceRate + '% accepted')}
+        ${card('Avg job value', money(s.avgJobValue))}
+        ${card('Outstanding', money(s.outstanding), 'invoiced, not yet paid')}
+      </div>
+      ${s.byMonth.length ? `<h3>By month</h3><div class="card" style="padding:0;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:.92rem">
+        <tr style="text-align:left;color:#9fb3c8"><th style="padding:10px 14px">Month</th><th style="padding:10px 14px">Jobs</th><th style="padding:10px 14px;text-align:right">Income</th></tr>
+        ${s.byMonth.map(m => `<tr style="border-top:1px solid #1e293b"><td style="padding:10px 14px">${monthName(m.month)}</td><td style="padding:10px 14px">${m.jobs}</td><td style="padding:10px 14px;text-align:right">${money(m.income)}</td></tr>`).join('')}
+      </table></div>` : '<p class="muted">No paid jobs yet. Mark an invoice as paid and it shows up here.</p>'}
+      ${s.recent.length ? `<h3>Recent paid jobs</h3>${s.recent.map(t => `<div class="card"><strong>${esc(t.customerName || '')}</strong> — ${esc(t.vehicle || '')}<div class="muted">${t.paidAt ? new Date(t.paidAt).toLocaleDateString() : ''}${t.paymentMethod ? ' · ' + esc(t.paymentMethod) : ''}</div><div style="font-weight:700">${money(t.total)}</div></div>`).join('')}` : ''}`;
+  } catch (e) { box.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; }
+}
+
 /* ---------- init ---------- */
 (async () => {
   const me = await api('/api/me').catch(() => null);
@@ -768,6 +798,7 @@ $('ppi-form').onsubmit = async (e) => {
   await loadInbox();
   await loadPromos();
   await loadTickets();
+  await loadStats();
   await loadPpiList();
   await loadBilling();
   await loadCustomerCache();
