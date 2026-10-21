@@ -158,7 +158,8 @@ function servedCities(biz) {
 }
 function requestMatchesBusiness(reqRow, biz) {
   if (!biz || !biz.published) return false;
-  if (reqRow.urgent && !biz.acceptUrgent) return false;
+  if (reqRow.businessId && reqRow.businessId !== biz.id) return false;
+  if (!reqRow.businessId && reqRow.urgent && !biz.acceptUrgent) return false;
   const owner = usersStore.read().find(u => u.id === biz.userId);
   if (mechanicFrozen(owner)) return false;
   return biz.state.toLowerCase() === reqRow.state.toLowerCase()
@@ -366,6 +367,14 @@ const server = http.createServer(async (req, res) => {
       if (service) list = list.filter(b => b.services.includes(service));
       return sendJson(res, 200, { mechanics: list.map(b => ({ ...publicBusiness(b), promotion: latestPromotion(b.id) })) });
     }
+    if (p === '/api/business/public' && req.method === 'GET') {
+      const id = String(url.searchParams.get('id') || '');
+      const biz = businessesStore.read().find(b => b.id === id && b.published);
+      if (!biz) return sendJson(res, 404, { error: 'Business not found.' });
+      const owner = usersStore.read().find(u => u.id === biz.userId);
+      if (mechanicFrozen(owner)) return sendJson(res, 404, { error: 'Business not found.' });
+      return sendJson(res, 200, { business: { ...publicBusiness(biz), promotion: latestPromotion(biz.id) } });
+    }
     if (p === '/api/services' && req.method === 'GET') return sendJson(res, 200, { services: SERVICES });
 
     // ---------- Quote requests ----------
@@ -373,18 +382,25 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'owner') return sendJson(res, 403, { error: 'Only vehicle owner accounts can request quotes.' });
-      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip } = await parseBody(req);
+      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip, businessId } = await parseBody(req);
       if (!city || !state || !SERVICES.includes(service) || !vehicle || !description || !phone)
         return sendJson(res, 400, { error: 'City, state, service, vehicle, a description, and a phone number are required.' });
+      let targetBiz = null;
+      if (businessId) {
+        targetBiz = businessesStore.read().find(b => b.id === String(businessId) && b.published);
+        if (!targetBiz) return sendJson(res, 400, { error: 'That mechanic is no longer available.' });
+        const tOwner = usersStore.read().find(u => u.id === targetBiz.userId);
+        if (mechanicFrozen(tOwner)) return sendJson(res, 400, { error: 'That mechanic is no longer available.' });
+      }
       let cleanVinValue = '';
       if (vin && String(vin).trim()) {
         cleanVinValue = cleanVin(vin);
         if (!cleanVinValue) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
       }
       const rows = requestsStore.read();
-      const row = { id: crypto.randomUUID(), ownerId: user.id, ownerName: user.name, phone: String(phone).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), status: 'open', urgent: urgent === true, createdAt: new Date().toISOString() };
+      const row = { id: crypto.randomUUID(), ownerId: user.id, ownerName: user.name, phone: String(phone).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, createdAt: new Date().toISOString() };
       rows.push(row); requestsStore.write(rows);
-      const matches = businessesStore.read().filter(b => requestMatchesBusiness(row, b)).length;
+      const matches = targetBiz ? 1 : businessesStore.read().filter(b => requestMatchesBusiness(row, b)).length;
       return sendJson(res, 201, { request: row, mechanicsNotified: matches });
     }
     if (p === '/api/requests/mine' && req.method === 'GET') {
