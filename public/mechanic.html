@@ -76,6 +76,7 @@
       <label for="b-cities">Other cities you serve (separate with commas). Requests are only sent to you for cities you serve. Your base city is always included.</label><textarea id="b-cities" rows="2" placeholder="Covington, Mandeville, Pearl River"></textarea>
       <label>Services you offer</label>
       <div class="checks" id="b-services"></div>
+      <label style="margin-top:10px"><input type="checkbox" id="b-urgent"> Accept urgent requests <span class="muted">— urgent jobs from vehicle owners who need help now will be sent to you</span></label>
       <label for="b-about">About your business</label><textarea id="b-about" rows="3"></textarea>
       <label for="b-warranty">Warranty policy (optional — shows on your quotes and tickets)</label><textarea id="b-warranty" rows="2" placeholder="e.g. 12 months / 12,000 miles on parts and labor"></textarea>
       <label for="b-phone">Business phone number (shown on your public listing so customers can call you)</label><input id="b-phone" type="tel" placeholder="(504) 555-0100">
@@ -198,8 +199,9 @@ async function loadInbox() {
   window._booked = inbox.booked || [];
   if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Publish your business page to start receiving requests in your area.</p>'; return; }
   if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
-  box.innerHTML = inbox.requests.map(r => `<div class="card">
-    ${r.urgent ? '<span class="urgent-badge">URGENT</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
+  inbox.requests.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
+  box.innerHTML = inbox.requests.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#1c0a0a"' : ''}>
+    ${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
     <p>${esc(r.description)}</p>
     ${r.myQuote ? `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p>` : `
     <div id="qb-${r.id}">
@@ -265,6 +267,7 @@ async function loadProfile() {
     $('b-phone').value = b.phone || ''; $('b-published').checked = !!b.published;
     for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website']) $('b-soc-' + k).value = (b.socials && b.socials[k]) || '';
     document.querySelectorAll('#b-services input').forEach(c => { c.checked = (b.services || []).includes(c.value); });
+    $('b-urgent').checked = !!b.acceptUrgent;
     if (b.logoUrl) { $('b-logo-preview').src = b.logoUrl; $('b-logo-preview').style.display = 'block'; }
     if (b.coverUrl) { $('b-cover-preview').src = b.coverUrl; $('b-cover-preview').style.display = 'block'; }
     renderGallery(b.gallery || []);
@@ -287,7 +290,7 @@ $('biz-form').onsubmit = async (e) => {
   try {
     const socials = {};
     for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website']) socials[k] = $('b-soc-' + k).value;
-    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked, socials, warranty: $('b-warranty').value };
+    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked, socials, warranty: $('b-warranty').value, acceptUrgent: $('b-urgent').checked };
     if ($('b-logo').files.length) body.logoUrl = await uploadImage('logo', $('b-logo').files[0]);
     if ($('b-cover').files.length) body.coverUrl = await uploadImage('cover', $('b-cover').files[0]);
     await post('/api/business', body);
