@@ -56,6 +56,7 @@
     <button data-tab="promos">Promotions</button>
     <button data-tab="photos">Photos</button>
     <button data-tab="tickets">Tickets</button>
+    <button data-tab="inspections">Inspections</button>
     <button data-tab="billing">Billing</button>
     <button data-tab="help">Help</button>
   </div>
@@ -150,6 +151,26 @@
       <div class="err" id="t-err"></div><div class="ok" id="t-ok"></div>
     </form>
     <div id="ticket-list"></div>
+  </section>
+
+  <section class="tab" id="tab-inspections">
+    <h2>Pre-Purchase Inspections</h2>
+    <p class="muted">Fill out an inspection and send the customer a link to their report. Reports are informational only: they show what concerns the vehicle is presenting now or may present soon, never a decision to buy or not buy.</p>
+    <div id="ppi-list"><p class="muted">Loading…</p></div>
+    <p><button class="primary" id="ppi-new" type="button">New inspection</button></p>
+    <form id="ppi-form" hidden>
+      <h3 id="ppi-form-title">New pre-purchase inspection</h3>
+      <label for="ppi-customer">Customer name</label><input id="ppi-customer" required maxlength="120">
+      <label for="ppi-phone">Customer phone (optional)</label><input id="ppi-phone" maxlength="30">
+      <label for="ppi-vehicle">Vehicle (year, make, model)</label><input id="ppi-vehicle" required maxlength="120" placeholder="e.g. 2019 Toyota Camry">
+      <label for="ppi-vin">VIN (optional)</label><input id="ppi-vin" maxlength="17" placeholder="17 characters">
+      <label for="ppi-mileage">Mileage (optional)</label><input id="ppi-mileage" maxlength="20" placeholder="e.g. 84,500">
+      <div id="ppi-cats"></div>
+      <label for="ppi-notes">Inspector notes (optional)</label><textarea id="ppi-notes" rows="3" maxlength="2000"></textarea>
+      <p><button class="primary" type="submit" id="ppi-submit">Save inspection</button> <button type="button" class="ghost" id="ppi-cancel">Cancel</button></p>
+      <div class="err" id="ppi-err"></div>
+    </form>
+    <div id="ppi-share" hidden></div>
   </section>
 
   <section class="tab" id="tab-billing">
@@ -537,6 +558,114 @@ async function loadBilling() {
   } catch (e) { box.innerHTML = note + '<p class="err">' + e.message + '</p>'; }
 }
 
+/* ---------- Pre-purchase inspections ---------- */
+const PPI_CATS = [
+  { key: 'tires', label: 'Tires & tread depth', fields: [
+    { k: 'Front left tread', ph: 'e.g. 7/32 in' }, { k: 'Front right tread', ph: 'e.g. 7/32 in' },
+    { k: 'Rear left tread', ph: 'e.g. 7/32 in' }, { k: 'Rear right tread', ph: 'e.g. 7/32 in' } ] },
+  { key: 'brakes', label: 'Brake inspection', fields: [
+    { k: 'Front pad thickness', ph: 'e.g. 8 mm' }, { k: 'Rear pad thickness', ph: 'e.g. 6 mm' },
+    { k: 'Rotor condition', ph: 'Good / worn / warped / scored' } ] },
+  { key: 'scan', label: 'Computer scan (all modules)', fields: [
+    { k: 'Modules scanned', ph: 'e.g. Engine, transmission, ABS, airbag' },
+    { k: 'Codes found', ph: 'List any codes, or "none"' } ] },
+  { key: 'leaks', label: 'Current fluid leaks', fields: [
+    { k: 'Leak location', ph: 'e.g. Valve cover, or "none seen"' }, { k: 'Fluid type', ph: 'e.g. Engine oil' } ] },
+  { key: 'belts', label: 'Belt condition', fields: [
+    { k: 'Serpentine belt', ph: 'Good / cracking / worn' }, { k: 'Timing belt or chain', ph: 'If visible or per records' } ] },
+  { key: 'fluids', label: 'Oil level & fluid checks', fields: [
+    { k: 'Engine oil level', ph: 'Full / low' }, { k: 'Engine oil condition', ph: 'Clean / dark / sludge' },
+    { k: 'Coolant', ph: 'OK / low' }, { k: 'Brake fluid', ph: 'OK / low' }, { k: 'Transmission fluid', ph: 'OK / low' } ] },
+  { key: 'suspension', label: 'Suspension & steering', fields: [] },
+  { key: 'battery', label: 'Battery & charging', fields: [ { k: 'Battery voltage', ph: 'e.g. 12.6V' } ] },
+  { key: 'lights', label: 'Lights & electrical', fields: [] },
+  { key: 'cooling', label: 'Cooling system', fields: [] },
+  { key: 'exhaust', label: 'Exhaust system', fields: [] },
+  { key: 'body', label: 'Exterior, body & interior', fields: [] },
+];
+let ppiEditingId = null;
+function renderPpiCats(existing) {
+  const byKey = {};
+  (existing || []).forEach(c => { byKey[c.key] = c; });
+  $('ppi-cats').innerHTML = PPI_CATS.map((c, i) => {
+    const e = byKey[c.key] || {};
+    const det = e.detail || {};
+    return `<div class="card"><strong>${esc(c.label)}</strong>
+      <div style="margin:8px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <label><input type="radio" name="ppi-status-${i}" value="good" ${(!e.status || e.status === 'good') ? 'checked' : ''}> Good</label>
+        <label><input type="radio" name="ppi-status-${i}" value="needs_attention" ${e.status === 'needs_attention' ? 'checked' : ''}> Needs attention</label>
+        <label><input type="radio" name="ppi-status-${i}" value="fail" ${e.status === 'fail' ? 'checked' : ''}> Fail</label>
+        <label>Urgency <select id="ppi-urg-${i}">
+          <option value="none"${(!e.urgency || e.urgency === 'none') ? ' selected' : ''}>None</option>
+          <option value="monitor"${e.urgency === 'monitor' ? ' selected' : ''}>Monitor</option>
+          <option value="soon"${e.urgency === 'soon' ? ' selected' : ''}>Repair soon</option>
+          <option value="immediate"${e.urgency === 'immediate' ? ' selected' : ''}>Immediate attention</option>
+        </select></label>
+      </div>
+      ${c.fields.map((f, j) => `<label>${esc(f.k)}</label><input id="ppi-f-${i}-${j}" placeholder="${esc(f.ph)}" maxlength="300" value="${esc(det[f.k] || '')}">`).join('')}
+      <label>Notes</label><textarea id="ppi-n-${i}" rows="2" maxlength="1000" placeholder="Anything the buyer should know">${esc(e.notes || '')}</textarea>
+    </div>`;
+  }).join('');
+}
+function ppiShareUrl(r) { return location.origin + '/inspection.html?id=' + r.id + '&token=' + r.shareToken; }
+async function loadPpiList() {
+  try {
+    const d = await api('/api/ppi');
+    $('ppi-list').innerHTML = d.reports.length ? d.reports.map(r => `<div class="card">
+      <strong>${esc(r.vehicle)}</strong> — ${esc(r.customerName)} <span class="muted">${esc(new Date(r.createdAt).toLocaleDateString())}</span><br>
+      <button type="button" class="ghost" onclick="window.open('${ppiShareUrl(r)}','_blank')">View report</button>
+      <button type="button" class="ghost" onclick="ppiEdit('${r.id}')">Edit</button>
+    </div>`).join('') : '<p class="muted">No inspections yet.</p>';
+  } catch (e) { $('ppi-list').innerHTML = '<p class="err">' + esc(e.message) + '</p>'; }
+}
+window.ppiEdit = async (id) => {
+  try {
+    const { report: r } = await api('/api/ppi/' + id);
+    ppiEditingId = id;
+    $('ppi-form-title').textContent = 'Edit pre-purchase inspection';
+    $('ppi-customer').value = r.customerName || ''; $('ppi-phone').value = r.customerPhone || '';
+    $('ppi-vehicle').value = r.vehicle || ''; $('ppi-vin').value = r.vin || ''; $('ppi-mileage').value = r.mileage || '';
+    $('ppi-notes').value = r.generalNotes || '';
+    renderPpiCats(r.categories);
+    $('ppi-form').hidden = false; $('ppi-share').hidden = true;
+    $('ppi-form').scrollIntoView();
+  } catch (e) { alert(e.message); }
+};
+$('ppi-new').onclick = () => {
+  ppiEditingId = null;
+  $('ppi-form-title').textContent = 'New pre-purchase inspection';
+  $('ppi-form').reset(); renderPpiCats([]);
+  $('ppi-err').textContent = '';
+  $('ppi-form').hidden = false; $('ppi-share').hidden = true;
+  $('ppi-form').scrollIntoView();
+};
+$('ppi-cancel').onclick = () => { $('ppi-form').hidden = true; };
+$('ppi-form').onsubmit = async (e) => {
+  e.preventDefault();
+  $('ppi-err').textContent = '';
+  try {
+    const categories = PPI_CATS.map((c, i) => {
+      const statusEl = document.querySelector('input[name="ppi-status-' + i + '"]:checked');
+      const detail = {};
+      c.fields.forEach((f, j) => { const v = $('ppi-f-' + i + '-' + j).value.trim(); if (v) detail[f.k] = v; });
+      return { key: c.key, label: c.label, status: statusEl ? statusEl.value : 'good', urgency: $('ppi-urg-' + i).value, detail, notes: $('ppi-n-' + i).value.trim() };
+    });
+    const body = { customerName: $('ppi-customer').value, customerPhone: $('ppi-phone').value, vehicle: $('ppi-vehicle').value, vin: $('ppi-vin').value, mileage: $('ppi-mileage').value, categories, generalNotes: $('ppi-notes').value };
+    const r = ppiEditingId
+      ? (await api('/api/ppi/' + ppiEditingId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).report
+      : (await post('/api/ppi', body)).report;
+    ppiEditingId = null;
+    $('ppi-form').hidden = true;
+    const url = ppiShareUrl(r);
+    const sh = $('ppi-share');
+    sh.hidden = false;
+    sh.innerHTML = `<div class="card"><strong>Inspection saved.</strong><p>Send this link to your customer:</p><p><a href="${esc(url)}" target="_blank">${esc(url)}</a></p><p><button type="button" class="primary" id="ppi-copy">Copy link</button></p></div>`;
+    $('ppi-copy').onclick = async () => { try { await navigator.clipboard.writeText(url); $('ppi-copy').textContent = 'Copied'; } catch (_) { alert(url); } };
+    sh.scrollIntoView();
+    loadPpiList();
+  } catch (err) { $('ppi-err').textContent = err.message; }
+};
+
 /* ---------- init ---------- */
 (async () => {
   const me = await api('/api/me').catch(() => null);
@@ -558,6 +687,7 @@ async function loadBilling() {
   await loadInbox();
   await loadPromos();
   await loadTickets();
+  await loadPpiList();
   await loadBilling();
   await loadCustomerCache();
   addItemRow('', '');
