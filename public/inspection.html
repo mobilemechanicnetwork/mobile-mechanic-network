@@ -63,7 +63,7 @@ const dotColor = { red: '#dc2626', yellow: '#eab308', green: '#16a34a' };
     const hasBands = (t.categories || []).some(c => c.key === 'tires' || c.key === 'brakes');
     const cats = (t.categories || []).map(c => {
       const details = Object.entries(c.detail || {}).map(([k, v]) => {
-        const band = bandFor(c.key, k, v);
+        const band = (c.bands && c.bands[k]) || bandFor(c.key, k, v);
         return `<div><span>${esc(k)}</span>${band ? `<span style="${dotCss}background:${dotColor[band]}"></span>` : ''}${esc(v)}</div>`;
       }).join('');
       const photos = (c.photos || []).map(u => `<a href="${esc(u)}" target="_blank"><img src="${esc(u)}" alt="" style="width:120px;height:120px;object-fit:cover;border-radius:8px;margin:4px;border:1px solid #e2e8f0"></a>`).join('');

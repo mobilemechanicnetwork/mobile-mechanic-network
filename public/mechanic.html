@@ -26,12 +26,15 @@
   button.ghost{background:#1e293b;color:#e8eef7;border:1px solid #334155;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:.85rem}
   button.danger{background:#7f1d1d;color:#fecaca;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:.85rem}
   .card{border:1px solid #334155;border-radius:10px;padding:16px;margin:12px 0;background:#0f1a2e}
-  #tab-inspections .card{background:#ffffff;border-color:#e2e8f0;color:#0f172a}
-  #tab-inspections h3{color:#0f172a}
-  #tab-inspections label{color:#334155}
-  #tab-inspections input,#tab-inspections select,#tab-inspections textarea{background:#f8fafc;border-color:#cbd5e1;color:#0f172a}
+  #tab-inspections{background:#ffffff;border-radius:12px;padding:6px 18px 18px;color:#0f172a}
+  #tab-inspections h2,#tab-inspections h3{color:#0f172a}
+  #tab-inspections>p{color:#334155}
   #tab-inspections .muted{color:#64748b}
   #tab-inspections input[type="radio"],#tab-inspections input[type="checkbox"]{width:auto}
+  .banddots{display:inline-flex;gap:6px;align-items:center;flex:none;margin-left:4px}
+  .bdot{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid #cbd5e1;flex:none;padding:0}
+  .bdot.red{background:#dc2626}.bdot.yellow{background:#eab308}.bdot.green{background:#16a34a}
+  .bdot.sel{border-color:#0f172a;box-shadow:0 0 0 2px #ffffff,0 0 0 4px #0f172a}
   .ppi-legend{font-size:.85rem;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin:8px 0}
   .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:baseline}
   .dot.red{background:#dc2626}.dot.yellow{background:#eab308}.dot.green{background:#16a34a}
@@ -572,11 +575,11 @@ async function loadBilling() {
 
 /* ---------- Pre-purchase inspections ---------- */
 const PPI_CATS = [
-  { key: 'tires', label: 'Tires & tread depth', legend: 'Red = replace (1–3/32), Yellow = suggest service soon (4–7/32), Green = good (8–15/32)', fields: [
-    { k: 'Front left tread', ph: 'e.g. 7/32 in', color: 'tread' }, { k: 'Front right tread', ph: 'e.g. 7/32 in', color: 'tread' },
-    { k: 'Rear left tread', ph: 'e.g. 7/32 in', color: 'tread' }, { k: 'Rear right tread', ph: 'e.g. 7/32 in', color: 'tread' } ] },
-  { key: 'brakes', label: 'Brake inspection', legend: 'Red = replace (1–3 mm), Yellow = suggest service soon (4–7 mm), Green = good (8–12 mm)', fields: [
-    { k: 'Front pad thickness', ph: 'e.g. 8 mm', color: 'pad' }, { k: 'Rear pad thickness', ph: 'e.g. 6 mm', color: 'pad' },
+  { key: 'tires', label: 'Tires & tread depth', legend: 'Mark each tire: red = replace, yellow = suggest service soon, green = good', fields: [
+    { k: 'Front left tread', ph: 'e.g. 7/32 in', band: true }, { k: 'Front right tread', ph: 'e.g. 7/32 in', band: true },
+    { k: 'Rear left tread', ph: 'e.g. 7/32 in', band: true }, { k: 'Rear right tread', ph: 'e.g. 7/32 in', band: true } ] },
+  { key: 'brakes', label: 'Brake inspection', legend: 'Mark each pad: red = replace (1–3 mm), yellow = suggest soon (4–7 mm), green = good (8–12 mm)', fields: [
+    { k: 'Front pad thickness', ph: 'e.g. 8 mm', band: true }, { k: 'Rear pad thickness', ph: 'e.g. 6 mm', band: true },
     { k: 'Rotor condition', ph: 'Good / worn / warped / scored' } ] },
   { key: 'scan', label: 'Computer scan (all modules)', fields: [
     { k: 'Modules scanned', ph: 'e.g. Engine, transmission, ABS, airbag' },
@@ -597,30 +600,14 @@ const PPI_CATS = [
 ];
 let ppiEditingId = null;
 let ppiPhotos = {};
-function treadBand(v) {
-  const m = String(v).match(/(\d+(\.\d+)?)/);
-  if (!m) return '';
-  const n = parseFloat(m[1]);
-  if (n >= 1 && n <= 3) return 'red';
-  if (n > 3 && n <= 7) return 'yellow';
-  if (n > 7 && n <= 15) return 'green';
-  return '';
-}
-function padBand(v) {
-  const m = String(v).match(/(\d+(\.\d+)?)/);
-  if (!m) return '';
-  const n = parseFloat(m[1]);
-  if (n >= 1 && n <= 3) return 'red';
-  if (n > 3 && n <= 7) return 'yellow';
-  if (n > 7 && n <= 12) return 'green';
-  return '';
-}
-function paintMeasure(el) {
-  const kind = el.dataset.color;
-  const band = kind === 'tread' ? treadBand(el.value) : kind === 'pad' ? padBand(el.value) : '';
-  el.style.background = band === 'red' ? '#fee2e2' : band === 'yellow' ? '#fef3c7' : band === 'green' ? '#dcfce7' : '';
-  el.style.borderColor = band === 'red' ? '#dc2626' : band === 'yellow' ? '#eab308' : band === 'green' ? '#16a34a' : '';
-}
+let ppiBands = {};
+document.addEventListener('click', e => {
+  const d = e.target.closest('.bdot');
+  if (!d || !d.parentElement.classList.contains('banddots')) return;
+  const wrap = d.parentElement;
+  ppiBands[wrap.dataset.key] = d.dataset.band;
+  wrap.querySelectorAll('.bdot').forEach(x => x.classList.toggle('sel', x === d));
+});
 window.ppiPhoto = async (input, i) => {
   const f = input.files[0];
   if (!f) return;
@@ -666,17 +653,21 @@ function renderPpiCats(existing) {
           <option value="immediate"${e.urgency === 'immediate' ? ' selected' : ''}>Immediate attention</option>
         </select></label>
       </div>
-      ${c.fields.map((f, j) => `<label>${esc(f.k)}</label><input id="ppi-f-${i}-${j}" placeholder="${esc(f.ph)}" maxlength="300" value="${esc(det[f.k] || '')}"${f.color ? ` data-color="${f.color}" oninput="paintMeasure(this)"` : ''}>`).join('')}
+      ${c.fields.map((f, j) => {
+        const bkey = i + '-' + j;
+        const dots = f.band ? `<span class="banddots" data-key="${bkey}">${
+          ['red', 'yellow', 'green'].map(b =>
+            `<span class="bdot ${b}${ppiBands[bkey] === b ? ' sel' : ''}" data-band="${b}" title="${b === 'red' ? 'Replace' : b === 'yellow' ? 'Suggest soon' : 'Good'}"></span>`).join('')
+        }</span>` : '';
+        return `<label>${esc(f.k)}</label><div style="display:flex;gap:8px;align-items:center"><input id="ppi-f-${i}-${j}" placeholder="${esc(f.ph)}" maxlength="300" value="${esc(det[f.k] || '')}" style="margin:0">${dots}</div>`;
+      }).join('')}
       <label>Notes</label><textarea id="ppi-n-${i}" rows="2" maxlength="1000" placeholder="Anything the buyer should know">${esc(e.notes || '')}</textarea>
       <label>Photos</label>
       <div id="ppi-ph-${i}" style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0"></div>
       <input type="file" accept="image/*" onchange="ppiPhoto(this, ${i})" style="margin-bottom:4px">
     </div>`;
   }).join('');
-  PPI_CATS.forEach((c, i) => {
-    renderPpiThumbs(i);
-    c.fields.forEach((f, j) => { const el = $('ppi-f-' + i + '-' + j); if (el && f.color) paintMeasure(el); });
-  });
+  PPI_CATS.forEach((c, i) => { renderPpiThumbs(i); });
 }
 function ppiShareUrl(r) { return location.origin + '/inspection.html?id=' + r.id + '&token=' + r.shareToken; }
 async function loadPpiList() {
@@ -694,9 +685,15 @@ window.ppiEdit = async (id) => {
     const { report: r } = await api('/api/ppi/' + id);
     ppiEditingId = id;
     ppiPhotos = {};
+    ppiBands = {};
     (r.categories || []).forEach(c => {
       const idx = PPI_CATS.findIndex(x => x.key === c.key);
-      if (idx >= 0 && Array.isArray(c.photos) && c.photos.length) ppiPhotos[idx] = [...c.photos];
+      if (idx < 0) return;
+      if (Array.isArray(c.photos) && c.photos.length) ppiPhotos[idx] = [...c.photos];
+      if (c.bands && typeof c.bands === 'object') for (const [k, v] of Object.entries(c.bands)) {
+        const fj = PPI_CATS[idx].fields.findIndex(f => f.k === k);
+        if (fj >= 0 && ['red', 'yellow', 'green'].includes(v)) ppiBands[idx + '-' + fj] = v;
+      }
     });
     $('ppi-form-title').textContent = 'Edit pre-purchase inspection';
     $('ppi-customer').value = r.customerName || ''; $('ppi-phone').value = r.customerPhone || '';
@@ -710,6 +707,7 @@ window.ppiEdit = async (id) => {
 $('ppi-new').onclick = () => {
   ppiEditingId = null;
   ppiPhotos = {};
+  ppiBands = {};
   $('ppi-form-title').textContent = 'New pre-purchase inspection';
   $('ppi-form').reset(); renderPpiCats([]);
   $('ppi-err').textContent = '';
@@ -724,8 +722,14 @@ $('ppi-form').onsubmit = async (e) => {
     const categories = PPI_CATS.map((c, i) => {
       const statusEl = document.querySelector('input[name="ppi-status-' + i + '"]:checked');
       const detail = {};
-      c.fields.forEach((f, j) => { const v = $('ppi-f-' + i + '-' + j).value.trim(); if (v) detail[f.k] = v; });
-      return { key: c.key, label: c.label, status: statusEl ? statusEl.value : 'good', urgency: $('ppi-urg-' + i).value, detail, photos: ppiPhotos[i] || [], notes: $('ppi-n-' + i).value.trim() };
+      const bands = {};
+      c.fields.forEach((f, j) => {
+        const v = $('ppi-f-' + i + '-' + j).value.trim();
+        if (v) detail[f.k] = v;
+        const b = ppiBands[i + '-' + j];
+        if (f.band && b) bands[f.k] = b;
+      });
+      return { key: c.key, label: c.label, status: statusEl ? statusEl.value : 'good', urgency: $('ppi-urg-' + i).value, detail, bands, photos: ppiPhotos[i] || [], notes: $('ppi-n-' + i).value.trim() };
     });
     const body = { customerName: $('ppi-customer').value, customerPhone: $('ppi-phone').value, vehicle: $('ppi-vehicle').value, vin: $('ppi-vin').value, mileage: $('ppi-mileage').value, categories, generalNotes: $('ppi-notes').value };
     const r = ppiEditingId
