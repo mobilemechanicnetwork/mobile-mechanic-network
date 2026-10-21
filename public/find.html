@@ -17,6 +17,11 @@
   .card{border:1px solid #334155;border-radius:10px;padding:16px;margin:12px 0;background:#0f1a2e}
   .card h3{margin:0 0 4px}
   .tag{display:inline-block;border:1px solid #334155;border-radius:999px;padding:2px 10px;margin:2px 4px 2px 0;font-size:.8rem;color:#c7d5e8}
+  .badges{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+  .badge{display:inline-block;font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:999px;background:#1e293b;border:1px solid #334155;color:#e2e8f0}
+  .badge-fr{background:#052e1b;border-color:#16a34a;color:#86efac}
+  .badge-hr{background:#3b2f04;border-color:#d97706;color:#fcd34d}
+  .badge-cert{background:#1e1b4b;border-color:#6366f1;color:#c7d2fe}
   .cta{text-align:center;margin:20px 0}
   .cta a button{width:auto;padding:13px 32px;font-size:1.05rem;background:#2563eb;color:#fff;border:0;border-radius:8px;cursor:pointer}
 </style>
@@ -76,7 +81,14 @@ $('find-form').onsubmit = async (e) => {
   $('form-view').hidden = true;
   $('results-view').hidden = false;
   $('r-head').textContent = `Mechanics near ${q.city}, ${q.state.toUpperCase()}`;
-  const card = m => `<div class="card">${m.coverUrl ? `<div style="margin:-16px -16px 12px;border-radius:10px 10px 0 0;overflow:hidden;max-height:140px"><img src="${esc(m.coverUrl)}" alt="" style="width:100%;display:block;object-fit:cover"></div>` : ''}<h3>${m.logoUrl ? `<img src="${esc(m.logoUrl)}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}${esc(m.name)}</h3><div class="muted">${esc(m.city)}, ${esc(m.state)} — ${esc(m.mechanicName)}</div>${m.phone ? `<div style="margin-top:6px"><a href="tel:${esc(m.phone.replace(/[^+\d]/g, ''))}">Call ${esc(m.phone)}</a></div>` : ''}${socialLinks(m.socials)}${m.promotion ? `<div style="margin-top:8px;border-left:4px solid #2563eb;padding:6px 10px;background:#0b1e3a;border-radius:0 8px 8px 0"><strong style="font-size:.85rem">Special:</strong> <strong>${esc(m.promotion.title)}</strong></div>` : ''}<div class="muted">Serves: ${esc([m.city, ...(m.serviceCities || [])].join(', '))}</div><div>${(m.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('')}</div><div style="margin-top:10px"><a href="/shop.html?id=${esc(m.id)}">View full profile →</a></div></div>`;
+  const card = m => {
+  let badges = '';
+  if (m.fastResponder) badges += '<span class="badge badge-fr">Fast Responder</span>';
+  if (m.reviewCount >= 3 && m.avgRating >= 4.5) badges += `<span class="badge badge-hr">★ ${m.avgRating} Highly Rated</span>`;
+  else if (m.reviewCount > 0) badges += `<span class="badge">★ ${m.avgRating} (${m.reviewCount} review${m.reviewCount === 1 ? '' : 's'})</span>`;
+  (m.certifications || []).forEach(c => { badges += `<span class="badge badge-cert">${esc(c)}</span>`; });
+  if (badges) badges = `<div class="badges">${badges}</div>`;
+  return `<div class="card">${m.coverUrl ? `<div style="margin:-16px -16px 12px;border-radius:10px 10px 0 0;overflow:hidden;max-height:140px"><img src="${esc(m.coverUrl)}" alt="" style="width:100%;display:block;object-fit:cover"></div>` : ''}<h3>${m.logoUrl ? `<img src="${esc(m.logoUrl)}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}${esc(m.name)}</h3><div class="muted">${esc(m.city)}, ${esc(m.state)} — ${esc(m.mechanicName)}</div>${badges}${m.phone ? `<div style="margin-top:6px"><a href="tel:${esc(m.phone.replace(/[^+\d]/g, ''))}">Call ${esc(m.phone)}</a></div>` : ''}${socialLinks(m.socials)}${m.promotion ? `<div style="margin-top:8px;border-left:4px solid #2563eb;padding:6px 10px;background:#0b1e3a;border-radius:0 8px 8px 0"><strong style="font-size:.85rem">Special:</strong> <strong>${esc(m.promotion.title)}</strong></div>` : ''}<div class="muted">Serves: ${esc([m.city, ...(m.serviceCities || [])].join(', '))}</div><div>${(m.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('')}</div><div style="margin-top:10px"><a href="/shop.html?id=${esc(m.id)}">View full profile →</a></div></div>`;
   const greet = q.name ? `Thanks, ${esc(q.name)} — here are` : 'Here are';
   $('results').innerHTML = d.mechanics.length
     ? `<p class="muted">${greet} mobile mechanics that serve your area for <strong>${esc(q.service)}</strong>.</p>` + d.mechanics.map(card).join('')

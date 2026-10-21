@@ -16,6 +16,14 @@
   .head h1{margin:0;font-size:1.6rem}
   .muted{color:#9fb3c8;font-size:.92rem}
   .tag{display:inline-block;border:1px solid #334155;border-radius:999px;padding:3px 12px;margin:2px 4px 2px 0;font-size:.85rem;color:#c7d5e8}
+  .badges{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
+  .badge{display:inline-block;font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:999px;background:#1e293b;border:1px solid #334155;color:#e2e8f0}
+  .badge-fr{background:#052e1b;border-color:#16a34a;color:#86efac}
+  .badge-hr{background:#3b2f04;border-color:#d97706;color:#fcd34d}
+  .badge-cert{background:#1e1b4b;border-color:#6366f1;color:#c7d2fe}
+  .review{border-top:1px solid #1e293b;padding:12px 0}
+  .review:first-of-type{border-top:none}
+  .stars{color:#f59e0b;letter-spacing:2px}
   .card{border:1px solid #334155;border-radius:10px;padding:16px;margin:14px 0;background:#0f1a2e}
   .card h3{margin:0 0 8px;font-size:1.05rem}
   .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
@@ -37,6 +45,22 @@
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', website: 'Website' };
+function badgeHtml(b) {
+  let h = '';
+  if (b.fastResponder) h += '<span class="badge badge-fr">Fast Responder</span>';
+  if (b.reviewCount >= 3 && b.avgRating >= 4.5) h += `<span class="badge badge-hr">★ ${b.avgRating} Highly Rated</span>`;
+  else if (b.reviewCount > 0) h += `<span class="badge">★ ${b.avgRating} (${b.reviewCount} review${b.reviewCount === 1 ? '' : 's'})</span>`;
+  (b.certifications || []).forEach(c => { h += `<span class="badge badge-cert">${esc(c)}</span>`; });
+  return h ? `<div class="badges">${h}</div>` : '';
+}
+async function reviewHtml(businessId) {
+  try {
+    const d = await (await fetch('/api/reviews?businessId=' + encodeURIComponent(businessId))).json();
+    if (!d.reviews.length) return '';
+    const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+    return `<div class="card"><h3>Reviews</h3>${d.reviews.map(r => `<div class="review"><div><span class="stars">${stars(r.rating)}</span> <strong>${esc(r.ownerName)}</strong></div>${r.text ? `<p style="margin:6px 0 0">${esc(r.text)}</p>` : ''}<div class="muted" style="font-size:.8rem">${new Date(r.createdAt).toLocaleDateString()}</div></div>`).join('')}</div>`;
+  } catch (e) { return ''; }
+}
 (async () => {
   const id = new URLSearchParams(location.search).get('id');
   const page = document.getElementById('page');
@@ -57,6 +81,7 @@ const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikT
           <div><h1>${esc(b.name)}</h1><div class="muted">${esc(b.city)}, ${esc(b.state)}${b.mechanicName ? ' · ' + esc(b.mechanicName) : ''}</div></div>
         </div>
         ${b.acceptUrgent ? `<div><span class="urgent">ACCEPTS URGENT REQUESTS</span></div>` : ''}
+        ${badgeHtml(b)}
         <div class="btnrow">
           ${b.phone ? `<a class="btn call" href="tel:${esc(b.phone.replace(/[^+\d]/g, ''))}">Call ${esc(b.phone)}</a>` : ''}
           <a class="btn" href="/request?business=${esc(b.id)}">Request a quote from ${esc(b.name)}</a>
@@ -67,8 +92,10 @@ const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikT
         ${gallery ? `<div class="card"><h3>Photos</h3><div class="gallery">${gallery}</div></div>` : ''}
         ${b.promotion ? `<div class="card"><h3>Current special</h3><div class="promo"><strong>${esc(b.promotion.title)}</strong><div class="muted">${esc(b.promotion.description || '')}${b.promotion.validUntil ? ' · Valid until ' + esc(b.promotion.validUntil) : ''}</div></div></div>` : ''}
         ${b.warranty ? `<div class="card"><h3>Warranty</h3><p style="margin:0">${esc(b.warranty)}</p></div>` : ''}
+        <div id="reviews"></div>
         ${socLinks ? `<div class="card"><h3>Follow</h3><div class="soc">${socLinks}</div></div>` : ''}
       </div>`;
+    document.getElementById('reviews').innerHTML = await reviewHtml(b.id);
   } catch (e) { page.innerHTML = '<p class="body">' + esc(e.message) + ' <a href="/mechanics">Back to directory</a>.</p>'; }
 })();
 </script>
