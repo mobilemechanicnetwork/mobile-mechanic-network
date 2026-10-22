@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security — Mobile Mechanic Network</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f2f5fa;color:#0f172a}
+  main{max-width:560px;margin:4vh auto;padding:24px}
+  .banner{width:100%;border-radius:14px;display:block;margin-bottom:20px;box-shadow:0 4px 16px rgba(15,23,42,.08)}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px;margin:14px 0;box-shadow:0 2px 8px rgba(15,23,42,.05)}
+  h1{font-size:1.4rem;margin:0 0 4px} .muted{color:#64748b;font-size:.9rem}
+  label{display:block;margin:14px 0 6px;font-size:.9rem;color:#475569;font-weight:600}
+  input{width:100%;padding:11px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;box-sizing:border-box;font-size:1rem}
+  button.primary{width:100%;margin-top:16px;background:#2563eb;color:#fff;border:0;border-radius:10px;padding:13px;cursor:pointer;font-size:1rem;font-weight:700}
+  button.danger{background:#fff;color:#dc2626;border:1px solid #fca5a5}
+  .err{color:#dc2626;min-height:1.2em;margin-top:10px;font-size:.9rem}
+  .ok{color:#16a34a;margin-top:10px;font-size:.9rem}
+  .codes{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:14px;margin-top:12px;font-family:ui-monospace,monospace;font-size:.95rem;line-height:1.9}
+  .pill{display:inline-block;font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:999px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569}
+  .pill.on{background:#052e1b;border-color:#16a34a;color:#86efac}
+  a{color:#1d4ed8}
+</style>
+</head>
+<body>
+<main>
+  <img class="banner" src="/header-logo.webp" alt="Mobile Mechanic Network — Connecting drivers and mechanics.">
+  <h1>Security</h1>
+  <p class="muted">Your phone number and two-factor authentication.</p>
+
+  <div class="card">
+    <h2 style="font-size:1.05rem;margin:0 0 4px">Phone number</h2>
+    <p class="muted">Required — this is how you get quotes and requests by text. Never shown publicly.</p>
+    <label for="sec-phone">Phone number</label>
+    <input id="sec-phone" type="tel" autocomplete="tel" placeholder="e.g. 504-555-0123">
+    <button class="primary" id="phone-save-btn" type="button">Save phone number</button>
+    <div class="err" id="err-phone"></div>
+    <div class="ok" id="ok-phone"></div>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:1.05rem;margin:0 0 4px">Two-factor authentication</h2>
+    <p class="muted">Texts you a code each time you log in.</p>
+    <div>Status: <span class="pill" id="tfa-pill">…</span></div>
+    <div id="enroll-box" hidden>
+      <p class="muted">We will text a verification code to <strong id="enroll-phone"></strong>.</p>
+      <button class="primary" id="enroll-btn" type="button">Text me a verification code</button>
+      <div class="err" id="err-enroll"></div>
+    </div>
+    <div id="confirm-box" hidden>
+      <label for="cf-code">6-digit code</label>
+      <input id="cf-code" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+      <button class="primary" id="confirm-btn" type="button">Turn on two-factor</button>
+      <div class="err" id="err-confirm"></div>
+    </div>
+    <div id="codes-box" hidden>
+      <p class="muted"><strong>Save these backup codes somewhere safe.</strong> Each works once if you lose your phone. You will not see them again.</p>
+      <div class="codes" id="codes-list"></div>
+    </div>
+    <div id="disable-box" hidden>
+      <label for="dis-pass">Confirm your password to turn it off</label>
+      <input id="dis-pass" type="password" autocomplete="current-password">
+      <button class="primary danger" id="disable-btn" type="button">Turn off two-factor</button>
+      <div class="err" id="err-disable"></div>
+    </div>
+    <div class="ok" id="ok-msg"></div>
+  </div>
+  <p><a href="#" id="back-link">← Back</a></p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+async function post(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Something went wrong.');
+  return d;
+}
+(async () => {
+  const me = await (await fetch('/api/me')).json().catch(() => ({}));
+  if (!me.user) { location.href = '/account'; return; }
+  $('back-link').href = me.user.role === 'mechanic' ? '/mechanic' : '/dashboard';
+  if (me.user.phone) $('sec-phone').value = me.user.phone;
+  const on = !!me.user.twoFactorEnabled;
+  const pill = $('tfa-pill');
+  pill.textContent = on ? 'ON' : 'OFF';
+  pill.classList.toggle('on', on);
+  $('enroll-box').hidden = on;
+  $('disable-box').hidden = !on;
+  if (!on) {
+    if (!me.user.phone) {
+      $('enroll-box').innerHTML = '<p class="muted">Add a phone number to your account first, then come back here.</p>';
+    } else {
+      $('enroll-phone').textContent = me.user.phone;
+    }
+  }
+})();
+async function doEnroll() {
+  const errEl = document.getElementById('err-enroll');
+  if (errEl) errEl.textContent = '';
+  try {
+    await post('/api/2fa/enroll', {});
+    $('enroll-box').hidden = true;
+    $('confirm-box').hidden = false;
+  } catch (e) { if (errEl) errEl.textContent = e.message; }
+}
+function refreshEnroll(phone) {
+  $('enroll-box').innerHTML = '<p class="muted">We will text a verification code to <strong></strong>.</p><button class="primary" id="enroll-btn" type="button">Text me a verification code</button><div class="err" id="err-enroll"></div>';
+  $('enroll-box').querySelector('strong').textContent = phone;
+  $('enroll-box').hidden = false;
+  $('enroll-btn').onclick = doEnroll;
+}
+$('phone-save-btn').onclick = async () => {
+  $('err-phone').textContent = ''; $('ok-phone').textContent = '';
+  try {
+    const d = await post('/api/profile', { phone: $('sec-phone').value });
+    $('ok-phone').textContent = 'Saved.';
+    if (d.user.phone && !$('tfa-pill').classList.contains('on')) refreshEnroll(d.user.phone);
+  } catch (e) { $('err-phone').textContent = e.message; }
+};
+$('enroll-btn').onclick = doEnroll;
+$('confirm-btn').onclick = async () => {
+  $('err-confirm').textContent = '';
+  try {
+    const d = await post('/api/2fa/confirm', { code: $('cf-code').value.trim() });
+    $('confirm-box').hidden = true;
+    $('codes-box').hidden = false;
+    $('disable-box').hidden = false;
+    $('codes-list').innerHTML = d.backupCodes.map(c => `<div>${c}</div>`).join('');
+    const pill = $('tfa-pill');
+    pill.textContent = 'ON'; pill.classList.add('on');
+    $('ok-msg').textContent = 'Two-factor authentication is on.';
+  } catch (e) { $('err-confirm').textContent = e.message; }
+};
+$('disable-btn').onclick = async () => {
+  $('err-disable').textContent = '';
+  try {
+    await post('/api/2fa/disable', { password: $('dis-pass').value });
+    const pill = $('tfa-pill');
+    pill.textContent = 'OFF'; pill.classList.remove('on');
+    $('disable-box').hidden = true;
+    $('codes-box').hidden = true;
+    $('enroll-box').hidden = false;
+    $('ok-msg').textContent = 'Two-factor authentication is off.';
+  } catch (e) { $('err-disable').textContent = e.message; }
+};
+</script>
+</body>
+</html>

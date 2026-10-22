@@ -38,6 +38,7 @@ const promotionsStore = store('promotions.json');
 const ticketsStore = store('tickets.json');
 const vehiclesStore = store('vehicles.json');
 const helpStore = store('help.json');
+const smsCodeStore = store('smscodes.json'); // password-reset + 2FA + login-challenge codes
 const ppiStore = store('ppi.json');
 const reviewsStore = store('reviews.json');
 
@@ -68,7 +69,48 @@ function makeUser({ name, email, password, role }) {
 function verifyPassword(user, password) {
   return crypto.timingSafeEqual(Buffer.from(hashPassword(password, user.salt), 'hex'), Buffer.from(user.passwordHash, 'hex'));
 }
-function publicUser(u) { return { id: u.id, name: u.name, email: u.email, role: u.role, isAdmin: !!u.isAdmin, phone: u.phone || '', createdAt: u.createdAt }; }
+
+// ---------- SMS auth helpers (password reset + 2FA via Twilio) ----------
+function normalizePhone(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length === 10) return '+1' + digits;
+  if (digits.length === 11 && digits[0] === '1') return '+' + digits;
+  return null;
+}
+function maskPhone(e164) {
+  const d = String(e164 || '').replace(/\D/g, '');
+  return d.length >= 4 ? '***-***-' + d.slice(-4) : '***';
+}
+function twilioConfigured() {
+  return !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM_NUMBER);
+}
+function sixDigitCode() { return String(crypto.randomInt(100000, 1000000)); }
+function hashSmsCode(code, salt) { return crypto.scryptSync(String(code), salt, 64).toString('hex'); }
+function smsCodesPrune() {
+  try {
+    const rows = smsCodeStore.read();
+    const now = Date.now();
+    const kept = rows.filter(r => r.expiresAt > now);
+    if (kept.length !== rows.length) smsCodeStore.write(kept);
+  } catch (e) {}
+}
+function safeCodeEqual(a, b) {
+  try {
+    const ba = Buffer.from(String(a), 'hex'), bb = Buffer.from(String(b), 'hex');
+    return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+  } catch (e) { return false; }
+}
+function newBackupCodes() {
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const codes = [];
+  for (let i = 0; i < 10; i++) {
+    let c = '';
+    for (let j = 0; j < 8; j++) c += alphabet[crypto.randomInt(alphabet.length)];
+    codes.push(c.slice(0, 4) + '-' + c.slice(4));
+  }
+  return codes;
+}
+function publicUser(u) { return { id: u.id, name: u.name, email: u.email, role: u.role, isAdmin: !!u.isAdmin, phone: u.phone || '', twoFactorEnabled: !!u.twoFactorEnabled, createdAt: u.createdAt }; }
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
@@ -284,13 +326,16 @@ const server = http.createServer(async (req, res) => {
   try {
     // ---------- Accounts ----------
     if (p === '/api/register' && req.method === 'POST') {
-      const { name, email, password, role } = await parseBody(req);
+      const { name, email, password, role, phone } = await parseBody(req);
       if (!name || !email || !password || !['owner', 'mechanic'].includes(role))
         return sendJson(res, 400, { error: 'Name, email, password, and account type are required.' });
       if (String(password).length < 8) return sendJson(res, 400, { error: 'Password must be at least 8 characters.' });
+      const e164 = normalizePhone(phone);
+      if (!e164) return sendJson(res, 400, { error: 'A valid 10-digit US phone number is required.' });
       const users = usersStore.read();
       if (users.some(u => u.email === String(email).toLowerCase())) return sendJson(res, 409, { error: 'An account with this email already exists.' });
       const user = makeUser({ name: String(name).trim(), email: String(email).trim(), password: String(password), role });
+      user.phone = e164;
       if (role === 'mechanic') {
         user.trialEndsAt = new Date(Date.now() + 90 * 24 * 3600 * 1000).toISOString();
         user.billingStatus = 'trialing';
@@ -302,7 +347,154 @@ const server = http.createServer(async (req, res) => {
       const { email, password } = await parseBody(req);
       const user = usersStore.read().find(u => u.email === String(email || '').toLowerCase());
       if (!user || !verifyPassword(user, String(password || ''))) return sendJson(res, 401, { error: 'Email or password is incorrect.' });
+      if (user.twoFactorEnabled) {
+        if (!twilioConfigured()) return sendJson(res, 503, { error: 'Two-factor authentication is on, but text messaging is not set up. Please contact us for help signing in.' });
+        if (!user.phone) return sendJson(res, 400, { error: 'Two-factor authentication is on, but this account has no phone number. Please contact us.' });
+        smsCodesPrune();
+        const code = sixDigitCode();
+        const salt = crypto.randomBytes(16).toString('hex');
+        const challengeToken = crypto.randomBytes(32).toString('hex');
+        const rows = smsCodeStore.read().filter(r => !(r.userId === user.id && r.purpose === 'login'));
+        rows.push({ id: challengeToken, userId: user.id, purpose: 'login', codeHash: hashSmsCode(code, salt), salt, expiresAt: Date.now() + 5 * 60 * 1000, attempts: 0, createdAt: new Date().toISOString() });
+        smsCodeStore.write(rows);
+        const sms = await sendSms(user.phone, `Mobile Mechanic Network: your login code is ${code}. It expires in 5 minutes.`);
+        if (!sms.sent) return sendJson(res, 502, { error: 'Could not send the login code. Please try again.' });
+        return sendJson(res, 200, { twoFactorRequired: true, challengeToken, maskedPhone: maskPhone(user.phone) });
+      }
       return startSession(res, 200, user, { user: publicUser(user) });
+    }
+    if (p === '/api/login/verify-2fa' && req.method === 'POST') {
+      const { challengeToken, code } = await parseBody(req);
+      smsCodesPrune();
+      const rows = smsCodeStore.read();
+      const row = rows.find(r => r.id === String(challengeToken || '') && r.purpose === 'login');
+      if (!row) return sendJson(res, 400, { error: 'This code has expired. Please log in again.' });
+      const users = usersStore.read();
+      const user = users.find(u => u.id === row.userId);
+      if (!user) return sendJson(res, 400, { error: 'Account not found.' });
+      let ok = safeCodeEqual(hashSmsCode(code, row.salt), row.codeHash);
+      if (!ok && Array.isArray(user.twoFactorBackupCodes)) {
+        const idx = user.twoFactorBackupCodes.findIndex(h => safeCodeEqual(hashSmsCode(String(code).toUpperCase().replace(/-/g, ''), user.salt), h));
+        if (idx >= 0) { user.twoFactorBackupCodes.splice(idx, 1); ok = true; }
+      }
+      if (!ok) {
+        row.attempts += 1;
+        if (row.attempts >= 5) {
+          smsCodeStore.write(rows.filter(r => r.id !== row.id));
+          return sendJson(res, 400, { error: 'Too many wrong codes. Please log in again.' });
+        }
+        smsCodeStore.write(rows);
+        return sendJson(res, 400, { error: 'That code is not correct. Try again.' });
+      }
+      smsCodeStore.write(rows.filter(r => r.id !== row.id));
+      usersStore.write(users);
+      return startSession(res, 200, user, { user: publicUser(user) });
+    }
+
+    // ---------- SMS password reset ----------
+    if (p === '/api/forgot-password' && req.method === 'POST') {
+      const { email } = await parseBody(req);
+      const user = usersStore.read().find(u => u.email === String(email || '').toLowerCase());
+      if (!user) return sendJson(res, 200, { ok: true }); // don't reveal which emails exist
+      if (!user.phone) return sendJson(res, 400, { error: 'This account has no phone number on file. Please contact us for help.' });
+      if (!twilioConfigured()) return sendJson(res, 503, { error: 'Text messaging is not set up yet. Please contact us and we will help you reset your password.' });
+      smsCodesPrune();
+      const existing = smsCodeStore.read().find(r => r.userId === user.id && r.purpose === 'reset');
+      if (existing && Date.now() - new Date(existing.createdAt).getTime() < 60000)
+        return sendJson(res, 429, { error: 'A code was just sent. Please wait a minute before requesting another.' });
+      const code = sixDigitCode();
+      const salt = crypto.randomBytes(16).toString('hex');
+      const rows = smsCodeStore.read().filter(r => !(r.userId === user.id && r.purpose === 'reset'));
+      rows.push({ id: crypto.randomUUID(), userId: user.id, purpose: 'reset', codeHash: hashSmsCode(code, salt), salt, expiresAt: Date.now() + 10 * 60 * 1000, attempts: 0, createdAt: new Date().toISOString() });
+      smsCodeStore.write(rows);
+      const sms = await sendSms(user.phone, `Mobile Mechanic Network: your password reset code is ${code}. It expires in 10 minutes.`);
+      if (!sms.sent) return sendJson(res, 502, { error: 'Could not send the text. Please try again.' });
+      return sendJson(res, 200, { ok: true, maskedPhone: maskPhone(user.phone) });
+    }
+    if (p === '/api/reset-password' && req.method === 'POST') {
+      const { email, code, newPassword } = await parseBody(req);
+      if (!newPassword || String(newPassword).length < 8)
+        return sendJson(res, 400, { error: 'Password must be at least 8 characters.' });
+      const users = usersStore.read();
+      const user = users.find(u => u.email === String(email || '').toLowerCase());
+      smsCodesPrune();
+      const rows = smsCodeStore.read();
+      const row = user && rows.find(r => r.userId === user.id && r.purpose === 'reset');
+      if (!user || !row) return sendJson(res, 400, { error: 'That code is invalid or has expired.' });
+      if (!safeCodeEqual(hashSmsCode(code, row.salt), row.codeHash)) {
+        row.attempts += 1;
+        if (row.attempts >= 5) {
+          smsCodeStore.write(rows.filter(r => r.id !== row.id));
+          return sendJson(res, 400, { error: 'Too many wrong codes. Please request a new one.' });
+        }
+        smsCodeStore.write(rows);
+        return sendJson(res, 400, { error: 'That code is not correct. Try again.' });
+      }
+      const salt = crypto.randomBytes(16).toString('hex');
+      user.salt = salt;
+      user.passwordHash = hashPassword(String(newPassword), salt);
+      usersStore.write(users);
+      smsCodeStore.write(rows.filter(r => r.id !== row.id));
+      return sendJson(res, 200, { ok: true });
+    }
+
+    // ---------- SMS two-factor authentication ----------
+    if (p === '/api/2fa/enroll' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const users = usersStore.read();
+      const row = users.find(u => u.id === user.id);
+      if (!row) return sendJson(res, 404, { error: 'Not found.' });
+      if (row.twoFactorEnabled) return sendJson(res, 400, { error: 'Two-factor authentication is already on.' });
+      if (!row.phone) return sendJson(res, 400, { error: 'Add a phone number to your account first.' });
+      if (!twilioConfigured()) return sendJson(res, 503, { error: 'Text messaging is not set up yet.' });
+      smsCodesPrune();
+      const code = sixDigitCode();
+      const salt = crypto.randomBytes(16).toString('hex');
+      const rows = smsCodeStore.read().filter(r => !(r.userId === row.id && r.purpose === 'enroll'));
+      rows.push({ id: crypto.randomUUID(), userId: row.id, purpose: 'enroll', codeHash: hashSmsCode(code, salt), salt, expiresAt: Date.now() + 10 * 60 * 1000, attempts: 0, createdAt: new Date().toISOString() });
+      smsCodeStore.write(rows);
+      const sms = await sendSms(row.phone, `Mobile Mechanic Network: your verification code is ${code}. It expires in 10 minutes.`);
+      if (!sms.sent) return sendJson(res, 502, { error: 'Could not send the text. Please try again.' });
+      return sendJson(res, 200, { ok: true, maskedPhone: maskPhone(row.phone) });
+    }
+    if (p === '/api/2fa/confirm' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const { code } = await parseBody(req);
+      smsCodesPrune();
+      const rows = smsCodeStore.read();
+      const row = rows.find(r => r.userId === user.id && r.purpose === 'enroll');
+      if (!row) return sendJson(res, 400, { error: 'No verification in progress. Start again.' });
+      if (!safeCodeEqual(hashSmsCode(code, row.salt), row.codeHash)) {
+        row.attempts += 1;
+        if (row.attempts >= 5) {
+          smsCodeStore.write(rows.filter(r => r.id !== row.id));
+          return sendJson(res, 400, { error: 'Too many wrong codes. Start again.' });
+        }
+        smsCodeStore.write(rows);
+        return sendJson(res, 400, { error: 'That code is not correct. Try again.' });
+      }
+      const users = usersStore.read();
+      const urow = users.find(u => u.id === user.id);
+      const backupCodes = newBackupCodes();
+      urow.twoFactorEnabled = true;
+      urow.twoFactorBackupCodes = backupCodes.map(c => hashSmsCode(c.replace(/-/g, ''), urow.salt));
+      usersStore.write(users);
+      smsCodeStore.write(rows.filter(r => r.id !== row.id));
+      return sendJson(res, 200, { ok: true, backupCodes });
+    }
+    if (p === '/api/2fa/disable' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const { password } = await parseBody(req);
+      const users = usersStore.read();
+      const row = users.find(u => u.id === user.id);
+      if (!row || !verifyPassword(row, String(password || ''))) return sendJson(res, 401, { error: 'Password is incorrect.' });
+      row.twoFactorEnabled = false;
+      row.twoFactorBackupCodes = [];
+      usersStore.write(users);
+      return sendJson(res, 200, { ok: true });
     }
     if (p === '/api/logout' && req.method === 'POST') {
       const match = (req.headers.cookie || '').match(/mmn_session=([a-f0-9]+)/);
@@ -330,7 +522,11 @@ const server = http.createServer(async (req, res) => {
       const row = users.find(u => u.id === user.id);
       if (!row) return sendJson(res, 404, { error: 'Not found.' });
       if (name && String(name).trim()) row.name = String(name).trim().slice(0, 120);
-      row.phone = String(phone || '').trim().slice(0, 40);
+      if (phone !== undefined) {
+        const e164 = normalizePhone(phone);
+        if (!e164) return sendJson(res, 400, { error: 'A valid 10-digit US phone number is required.' });
+        row.phone = e164;
+      }
       usersStore.write(users);
       return sendJson(res, 200, { user: publicUser(row) });
     }
@@ -1239,6 +1435,10 @@ const server = http.createServer(async (req, res) => {
     if (p === '/account') return serveFile(res, path.join(PUBLIC_DIR, 'account.html'));
     if (p === '/find') return serveFile(res, path.join(PUBLIC_DIR, 'find.html'));
     if (p === '/admin') return serveFile(res, path.join(PUBLIC_DIR, 'admin.html'));
+    if (p === '/security') {
+      if (!getSessionUser(req)) { res.writeHead(302, { Location: '/account' }); return res.end(); }
+      return serveFile(res, path.join(PUBLIC_DIR, 'security.html'));
+    }
     if (p === '/mechanic') {
       const u = getSessionUser(req);
       if (!u) { res.writeHead(302, { Location: '/account' }); return res.end(); }

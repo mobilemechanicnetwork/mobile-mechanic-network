@@ -45,6 +45,35 @@
     <input id="li-password" type="password" required autocomplete="current-password">
     <button class="submit" type="submit">Log in</button>
     <div class="err" id="err-login"></div>
+    <p class="muted" style="text-align:center"><a href="#" id="forgot-link">Forgot password?</a></p>
+  </form>
+
+  <form id="form-forgot" hidden>
+    <div id="forgot-step1">
+      <label for="fp-email">Account email</label>
+      <input id="fp-email" type="email" required autocomplete="email">
+      <button class="submit" type="submit">Text me a reset code</button>
+      <div class="err" id="err-forgot1"></div>
+    </div>
+    <div id="forgot-step2" hidden>
+      <p class="muted" id="fp-sent-note"></p>
+      <label for="fp-code">6-digit code</label>
+      <input id="fp-code" inputmode="numeric" maxlength="6" required autocomplete="one-time-code">
+      <label for="fp-newpass">New password (8+ characters)</label>
+      <input id="fp-newpass" type="password" required minlength="8" autocomplete="new-password">
+      <button class="submit" type="button" id="fp-reset-btn">Reset password</button>
+      <div class="err" id="err-forgot2"></div>
+    </div>
+    <p class="muted" style="text-align:center"><a href="#" id="forgot-back">Back to log in</a></p>
+  </form>
+
+  <form id="form-2fa" hidden>
+    <p class="muted" id="tfa-note"></p>
+    <label for="tfa-code">6-digit login code</label>
+    <input id="tfa-code" inputmode="numeric" maxlength="6" required autocomplete="one-time-code">
+    <button class="submit" type="submit">Verify</button>
+    <div class="err" id="err-2fa"></div>
+    <p class="muted" style="text-align:center">Lost your phone? Use a backup code instead.</p>
   </form>
 
   <form id="form-register" hidden>
@@ -63,6 +92,8 @@
     <input id="rg-email" type="email" required autocomplete="email">
     <label for="rg-password">Password (8+ characters)</label>
     <input id="rg-password" type="password" required minlength="8" autocomplete="new-password">
+    <label for="rg-phone">Phone number (required — this is how you get quotes and requests)</label>
+    <input id="rg-phone" type="tel" required autocomplete="tel" placeholder="e.g. 504-555-0123">
     <button class="submit" type="submit">Create account</button>
     <div class="err" id="err-register"></div>
   </form>
@@ -75,6 +106,8 @@
   const tabRegister = document.getElementById('tab-register');
   const formLogin = document.getElementById('form-login');
   const formRegister = document.getElementById('form-register');
+  const formForgot = document.getElementById('form-forgot');
+  const form2fa = document.getElementById('form-2fa');
   const pageSub = document.getElementById('page-sub');
   function syncSub() {
     const login = !tabRegister.classList.contains('active');
@@ -84,12 +117,19 @@
       : 'Create your free account.';
   }
   function show(which) {
-    const login = which === 'login';    formLogin.hidden = !login; formRegister.hidden = login;
-    tabLogin.classList.toggle('active', login); tabRegister.classList.toggle('active', !login);
+    formLogin.hidden = which !== 'login';
+    formRegister.hidden = which !== 'register';
+    formForgot.hidden = which !== 'forgot';
+    form2fa.hidden = which !== '2fa';
+    tabLogin.classList.toggle('active', which === 'login');
+    tabRegister.classList.toggle('active', which === 'register');
+    document.querySelector('.tabs').style.display = (which === 'forgot' || which === '2fa') ? 'none' : 'flex';
     syncSub();
   }
   tabLogin.onclick = () => show('login');
   tabRegister.onclick = () => show('register');
+  document.getElementById('forgot-link').onclick = (e) => { e.preventDefault(); show('forgot'); };
+  document.getElementById('forgot-back').onclick = (e) => { e.preventDefault(); show('login'); };
   async function post(url, body) {
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await r.json().catch(() => ({}));
@@ -102,12 +142,53 @@
       syncSub();
     });
   });
+  let tfaChallenge = null;
   formLogin.onsubmit = async (e) => {
     e.preventDefault();
     const err = document.getElementById('err-login'); err.textContent = '';
     try {
       const d = await post('/api/login', { email: document.getElementById('li-email').value, password: document.getElementById('li-password').value });
+      if (d.twoFactorRequired) {
+        tfaChallenge = d.challengeToken;
+        document.getElementById('tfa-note').textContent = 'We texted a login code to ' + d.maskedPhone + '.';
+        document.getElementById('tfa-code').value = '';
+        show('2fa');
+        return;
+      }
       location.href = d.user.role === 'mechanic' ? '/mechanic' : '/dashboard';
+    } catch (ex) { err.textContent = ex.message; }
+  };
+  form2fa.onsubmit = async (e) => {
+    e.preventDefault();
+    const err = document.getElementById('err-2fa'); err.textContent = '';
+    try {
+      const d = await post('/api/login/verify-2fa', { challengeToken: tfaChallenge, code: document.getElementById('tfa-code').value.trim() });
+      location.href = d.user.role === 'mechanic' ? '/mechanic' : '/dashboard';
+    } catch (ex) { err.textContent = ex.message; }
+  };
+  let fpEmail = '';
+  formForgot.onsubmit = async (e) => {
+    e.preventDefault();
+    const err = document.getElementById('err-forgot1'); err.textContent = '';
+    try {
+      fpEmail = document.getElementById('fp-email').value.trim();
+      const d = await post('/api/forgot-password', { email: fpEmail });
+      document.getElementById('forgot-step1').hidden = true;
+      document.getElementById('forgot-step2').hidden = false;
+      document.getElementById('fp-sent-note').textContent = d.maskedPhone
+        ? 'Code sent to ' + d.maskedPhone + '.'
+        : 'If that email has an account, a code is on its way.';
+    } catch (ex) { err.textContent = ex.message; }
+  };
+  document.getElementById('fp-reset-btn').onclick = async () => {
+    const err = document.getElementById('err-forgot2'); err.textContent = '';
+    try {
+      await post('/api/reset-password', {
+        email: fpEmail,
+        code: document.getElementById('fp-code').value.trim(),
+        newPassword: document.getElementById('fp-newpass').value,
+      });
+      document.getElementById('forgot-step2').innerHTML = '<p class="muted"><strong>Password reset.</strong> You can log in with your new password now.</p>';
     } catch (ex) { err.textContent = ex.message; }
   };
   formRegister.onsubmit = async (e) => {
@@ -118,6 +199,7 @@
         name: document.getElementById('rg-name').value,
         email: document.getElementById('rg-email').value,
         password: document.getElementById('rg-password').value,
+        phone: document.getElementById('rg-phone').value,
         role: document.querySelector('input[name="role"]:checked').value,
       });
       location.href = d.user.role === 'mechanic' ? '/mechanic' : '/dashboard';

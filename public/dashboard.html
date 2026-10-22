@@ -25,8 +25,9 @@
 <body>
 <main>
   <h1 id="hello">My dashboard</h1>
+  <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600">Add your phone number below so mechanics can reach you with quotes. <a href="#owner" id="phone-banner-link" style="color:#b91c1c">Add it in My info ↓</a></div>
   <p class="muted" id="who"></p>
-  <p><a href="/">Home</a> · <a href="/mechanics">Find a mobile mechanic</a> · <span id="adminLink"></span><a href="#" id="logout">Log out</a></p>
+  <p><a href="/">Home</a> · <a href="/mechanics">Find a mobile mechanic</a> · <a href="/security">Security</a> · <span id="adminLink"></span><a href="#" id="logout">Log out</a></p>
 
   <section id="owner" hidden>
     <p><a href="/request"><button type="button">Request quotes</button></a> <a href="/mechanics"><button type="button" class="ghost">Find a mobile mechanic</button></a></p>
@@ -100,6 +101,7 @@
     $('o-email').textContent = me.user.email;
     $('o-name').value = me.user.name || '';
     $('o-phone').value = me.user.phone || '';
+    if (!me.user.phone) $('phone-banner').hidden = false;
     const v = await api('/api/vehicles/me');
     $('my-vehicles').innerHTML = v.vehicles.length ? v.vehicles.map(x => `<div class="card">
       <strong>${x.year} ${x.make} ${x.model}</strong>
