@@ -15,6 +15,10 @@
   .ok{color:#86efac;margin-top:12px}
   .muted{color:#9fb3c8}
   .urgent-banner{background:#7f1d1d;border:1px solid #b91c1c;color:#fff;border-radius:10px;padding:12px 14px;margin:0 0 6px;font-size:.95rem}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid #334155;border-radius:999px;cursor:pointer;font-size:.85rem;color:#c7d5e8;background:#0f1a2e;margin:0}
+  .chip input{accent-color:#2563eb;margin:0}
+  .chip:has(input:checked){border-color:#2563eb;background:#1e3a8a;color:#fff}
 </style>
 </head>
 <body>
@@ -26,6 +30,18 @@
   <form id="form">
     <label for="service">Service</label>
     <select id="service" required></select>
+    <div id="diag-symptoms" hidden>
+      <label>What symptoms are you having? (select all that apply)</label>
+      <div class="chips" id="symptom-chips">
+        <label class="chip"><input type="checkbox" value="Fluid leak"> Fluid leak</label>
+        <label class="chip"><input type="checkbox" value="Dash warning lights on"> Dash warning lights on</label>
+        <label class="chip"><input type="checkbox" value="Noise, rattle, or squeak"> Noise, rattle, or squeak</label>
+        <label class="chip"><input type="checkbox" value="A/C not working"> A/C not working</label>
+        <label class="chip"><input type="checkbox" value="Won't start"> Won't start</label>
+        <label class="chip"><input type="checkbox" value="Vibration"> Vibration</label>
+        <label class="chip"><input type="checkbox" value="Unsure — needs mechanic assessment"> Unsure — need a mechanic to assess</label>
+      </div>
+    </div>
     <label for="vehicle">Vehicle (year, make, model)</label>
     <input id="vehicle" required>
     <div id="my-vehicles-row" style="margin-top:6px" hidden><label for="my-vehicles" style="margin-top:0">Or pick one of your saved vehicles</label><select id="my-vehicles"><option value="">Choose…</option></select></div>
@@ -37,7 +53,7 @@
     <input id="state" required maxlength="2">
     <label for="zip">ZIP code (optional)</label>
     <input id="zip" inputmode="numeric" maxlength="10" placeholder="e.g. 70460">
-    <label for="description">What is going on with the vehicle?</label>
+    <label for="description" id="description-label">What is going on with the vehicle?</label>
     <textarea id="description" rows="4" required></textarea>
     <label for="date">When do you need it? (optional)</label>
     <input id="date" type="date">
@@ -83,6 +99,22 @@
       } catch (e) { /* fall through to broadcast */ }
     }
     if (get('service')) document.getElementById('service').value = get('service');
+    const diagBox = document.getElementById('diag-symptoms');
+    const descInput = document.getElementById('description');
+    const descLabel = document.getElementById('description-label');
+    const chipInputs = Array.from(document.querySelectorAll('#symptom-chips input'));
+    const anySymptom = () => chipInputs.some(i => i.checked);
+    window._refreshDiag = function () {
+      const isDiag = sel.value === 'Diagnostics';
+      diagBox.hidden = !isDiag;
+      if (!isDiag) chipInputs.forEach(i => i.checked = false);
+      const relaxed = isDiag && anySymptom();
+      descInput.required = !relaxed;
+      descLabel.textContent = relaxed ? 'Anything else to add? (optional)' : 'What is going on with the vehicle?';
+    };
+    sel.addEventListener('change', window._refreshDiag);
+    chipInputs.forEach(i => i.addEventListener('change', window._refreshDiag));
+    window._refreshDiag();
     if (get('vehicle')) document.getElementById('vehicle').value = get('vehicle');
     if (get('city')) document.getElementById('city').value = get('city');
     if (get('state')) document.getElementById('state').value = get('state');
@@ -98,13 +130,20 @@
   })();
   document.getElementById('form').onsubmit = async (e) => {
     e.preventDefault(); err.textContent = ''; ok.textContent = '';
-    const body = { service: document.getElementById('service').value, vehicle: document.getElementById('vehicle').value, vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: document.getElementById('description').value, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: window._isUrgent === true, zip: document.getElementById('zip').value, businessId: window._directBizId || undefined };
+    const svc = document.getElementById('service').value;
+    let descVal = document.getElementById('description').value.trim();
+    if (svc === 'Diagnostics') {
+      const picked = Array.from(document.querySelectorAll('#symptom-chips input:checked')).map(i => i.value);
+      if (picked.length) descVal = 'Symptoms: ' + picked.join(', ') + '.' + (descVal ? '\n' + descVal : '');
+    }
+    const body = { service: svc, vehicle: document.getElementById('vehicle').value, vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: descVal, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: window._isUrgent === true, zip: document.getElementById('zip').value, businessId: window._directBizId || undefined };
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { err.textContent = d.error || 'Something went wrong.'; return; }
     ok.textContent = window._directBizId ? 'Request sent directly to the mechanic. Watch your dashboard for their quote.' : (d.mechanicsNotified > 0 ? `Request sent. ${d.mechanicsNotified} mobile mechanic(s) in your area can quote it. Watch your dashboard for quotes.` : 'Request sent. No mechanics in your area match yet, but your request is posted and will match as mechanics join.');
     try { sessionStorage.removeItem('mmn_find'); } catch (e) {}
     e.target.reset();
+    if (window._refreshDiag) window._refreshDiag();
   };
 </script>
 </body>
