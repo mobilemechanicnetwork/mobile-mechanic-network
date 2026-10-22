@@ -103,14 +103,12 @@
     const descInput = document.getElementById('description');
     const descLabel = document.getElementById('description-label');
     const chipInputs = Array.from(document.querySelectorAll('#symptom-chips input'));
-    const anySymptom = () => chipInputs.some(i => i.checked);
     window._refreshDiag = function () {
       const isDiag = sel.value === 'Diagnostics';
       diagBox.hidden = !isDiag;
       if (!isDiag) chipInputs.forEach(i => i.checked = false);
-      const relaxed = isDiag && anySymptom();
-      descInput.required = !relaxed;
-      descLabel.textContent = relaxed ? 'Anything else to add? (optional)' : 'What is going on with the vehicle?';
+      descInput.required = !isDiag;
+      descLabel.textContent = isDiag ? 'Describe what is going on (optional)' : 'What is going on with the vehicle?';
     };
     sel.addEventListener('change', window._refreshDiag);
     chipInputs.forEach(i => i.addEventListener('change', window._refreshDiag));
@@ -135,6 +133,7 @@
     if (svc === 'Diagnostics') {
       const picked = Array.from(document.querySelectorAll('#symptom-chips input:checked')).map(i => i.value);
       if (picked.length) descVal = 'Symptoms: ' + picked.join(', ') + '.' + (descVal ? '\n' + descVal : '');
+      if (!descVal) { err.textContent = 'Please pick a symptom or describe what is going on.'; return; }
     }
     const body = { service: svc, vehicle: document.getElementById('vehicle').value, vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: descVal, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: window._isUrgent === true, zip: document.getElementById('zip').value, businessId: window._directBizId || undefined };
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
