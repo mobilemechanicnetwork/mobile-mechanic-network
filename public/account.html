@@ -128,6 +128,14 @@
   }
   tabLogin.onclick = () => show('login');
   tabRegister.onclick = () => show('register');
+  try {
+    const qp = new URLSearchParams(location.search);
+    const prePhone = qp.get('phone');
+    if (prePhone) {
+      document.getElementById('rg-phone').value = prePhone;
+      show('register');
+    }
+  } catch (e) {}
   document.getElementById('forgot-link').onclick = (e) => { e.preventDefault(); show('forgot'); };
   document.getElementById('forgot-back').onclick = (e) => { e.preventDefault(); show('login'); };
   async function post(url, body) {

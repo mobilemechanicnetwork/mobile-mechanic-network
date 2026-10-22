@@ -26,6 +26,7 @@
   <h1>Request quotes</h1>
   <p class="muted">Describe the job once. Mobile mechanics in your area who offer that service can send you a quote. Your street address stays private until you accept a quote.</p>
   <div class="urgent-banner" id="urgent-banner" hidden><strong>URGENT REQUEST</strong> — mechanics in your area will see this flagged as urgent.</div>
+  <div id="guest-banner" hidden style="border:1px solid #2563eb;border-radius:10px;padding:12px 14px;margin:0 0 6px;font-size:.95rem"><strong>No account needed.</strong> Send your request now — after it's sent you can create a free account to track your quotes, repairs, and vehicles.</div>
   <div id="direct-banner" hidden style="border:1px solid #2563eb;border-radius:10px;padding:12px 14px;margin:0 0 6px"><strong id="direct-name"></strong> — only this mechanic will see your request. <a href="/request" id="direct-all">Send to all mechanics in the area instead</a>.</div>
   <form id="form">
     <label for="service">Service</label>
@@ -62,6 +63,7 @@
     <button type="submit">Send request</button>
     <div class="err" id="err"></div>
     <div class="ok" id="ok"></div>
+    <div id="guest-cta" hidden style="margin-top:14px;border:1px solid #2563eb;border-radius:10px;padding:14px;font-size:.95rem"><strong>Want to track your quotes?</strong><br><span class="muted">Create a free account to follow your quotes, repairs, and vehicles in one place.</span><br><br><a id="guest-signup" href="/account" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;padding:10px 18px;font-weight:700">Create my free account</a></div>
   </form>
   <p><a href="/dashboard">My dashboard</a> · <a href="/mechanics">Browse mechanics</a> · <a href="/">Home</a></p>
 </main>
@@ -69,8 +71,10 @@
   const err = document.getElementById('err'), ok = document.getElementById('ok');
   (async () => {
     const me = await (await fetch('/api/me')).json().catch(() => ({}));
-    if (!me.user) { location.href = '/account'; return; }
-    if (me.user.role !== 'owner') { err.textContent = 'Quote requests use a vehicle owner account.'; document.querySelector('button[type=submit]').disabled = true; return; }
+    const isGuest = !me.user;
+    window._isGuest = isGuest;
+    if (me.user && me.user.role !== 'owner') { err.textContent = 'Quote requests use a vehicle owner account.'; document.querySelector('button[type=submit]').disabled = true; return; }
+    if (isGuest) document.getElementById('guest-banner').hidden = false;
     const d = await (await fetch('/api/services')).json();
     const sel = document.getElementById('service');
     d.services.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
@@ -139,7 +143,15 @@
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { err.textContent = d.error || 'Something went wrong.'; return; }
-    ok.textContent = window._directBizId ? 'Request sent directly to the mechanic. Watch your dashboard for their quote.' : (d.mechanicsNotified > 0 ? `Request sent. ${d.mechanicsNotified} mobile mechanic(s) in your area can quote it. Watch your dashboard for quotes.` : 'Request sent. No mechanics in your area match yet, but your request is posted and will match as mechanics join.');
+    document.getElementById('guest-cta').hidden = true;
+    const sentPhone = document.getElementById('phone').value.trim();
+    if (window._isGuest) {
+      ok.textContent = window._directBizId ? 'Request sent directly to the mechanic — you\'ll get their quote by text.' : (d.mechanicsNotified > 0 ? `Request sent. ${d.mechanicsNotified} mobile mechanic(s) in your area can quote it — you'll get their quotes by text.` : 'Request sent. No mechanics in your area match yet, but your request is posted and will match as mechanics join. You\'ll get quotes by text.');
+      document.getElementById('guest-signup').href = '/account?phone=' + encodeURIComponent(sentPhone);
+      document.getElementById('guest-cta').hidden = false;
+    } else {
+      ok.textContent = window._directBizId ? 'Request sent directly to the mechanic. Watch your dashboard for their quote.' : (d.mechanicsNotified > 0 ? `Request sent. ${d.mechanicsNotified} mobile mechanic(s) in your area can quote it. Watch your dashboard for quotes.` : 'Request sent. No mechanics in your area match yet, but your request is posted and will match as mechanics join.');
+    }
     try { sessionStorage.removeItem('mmn_find'); } catch (e) {}
     e.target.reset();
     if (window._refreshDiag) window._refreshDiag();
