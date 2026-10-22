@@ -709,6 +709,14 @@
                 <option value="starter">Starter replacement</option>
                 <option value="belt">Serpentine belt replacement</option>
                 <option value="headlight">Headlight bulb replacement</option>
+                <option value="ac-compressor">A/C compressor replacement</option>
+                <option value="water-pump">Water pump replacement</option>
+                <option value="radiator">Radiator replacement</option>
+                <option value="valve-cover-gasket">Valve cover gasket replacement</option>
+                <option value="spark-plugs">Tune-up — spark plug replacement</option>
+                <option value="ps-pump">Power steering pump replacement</option>
+                <option value="front-struts">Front struts — pair replacement</option>
+                <option value="control-arms">Control arms — pair replacement with ball joints</option>
               </select>
             </div>
           </div>
@@ -1086,7 +1094,247 @@
             luxury: { franchise: '$300–$500' }
           },
           sources: [['Engineer Fix', 'https://engineerfix.com/how-much-does-a-mechanic-charge-to-change-a-headlight-bulb/']]
-        }
+        },
+        'ac-compressor': {
+          title: 'A/C compressor replacement',
+          indie: '$800–$1,200', indieNote: 'Published national range',
+          dealer: '$1,200–$1,800', dealerNote: 'Estimated from dealer labor and parts markup',
+          split: 'Parts are about $250–$550; labor is typically 3–4 hours.',
+          vehicle: {
+            compact: 'Compact cars sit near the baseline; compressor size and refrigerant type still move the total.',
+            suv: 'Larger cabins and dual-zone systems raise parts and refrigerant costs on SUVs.',
+            truck: 'Truck A/C systems run larger compressors; good underhood access keeps labor near baseline.',
+            luxury: 'OEM compressors, R-1234yf refrigerant, and tight access push luxury totals well above baseline.'
+          },
+          classPrices: {
+            'compact-suv': { indie: '$900–$1,400', indieNote: 'Derived from larger compressor and refrigerant capacity on SUVs', dealer: '$1,350–$2,050', dealerNote: 'Derived from larger compressor and refrigerant capacity on SUVs' },
+            'midsize-suv': { indie: '$1,000–$1,400', indieNote: 'Derived from cramped transverse-V6 engine bays adding labor', dealer: '$1,350–$1,900', dealerNote: 'Derived from cramped transverse-V6 engine bays adding labor' },
+            'fullsize-suv': { indie: '$950–$1,550', indieNote: 'Derived from dual-zone and rear A/C adding parts and refrigerant', dealer: '$1,450–$2,300', dealerNote: 'Derived from dual-zone and rear A/C adding parts and refrigerant' },
+            'pickup-truck': { indie: '$950–$1,550', indieNote: 'Derived from larger truck A/C systems with good underhood access', dealer: '$1,450–$2,300', dealerNote: 'Derived from larger truck A/C systems with good underhood access' },
+            'heavy-duty-truck': { indie: '$1,200–$1,800', indieNote: 'Derived from larger dual-zone systems on heavy-duty trucks', dealer: '$1,800–$2,700', dealerNote: 'Derived from larger dual-zone systems on heavy-duty trucks' },
+            luxury: { indie: '$1,600–$2,500', indieNote: 'Derived from OEM compressor pricing and R-1234yf service on luxury models', dealer: '$2,400–$3,750', dealerNote: 'Derived from OEM compressor pricing and R-1234yf service on luxury models' }
+          },
+          franchise: '$1,000–$1,450',
+          franchiseClass: {
+            'compact-suv': { franchise: '$1,150–$1,650' },
+            'midsize-suv': { franchise: '$1,175–$1,650' },
+            'fullsize-suv': { franchise: '$1,200–$1,900' },
+            'pickup-truck': { franchise: '$1,200–$1,900' },
+            'heavy-duty-truck': { franchise: '$1,500–$2,250' },
+            luxury: { franchise: '$2,000–$3,100' }
+          },
+          sources: [['FreezeCap', 'https://freezecap.com/blogs/articles/car-ac-compressor-problems'], ['AutoZone', 'https://www.autozone.com/diy/climate-control/what-does-an-ac-compressor-replacement-cost']]
+        },
+        'water-pump': {
+          title: 'Water pump replacement',
+          indie: '$400–$650', indieNote: 'Published national range',
+          dealer: '$600–$950', dealerNote: 'Estimated from dealer labor and parts markup',
+          split: 'Parts are about $60–$150; labor is typically 2–3 hours. Timing-belt-driven pumps sit behind the timing belt and add 3–6 hours; usually done with a timing belt kit ($600–$1,100+ at an independent shop).',
+          vehicle: {
+            compact: 'Compact cars with chain-driven pumps sit near the baseline; timing-belt-driven pumps are a bigger job.',
+            suv: 'Transverse V6 SUVs pack the pump tighter; expect more labor than the car baseline.',
+            truck: 'Longitudinal truck engines offer good access; pricing tracks the baseline.',
+            luxury: 'Electric water pumps on European luxury models can cost $400–$700 for the part alone.'
+          },
+          classPrices: {
+            'compact-suv': { indie: '$400–$650', indieNote: 'Derived from chain-driven pump parity with the car baseline', dealer: '$600–$950', dealerNote: 'Derived from chain-driven pump parity with the car baseline' },
+            'midsize-suv': { indie: '$450–$800', indieNote: 'Derived from tighter transverse-V6 packaging adding labor', dealer: '$700–$1,150', dealerNote: 'Derived from tighter transverse-V6 packaging adding labor' },
+            'fullsize-suv': { indie: '$400–$650', indieNote: 'Derived from accessible chain-driven V8 pumps', dealer: '$600–$950', dealerNote: 'Derived from accessible chain-driven V8 pumps' },
+            'pickup-truck': { indie: '$400–$650', indieNote: 'Derived from accessible longitudinal V8 layouts', dealer: '$600–$950', dealerNote: 'Derived from accessible longitudinal V8 layouts' },
+            'heavy-duty-truck': { indie: '$700–$1,100', indieNote: 'Derived from larger diesel pumps and coolant capacity', dealer: '$1,050–$1,650', dealerNote: 'Derived from larger diesel pumps and coolant capacity' },
+            luxury: { indie: '$800–$1,300', indieNote: 'Derived from electric water pump part costs on European models', dealer: '$1,200–$1,900', dealerNote: 'Derived from electric water pump part costs on European models' }
+          },
+          franchise: '$500–$800',
+          franchiseClass: {
+            'compact-suv': { franchise: '$500–$800' },
+            'midsize-suv': { franchise: '$575–$975' },
+            'fullsize-suv': { franchise: '$500–$800' },
+            'pickup-truck': { franchise: '$500–$800' },
+            'heavy-duty-truck': { franchise: '$875–$1,375' },
+            luxury: { franchise: '$1,000–$1,600' }
+          },
+          sources: [['IsMyCarCooked', 'https://ismycarcooked.com/blog/water-pump-replacement-cost-2025-2026-complete-price-guide/'], ['Engineer Fix', 'https://engineerfix.com/how-much-does-it-cost-to-fix-a-water-pump-in-a-car/']]
+        },
+        'radiator': {
+          title: 'Radiator replacement',
+          indie: '$500–$850', indieNote: 'Published national range',
+          dealer: '$800–$1,200', dealerNote: 'Estimated from dealer labor and parts markup',
+          split: 'Parts are about $150–$300; labor is typically 2–3 hours.',
+          vehicle: {
+            compact: 'Compact cars sit near the baseline; core size and plastic end tanks are the main variables.',
+            suv: 'Larger SUV radiators and tighter front-end packaging raise the total above the car baseline.',
+            truck: 'Truck radiators are larger but access is usually straightforward.',
+            luxury: 'Bumper and headlight removal plus OEM parts push luxury radiators well above baseline.'
+          },
+          classPrices: {
+            'compact-suv': { indie: '$550–$925', indieNote: 'Derived from slightly larger SUV radiator cores', dealer: '$875–$1,300', dealerNote: 'Derived from slightly larger SUV radiator cores' },
+            'midsize-suv': { indie: '$600–$1,000', indieNote: 'Derived from bumper and grille removal adding labor', dealer: '$950–$1,450', dealerNote: 'Derived from bumper and grille removal adding labor' },
+            'fullsize-suv': { indie: '$600–$1,100', indieNote: 'Derived from larger radiators and added labor', dealer: '$950–$1,550', dealerNote: 'Derived from larger radiators and added labor' },
+            'pickup-truck': { indie: '$600–$1,100', indieNote: 'Derived from larger truck radiators with straightforward access', dealer: '$950–$1,550', dealerNote: 'Derived from larger truck radiators with straightforward access' },
+            'heavy-duty-truck': { indie: '$1,000–$1,600', indieNote: 'Derived from heavy-duty towing cooling packages', dealer: '$1,500–$2,400', dealerNote: 'Derived from heavy-duty towing cooling packages' },
+            luxury: { indie: '$900–$1,500', indieNote: 'Derived from front-end teardown plus OEM radiator pricing', dealer: '$1,350–$2,200', dealerNote: 'Derived from front-end teardown plus OEM radiator pricing' }
+          },
+          franchise: '$650–$1,000',
+          franchiseClass: {
+            'compact-suv': { franchise: '$700–$1,100' },
+            'midsize-suv': { franchise: '$775–$1,225' },
+            'fullsize-suv': { franchise: '$775–$1,300' },
+            'pickup-truck': { franchise: '$775–$1,300' },
+            'heavy-duty-truck': { franchise: '$1,250–$2,000' },
+            luxury: { franchise: '$1,125–$1,850' }
+          },
+          sources: [['CarSymp', 'https://carsymp.com/cooling-system-repair/radiator-replacement/radiator-replacement-cost-estimate/'], ['Engineer Fix', 'https://engineerfix.com/are-car-radiators-expensive-to-replace/']]
+        },
+        'valve-cover-gasket': {
+          title: 'Valve cover gasket replacement',
+          indie: '$225–$400', indieNote: 'Published national range',
+          dealer: '$325–$550', dealerNote: 'Estimated from dealer labor and parts markup',
+          split: 'Parts are about $15–$50; labor is typically 1–1.5 hours.',
+          vehicle: {
+            compact: 'Inline-4 covers sit right on top; compact cars price near the baseline.',
+            suv: 'V6 SUVs have two covers and the rear bank hides under the intake; labor drives the total up.',
+            truck: 'V8 trucks have two covers but good access; expect more labor than an inline-4.',
+            luxury: 'Covers with integrated PCV systems cost $150–$300 for the part alone on luxury models.'
+          },
+          classPrices: {
+            'compact-suv': { indie: '$225–$400', indieNote: 'Derived from inline-4 parity with the car baseline', dealer: '$325–$550', dealerNote: 'Derived from inline-4 parity with the car baseline' },
+            'midsize-suv': { indie: '$400–$650', indieNote: 'Derived from transverse-V6 rear-bank labor under the intake', dealer: '$575–$925', dealerNote: 'Derived from transverse-V6 rear-bank labor under the intake' },
+            'fullsize-suv': { indie: '$350–$550', indieNote: 'Derived from two V8 covers with good access', dealer: '$500–$800', dealerNote: 'Derived from two V8 covers with good access' },
+            'pickup-truck': { indie: '$350–$550', indieNote: 'Derived from two V8 covers with good access', dealer: '$500–$800', dealerNote: 'Derived from two V8 covers with good access' },
+            'heavy-duty-truck': { indie: '$450–$700', indieNote: 'Derived from diesel tappet-cover access constraints', dealer: '$650–$1,000', dealerNote: 'Derived from diesel tappet-cover access constraints' },
+            luxury: { indie: '$500–$900', indieNote: 'Derived from integrated-PCV cover part costs plus labor', dealer: '$725–$1,300', dealerNote: 'Derived from integrated-PCV cover part costs plus labor' }
+          },
+          franchise: '$275–$475',
+          franchiseClass: {
+            'compact-suv': { franchise: '$275–$475' },
+            'midsize-suv': { franchise: '$475–$775' },
+            'fullsize-suv': { franchise: '$425–$675' },
+            'pickup-truck': { franchise: '$425–$675' },
+            'heavy-duty-truck': { franchise: '$550–$850' },
+            luxury: { franchise: '$600–$1,100' }
+          },
+          sources: [['ValveCoverGasketCost', 'https://valvecovergasketcost.com/'], ['Oards', 'https://oards.com/valve-cover-gasket-leak-symptoms-and-replacement-cost/']]
+        },
+        'spark-plugs': {
+          title: 'Tune-up — spark plug replacement',
+          indie: '$150–$250', indieNote: 'Published national range',
+          dealer: '$200–$375', dealerNote: 'Estimated from dealer labor and parts markup',
+          split: 'Parts are about $25–$60; labor is typically 0.5–1 hour.',
+          vehicle: {
+            compact: 'Four accessible iridium plugs; compact cars sit at the baseline.',
+            suv: 'Transverse V6 rear plugs sit against the firewall; labor is the big variable on SUVs.',
+            truck: 'V8 trucks add plugs and labor; some 2000s V8 plugs are prone to seizing.',
+            luxury: '$15–$30 per plug plus coil packs often bundled on luxury models.'
+          },
+          classPrices: {
+            'compact-suv': { indie: '$150–$250', indieNote: 'Derived from inline-4 parity with the car baseline', dealer: '$200–$375', dealerNote: 'Derived from inline-4 parity with the car baseline' },
+            'midsize-suv': { indie: '$300–$450', indieNote: 'Derived from transverse-V6 rear-bank firewall labor', dealer: '$425–$650', dealerNote: 'Derived from transverse-V6 rear-bank firewall labor' },
+            'fullsize-suv': { indie: '$280–$450', indieNote: 'Derived from V8 plug count plus added labor', dealer: '$400–$650', dealerNote: 'Derived from V8 plug count plus added labor' },
+            'pickup-truck': { indie: '$280–$450', indieNote: 'Derived from V8 plug count plus added labor', dealer: '$400–$650', dealerNote: 'Derived from V8 plug count plus added labor' },
+            'heavy-duty-truck': { indie: '$350–$600', indieNote: 'Derived from gas V8 and V10 plug counts in tight bays', dealer: '$500–$875', dealerNote: 'Derived from gas V8 and V10 plug counts in tight bays' },
+            luxury: { indie: '$400–$700', indieNote: 'Derived from per-plug pricing plus bundled coil packs', dealer: '$575–$1,000', dealerNote: 'Derived from per-plug pricing plus bundled coil packs' }
+          },
+          franchise: '$175–$300',
+          franchiseClass: {
+            'compact-suv': { franchise: '$175–$300' },
+            'midsize-suv': { franchise: '$350–$550' },
+            'fullsize-suv': { franchise: '$340–$550' },
+            'pickup-truck': { franchise: '$340–$550' },
+            'heavy-duty-truck': { franchise: '$425–$725' },
+            luxury: { franchise: '$475–$850' }
+          },
+          sources: [['SparkPlugReplacementCost', 'https://sparkplugreplacementcost.com/'], ['Engineer Fix', 'https://engineerfix.com/how-much-do-mechanics-charge-for-spark-plugs/']]
+        },
+        'ps-pump': {
+          title: 'Power steering pump replacement',
+          indie: '$450–$750', indieNote: 'Published national range',
+          dealer: '$650–$1,000', dealerNote: 'Estimated from dealer labor and parts markup',
+          split: 'Parts are about $120–$300; labor is typically 1.5–2.5 hours.',
+          vehicle: {
+            compact: 'Compact cars sit near the baseline; pump access is usually straightforward.',
+            suv: 'Crowded FWD engine bays can bury the pump on SUVs; labor runs higher.',
+            truck: 'Truck pumps are generally accessible; hydroboost variants add parts and labor.',
+            luxury: 'Electro-hydraulic units on luxury models cost more and may need electrical diagnosis.'
+          },
+          classPrices: {
+            'compact-suv': { indie: '$450–$750', indieNote: 'Derived from 4-cylinder parity with the car baseline', dealer: '$650–$1,000', dealerNote: 'Derived from 4-cylinder parity with the car baseline' },
+            'midsize-suv': { indie: '$525–$875', indieNote: 'Derived from crowded FWD bays adding labor', dealer: '$750–$1,175', dealerNote: 'Derived from crowded FWD bays adding labor' },
+            'fullsize-suv': { indie: '$525–$900', indieNote: 'Derived from hydroboost variants adding parts and labor', dealer: '$775–$1,200', dealerNote: 'Derived from hydroboost variants adding parts and labor' },
+            'pickup-truck': { indie: '$450–$750', indieNote: 'Derived from accessible truck pump layouts', dealer: '$650–$1,000', dealerNote: 'Derived from accessible truck pump layouts' },
+            'heavy-duty-truck': { indie: '$600–$1,000', indieNote: 'Derived from larger pumps and fluid capacity', dealer: '$875–$1,450', dealerNote: 'Derived from larger pumps and fluid capacity' },
+            luxury: { indie: '$900–$1,400', indieNote: 'Derived from electro-hydraulic unit pricing plus diagnosis', dealer: '$1,300–$2,000', dealerNote: 'Derived from electro-hydraulic unit pricing plus diagnosis' }
+          },
+          franchise: '$550–$875',
+          franchiseClass: {
+            'compact-suv': { franchise: '$550–$875' },
+            'midsize-suv': { franchise: '$625–$1,025' },
+            'fullsize-suv': { franchise: '$650–$1,050' },
+            'pickup-truck': { franchise: '$550–$875' },
+            'heavy-duty-truck': { franchise: '$725–$1,225' },
+            luxury: { franchise: '$1,100–$1,700' }
+          },
+          sources: [['Jerry', 'https://jerry.ai/car-repair/estimates/power-steering-pump-repair-cost/'], ['ShopEarl', 'https://shopearl.com/blog/power-steering-pump-replacement-cost/']]
+        },
+        'front-struts': {
+          title: 'Front struts — pair replacement',
+          indie: '$550–$950', indieNote: 'Published national range',
+          dealer: '$900–$1,400', dealerNote: 'Estimated from dealer labor and parts markup',
+          split: 'Parts are about $200–$450; labor is typically 2–3 hours. A wheel alignment ($80–$150) is required after and is included in these ranges.',
+          vehicle: {
+            compact: 'Compact cars sit near the baseline; quick-strut assemblies can save labor.',
+            suv: 'Heavier SUV assemblies and V6 models add parts and labor.',
+            truck: 'Larger truck struts; 4WD adds labor. A post-replacement alignment is included in the ranges.',
+            luxury: 'Adaptive or air suspension struts run $500–$1,200+ each on luxury models.'
+          },
+          classPrices: {
+            'compact-suv': { indie: '$600–$1,075', indieNote: 'Derived from heavier SUV strut assemblies', dealer: '$975–$1,600', dealerNote: 'Derived from heavier SUV strut assemblies' },
+            'midsize-suv': { indie: '$650–$1,100', indieNote: 'Derived from V6 models adding parts and labor', dealer: '$1,050–$1,600', dealerNote: 'Derived from V6 models adding parts and labor' },
+            'fullsize-suv': { indie: '$700–$1,200', indieNote: 'Derived from larger, heavier struts and added labor', dealer: '$1,150–$1,800', dealerNote: 'Derived from larger, heavier struts and added labor' },
+            'pickup-truck': { indie: '$700–$1,200', indieNote: 'Derived from truck strut sizing; 4WD adds labor', dealer: '$1,150–$1,800', dealerNote: 'Derived from truck strut sizing; 4WD adds labor' },
+            'heavy-duty-truck': { indie: '$900–$1,500', indieNote: 'Derived from heavy-duty suspension components', dealer: '$1,450–$2,250', dealerNote: 'Derived from heavy-duty suspension components' },
+            luxury: { indie: '$1,500–$3,000', indieNote: 'Derived from adaptive and air suspension strut pricing', dealer: '$2,400–$4,500', dealerNote: 'Derived from adaptive and air suspension strut pricing' }
+          },
+          franchise: '$700–$1,150',
+          franchiseClass: {
+            'compact-suv': { franchise: '$775–$1,325' },
+            'midsize-suv': { franchise: '$850–$1,350' },
+            'fullsize-suv': { franchise: '$925–$1,500' },
+            'pickup-truck': { franchise: '$925–$1,500' },
+            'heavy-duty-truck': { franchise: '$1,175–$1,875' },
+            luxury: { franchise: '$1,950–$3,750' }
+          },
+          sources: [['Maxis Auto Repair', 'https://maxiautorepair.com/car-struts-cost/'], ['Fixxr', 'https://fixxr.repair/blog/struts-shocks-replacement-cost-2026']]
+        },
+        'control-arms': {
+          title: 'Control arms — pair replacement with ball joints',
+          indie: '$600–$1,000', indieNote: 'Published national range',
+          dealer: '$950–$1,500', dealerNote: 'Estimated from dealer labor and parts markup',
+          split: 'Parts are about $160–$350; labor is typically 2.5–4 hours. A wheel alignment ($80–$150) is required after and is included in these ranges.',
+          vehicle: {
+            compact: 'Straightforward MacPherson setups; compact cars sit near the baseline.',
+            suv: 'Multi-link designs add complexity on SUVs; doing both sides together saves versus two separate visits.',
+            truck: 'Heavier arms and hardware; seized bolts on older trucks can add labor.',
+            luxury: 'Forged aluminum arms run $650–$1,200 per side on luxury models.'
+          },
+          classPrices: {
+            'compact-suv': { indie: '$650–$1,100', indieNote: 'Derived from MacPherson setups slightly above baseline', dealer: '$1,025–$1,650', dealerNote: 'Derived from MacPherson setups slightly above baseline' },
+            'midsize-suv': { indie: '$700–$1,200', indieNote: 'Derived from multi-link complexity adding labor', dealer: '$1,100–$1,800', dealerNote: 'Derived from multi-link complexity adding labor' },
+            'fullsize-suv': { indie: '$800–$1,400', indieNote: 'Derived from heavier arms and hardware', dealer: '$1,250–$2,100', dealerNote: 'Derived from heavier arms and hardware' },
+            'pickup-truck': { indie: '$800–$1,400', indieNote: 'Derived from heavier arms and hardware', dealer: '$1,250–$2,100', dealerNote: 'Derived from heavier arms and hardware' },
+            'heavy-duty-truck': { indie: '$1,000–$1,800', indieNote: 'Derived from heavy forged components', dealer: '$1,600–$2,700', dealerNote: 'Derived from heavy forged components' },
+            luxury: { indie: '$1,300–$2,400', indieNote: 'Derived from forged aluminum arm pricing per side', dealer: '$2,050–$3,600', dealerNote: 'Derived from forged aluminum arm pricing per side' }
+          },
+          franchise: '$750–$1,250',
+          franchiseClass: {
+            'compact-suv': { franchise: '$825–$1,375' },
+            'midsize-suv': { franchise: '$900–$1,500' },
+            'fullsize-suv': { franchise: '$1,025–$1,750' },
+            'pickup-truck': { franchise: '$1,025–$1,750' },
+            'heavy-duty-truck': { franchise: '$1,300–$2,250' },
+            luxury: { franchise: '$1,675–$3,000' }
+          },
+          sources: [['Detroit Axle', 'https://detroitaxle.com/blog/news/lower-control-arm-replacement-cost'], ['Engineer Fix', 'https://engineerfix.com/how-much-does-it-cost-to-fix-a-control-arm/']]
+        },
       };
 
       Object.keys(guideJobs).forEach(function (jobKey) {
