@@ -1014,8 +1014,8 @@ const server = http.createServer(async (req, res) => {
         trialEndsAt: user.trialEndsAt || null,
         daysLeft,
         plans: [
-          { id: 'monthly', label: '$24.99 / month' },
-          { id: 'yearly', label: '$200 / year' },
+          { id: 'monthly', label: '$49.99 / month' },
+          { id: 'yearly', label: '$400 / year' },
         ],
       });
     }
