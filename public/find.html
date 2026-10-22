@@ -25,6 +25,10 @@
   .badge-cert{background:#1e1b4b;border-color:#6366f1;color:#c7d2fe}
   .cta{text-align:center;margin:20px 0}
   .cta a button{width:auto;padding:13px 32px;font-size:1.05rem;font-weight:700;background:#2563eb;color:#fff;border:0;border-radius:10px;cursor:pointer;box-shadow:0 2px 8px rgba(37,99,235,.25)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:999px;cursor:pointer;font-size:.85rem;color:#475569;background:#fff;margin:0;font-weight:600}
+  .chip input{accent-color:#2563eb;margin:0}
+  .chip:has(input:checked){border-color:#2563eb;background:#eff6ff;color:#1d4ed8}
 </style>
 </head>
 <body>
@@ -46,6 +50,18 @@
       <input id="f-vehicle" required>
       <label for="f-service">Service needed</label>
       <select id="f-service" required></select>
+      <div id="f-diag-symptoms" hidden>
+        <label>What symptoms are you having? <span class="muted">(select all that apply)</span></label>
+        <div class="chips" id="f-symptom-chips">
+          <label class="chip"><input type="checkbox" value="Fluid leak"> Fluid leak</label>
+          <label class="chip"><input type="checkbox" value="Dash warning lights on"> Dash warning lights on</label>
+          <label class="chip"><input type="checkbox" value="Noise, rattle, or squeak"> Noise, rattle, or squeak</label>
+          <label class="chip"><input type="checkbox" value="A/C not working"> A/C not working</label>
+          <label class="chip"><input type="checkbox" value="Won't start"> Won't start</label>
+          <label class="chip"><input type="checkbox" value="Vibration"> Vibration</label>
+          <label class="chip"><input type="checkbox" value="Unsure — needs mechanic assessment"> Unsure — need a mechanic to assess</label>
+        </div>
+      </div>
       <label for="f-date">When do you need it?</label>
       <input id="f-date" type="date" required>
       <button class="primary" type="submit">Find mechanics</button>
@@ -74,9 +90,13 @@ const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABE
     $('urgent-banner').hidden = false;
     document.querySelector('#find-form button.primary').textContent = 'Find mechanics now';
   }
+  const refreshFindDiag = () => { $('f-diag-symptoms').hidden = $('f-service').value !== 'Diagnostics'; };
+  $('f-service').addEventListener('change', refreshFindDiag);
+  refreshFindDiag();
 })();
 $('find-form').onsubmit = async (e) => {
   e.preventDefault();
+  const symptoms = Array.from(document.querySelectorAll('#f-symptom-chips input:checked')).map(i => i.value);
   const q = {
     name: $('f-name').value.trim(),
     city: $('f-city').value.trim(),
@@ -85,6 +105,7 @@ $('find-form').onsubmit = async (e) => {
     vehicle: $('f-vehicle').value.trim(),
     service: $('f-service').value,
     date: $('f-date').value,
+    symptoms: symptoms,
   };
   const params = new URLSearchParams({ city: q.city, state: q.state, service: q.service });
   const d = await (await fetch('/api/mechanics?' + params)).json();
@@ -107,6 +128,7 @@ $('find-form').onsubmit = async (e) => {
   if (!d.mechanics.length) $('req-link').querySelector('button').textContent = 'Send a quote request anyway';
   const rp = new URLSearchParams({ service: q.service, vehicle: q.vehicle, city: q.city, state: q.state, date: q.date });
   if (q.zip) rp.set('zip', q.zip);
+  if (q.symptoms && q.symptoms.length) rp.set('symptoms', q.symptoms.join('|'));
   if (new URLSearchParams(location.search).get('urgent') === '1') rp.set('urgent', '1');
   $('req-link').href = '/request?' + rp.toString();
   try { sessionStorage.setItem('mmn_find', JSON.stringify(q)); } catch (e) {}

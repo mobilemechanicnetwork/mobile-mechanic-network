@@ -116,6 +116,9 @@
     };
     sel.addEventListener('change', window._refreshDiag);
     chipInputs.forEach(i => i.addEventListener('change', window._refreshDiag));
+    const symParam = qp.get('symptoms');
+    const preSymptoms = symParam ? symParam.split('|') : (Array.isArray(pre.symptoms) ? pre.symptoms : []);
+    if (preSymptoms.length) chipInputs.forEach(i => { if (preSymptoms.indexOf(i.value) !== -1) i.checked = true; });
     window._refreshDiag();
     if (get('vehicle')) document.getElementById('vehicle').value = get('vehicle');
     if (get('city')) document.getElementById('city').value = get('city');
