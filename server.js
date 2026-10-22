@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 
-const SERVICES = ['Diagnostics', 'Brakes', 'Battery & starting', 'Oil & maintenance', 'Engine repair', 'Pre-purchase inspection', 'Other'];
+const SERVICES = ['Diagnostics', 'Brakes', 'Battery & starting', 'Oil & maintenance', 'Pre-purchase inspection', 'Other'];
 
 // VIN: 17 chars, letters I/O/Q never used. Returns the cleaned VIN or null.
 function cleanVin(v) {
