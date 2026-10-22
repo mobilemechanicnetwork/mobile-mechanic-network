@@ -87,6 +87,7 @@
     if (get('city')) document.getElementById('city').value = get('city');
     if (get('state')) document.getElementById('state').value = get('state');
     if (get('date')) document.getElementById('date').value = get('date');
+    if (get('zip')) document.getElementById('zip').value = get('zip');
     const v = await (await fetch('/api/vehicles/me')).json().catch(() => ({}));
     if (v.vehicles && v.vehicles.length) {
       const vsel = document.getElementById('my-vehicles');
