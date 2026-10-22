@@ -77,6 +77,12 @@
     if (isGuest) document.getElementById('guest-banner').hidden = false;
     const d = await (await fetch('/api/services')).json();
     const sel = document.getElementById('service');
+    const prompt = document.createElement('option');
+    prompt.value = '';
+    prompt.textContent = 'Select a service';
+    prompt.disabled = true;
+    prompt.selected = true;
+    sel.appendChild(prompt);
     d.services.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
     if (me.user.phone) document.getElementById('phone').value = me.user.phone;
     const qp = new URLSearchParams(location.search);
