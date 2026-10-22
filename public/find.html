@@ -82,6 +82,12 @@ const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikT
 const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABELS).filter(k => soc[k]).map(k => `<a href="${esc(soc[k])}" target="_blank" rel="noopener">${SOC_LABELS[k]}</a>`); return links.length ? `<div style="margin-top:6px">${links.join(' · ')}</div>` : ''; };
 (async () => {
   const d = await (await fetch('/api/services')).json();
+  const prompt = document.createElement('option');
+  prompt.value = '';
+  prompt.textContent = 'Select a service';
+  prompt.disabled = true;
+  prompt.selected = true;
+  $('f-service').appendChild(prompt);
   d.services.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; $('f-service').appendChild(o); });
   const tomorrow = new Date(Date.now() + 86400000);
   $('f-date').value = tomorrow.toISOString().slice(0, 10);
