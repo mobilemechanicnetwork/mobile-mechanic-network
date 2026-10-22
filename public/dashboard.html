@@ -5,20 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My dashboard — Mobile Mechanic Network</title>
 <style>
-  body{font-family:system-ui,sans-serif;margin:0;background:#0b1220;color:#e8eef7}
+  body{font-family:system-ui,sans-serif;margin:0;background:#f2f5fa;color:#0f172a}
   main{max-width:760px;margin:4vh auto;padding:24px}
-  h1{font-size:1.5rem} h2{font-size:1.15rem;margin-top:32px} a{color:#93c5fd}
-  .muted{color:#9fb3c8;font-size:.9rem}
-  .card{border:1px solid #334155;border-radius:10px;padding:16px;margin:12px 0;background:#0f1a2e}
+  h1{font-size:1.5rem} h2{font-size:1.15rem;margin-top:32px} a{color:#2563eb}
+  .muted{color:#64748b;font-size:.9rem}
+  .card{border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin:12px 0;background:#ffffff;box-shadow:0 1px 3px rgba(15,23,42,.08)}
   .stars{font-size:1.8rem;cursor:pointer;color:#f59e0b;letter-spacing:2px;margin-top:6px}
   .stars span{cursor:pointer}
-  label{display:block;margin:12px 0 6px;font-size:.9rem;color:#c7d5e8}
-  input,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0b1220;color:#fff;box-sizing:border-box}
-  button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:9px 16px;cursor:pointer}
-  button.ghost{background:transparent;border:1px solid #334155}
-  button.decline{background:transparent;border:1px solid #7f1d1d;color:#fca5a5}
+  label{display:block;margin:12px 0 6px;font-size:.9rem;color:#475569}
+  input,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;color:#0f172a;box-sizing:border-box}
+  button{background:#2563eb;color:#fff;border:0;border-radius:10px;padding:9px 16px;cursor:pointer;box-shadow:0 2px 6px rgba(37,99,235,.25)}
+  button.ghost{background:#ffffff;border:1px solid #cbd5e1;color:#334155;box-shadow:none}
+  button.decline{background:#ffffff;border:1px solid #fca5a5;color:#dc2626;box-shadow:none}
   .checks label{display:inline-block;margin:4px 10px 4px 0}
-  .err{color:#fca5a5;font-size:.9rem} .ok{color:#86efac;font-size:.9rem}
+  .err{color:#dc2626;font-size:.9rem} .ok{color:#16a34a;font-size:.9rem}
   .price{font-size:1.2rem;font-weight:700}
 </style>
 </head>
@@ -108,13 +108,13 @@
     const d = await api('/api/requests/mine');
     const box = $('my-requests');
     if (!d.requests.length) { box.innerHTML = '<p class="muted">No repair history yet. Send your first request and mechanics in your area can quote it.</p>'; return; }
-    const pill = s => s === 'accepted' ? '<span style="color:#86efac">Booked</span>' : s === 'open' ? '<span style="color:#93c5fd">Open</span>' : `<span class="muted">${s}</span>`;
+    const pill = s => s === 'accepted' ? '<span style="color:#16a34a">Booked</span>' : s === 'open' ? '<span style="color:#2563eb">Open</span>' : `<span class="muted">${s}</span>`;
     box.innerHTML = d.requests.map(r => `<div class="card">
       <strong>${r.service}</strong> — ${r.vehicle}<div class="muted">${r.city}, ${r.state} · ${new Date(r.createdAt).toLocaleDateString()}${r.date ? ' · Needed by ' + r.date : ''} · ${pill(r.status)}</div>
       <p>${r.description}</p>
       ${r.quotes.length ? r.quotes.map(q => `<div class="card">
         <div>${q.businessLogo ? `<img src="${q.businessLogo}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}<strong>${q.businessName}</strong> <span class="muted">(${q.businessCity})</span>${q.businessPhone ? ` · <a href="tel:${q.businessPhone.replace(/[^+\d]/g, '')}">${q.businessPhone}</a>` : ''}</div>
-        ${(q.items && q.items.length) ? `<div style="margin:10px 0">${q.items.map(i => `<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid #1e293b"><span>${i.desc}</span><span>$${Number(i.amount).toFixed(2)}</span></div>`).join('')}<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;font-weight:700"><span>Total</span><span>$${Number(q.total != null ? q.total : q.price).toFixed(2)}</span></div></div>` : `<div style="margin:10px 0"><span class="price">$${q.price}</span></div>`}
+        ${(q.items && q.items.length) ? `<div style="margin:10px 0">${q.items.map(i => `<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid #e2e8f0"><span>${i.desc}</span><span>$${Number(i.amount).toFixed(2)}</span></div>`).join('')}<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;font-weight:700"><span>Total</span><span>$${Number(q.total != null ? q.total : q.price).toFixed(2)}</span></div></div>` : `<div style="margin:10px 0"><span class="price">$${q.price}</span></div>`}
         ${q.notes ? `<p>${q.notes}</p>` : ''}${q.message ? `<p>${q.message}</p>` : ''}
         ${q.businessWarranty ? `<p class="muted"><strong>Warranty:</strong> ${q.businessWarranty}</p>` : ''}
         <div class="muted">Quote: ${q.status}</div>

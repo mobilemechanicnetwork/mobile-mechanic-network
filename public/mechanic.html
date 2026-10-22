@@ -5,29 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My shop — Mobile Mechanic Network</title>
 <style>
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0b1220;color:#e8eef7}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f2f5fa;color:#0f172a}
   main{max-width:900px;margin:0 auto;padding:20px 16px 80px}
   h1{font-size:1.4rem;margin:0 0 4px}
   .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
-  .muted{color:#9fb3c8;font-size:.9rem}
-  a{color:#93c5fd}
+  .muted{color:#64748b;font-size:.9rem}
+  a{color:#2563eb}
   .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0}
-  .tabs button{background:#0f1a2e;border:1px solid #334155;color:#c7d5e8;border-radius:999px;padding:9px 16px;cursor:pointer;font-size:.9rem}
+  .tabs button{background:#ffffff;border:1px solid #e2e8f0;color:#475569;border-radius:999px;padding:9px 16px;cursor:pointer;font-size:.9rem;box-shadow:0 1px 2px rgba(15,23,42,.06)}
   .tabs button.active{background:#2563eb;border-color:#2563eb;color:#fff}
   section.tab{display:none}
   section.tab.active{display:block}
-  label{display:block;margin:12px 0 4px;font-size:.9rem;color:#c7d5e8}
-  input,select,textarea{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f1a2e;color:#fff;font-size:1rem}
+  label{display:block;margin:12px 0 4px;font-size:.9rem;color:#475569}
+  input,select,textarea{width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;color:#0f172a;font-size:1rem}
   textarea{resize:vertical}
   .checks{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0}
   .checks label{display:flex;gap:8px;align-items:center;margin:0;font-size:.95rem}
   .checks input{width:auto}
-  button.primary{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:11px 20px;cursor:pointer;font-size:1rem;margin-top:14px}
-  button.ghost{background:#1e293b;color:#e8eef7;border:1px solid #334155;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:.85rem}
-  button.danger{background:#7f1d1d;color:#fecaca;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:.85rem}
-  .card{border:1px solid #334155;border-radius:10px;padding:16px;margin:12px 0;background:#0f1a2e}
+  button.primary{background:#2563eb;color:#fff;border:0;border-radius:10px;padding:11px 20px;cursor:pointer;font-size:1rem;margin-top:14px;box-shadow:0 2px 6px rgba(37,99,235,.25)}
+  button.ghost{background:#ffffff;color:#334155;border:1px solid #cbd5e1;border-radius:10px;padding:8px 14px;cursor:pointer;font-size:.85rem}
+  button.danger{background:#dc2626;color:#ffffff;border:0;border-radius:10px;padding:8px 14px;cursor:pointer;font-size:.85rem}
+  .card{border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin:12px 0;background:#ffffff;box-shadow:0 1px 3px rgba(15,23,42,.08)}
   .badges{display:inline-flex;flex-wrap:wrap;gap:6px;margin:6px 0}
-  .badge{display:inline-block;font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:999px;background:#1e293b;border:1px solid #334155;color:#e2e8f0}
+  .badge{display:inline-block;font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:999px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569}
   .badge-fr{background:#052e1b;border-color:#16a34a;color:#86efac}
   .badge-hr{background:#3b2f04;border-color:#d97706;color:#fcd34d}
   .badge-cert{background:#1e1b4b;border-color:#6366f1;color:#c7d2fe}
@@ -49,8 +49,8 @@
   .card h3{margin:0 0 6px;font-size:1.05rem}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
   .row > div{flex:1;min-width:140px}
-  .err{color:#fca5a5;min-height:20px;font-size:.9rem}
-  .ok{color:#86efac;min-height:20px;font-size:.9rem}
+  .err{color:#dc2626;min-height:20px;font-size:.9rem}
+  .ok{color:#16a34a;min-height:20px;font-size:.9rem}
   .urgent-badge{background:#b91c1c;color:#fff;font-weight:800;font-size:.72rem;padding:2px 8px;border-radius:6px;letter-spacing:.04em}
   .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px}
   .gallery figure{margin:0;position:relative}
@@ -263,7 +263,7 @@ async function loadInbox() {
   if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Publish your business page to start receiving requests in your area.</p>'; return; }
   if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
   inbox.requests.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
-  box.innerHTML = inbox.requests.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#1c0a0a"' : ''}>
+  box.innerHTML = inbox.requests.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
     ${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
     <p>${esc(r.description)}</p>
     ${r.myQuote ? `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p>` : `
@@ -792,8 +792,8 @@ async function loadStats() {
         ${card('Outstanding', money(s.outstanding), 'invoiced, not yet paid')}
       </div>
       ${s.byMonth.length ? `<h3>By month</h3><div class="card" style="padding:0;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:.92rem">
-        <tr style="text-align:left;color:#9fb3c8"><th style="padding:10px 14px">Month</th><th style="padding:10px 14px">Jobs</th><th style="padding:10px 14px;text-align:right">Income</th></tr>
-        ${s.byMonth.map(m => `<tr style="border-top:1px solid #1e293b"><td style="padding:10px 14px">${monthName(m.month)}</td><td style="padding:10px 14px">${m.jobs}</td><td style="padding:10px 14px;text-align:right">${money(m.income)}</td></tr>`).join('')}
+        <tr style="text-align:left;color:#64748b"><th style="padding:10px 14px">Month</th><th style="padding:10px 14px">Jobs</th><th style="padding:10px 14px;text-align:right">Income</th></tr>
+        ${s.byMonth.map(m => `<tr style="border-top:1px solid #e2e8f0"><td style="padding:10px 14px">${monthName(m.month)}</td><td style="padding:10px 14px">${m.jobs}</td><td style="padding:10px 14px;text-align:right">${money(m.income)}</td></tr>`).join('')}
       </table></div>` : '<p class="muted">No paid jobs yet. Mark an invoice as paid and it shows up here.</p>'}
       ${s.recent.length ? `<h3>Recent paid jobs</h3>${s.recent.map(t => `<div class="card"><strong>${esc(t.customerName || '')}</strong> — ${esc(t.vehicle || '')}<div class="muted">${t.paidAt ? new Date(t.paidAt).toLocaleDateString() : ''}${t.paymentMethod ? ' · ' + esc(t.paymentMethod) : ''}</div><div style="font-weight:700">${money(t.total)}</div></div>`).join('')}` : ''}`;
   } catch (e) { box.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; }
@@ -809,7 +809,7 @@ async function loadStats() {
   if (me.user.frozen) {
     const banner = document.createElement('div');
     banner.className = 'card';
-    banner.style.borderColor = '#7f1d1d';
+    banner.style.borderColor = '#fca5a5';
     banner.innerHTML = '<strong>Your free trial has ended.</strong><p class="muted">Your business is hidden and requests are paused until a payment method is added.</p><button class="primary" id="frozen-billing">Add payment method</button>';
     document.querySelector('main').prepend(banner);
     document.querySelector('[data-tab="billing"]').click();
