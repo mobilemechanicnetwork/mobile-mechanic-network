@@ -44,7 +44,7 @@
   <div id="appView" hidden>
     <div class="topbar">
       <div><h1>Founder Admin</h1><div class="sub">Mobile Mechanic Network</div></div>
-      <button class="ghost" id="logoutBtn">Sign out</button>
+      <div><button class="ghost" id="exportBtn">Export backup</button> <button class="ghost" id="logoutBtn">Sign out</button></div>
     </div>
     <div class="cards" id="stats"></div>
     <h2>Mechanics</h2>
@@ -146,6 +146,7 @@ $('loginBtn').onclick = async () => {
 };
 $('token').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
 $('logoutBtn').onclick = async () => { await fetch('/api/admin/logout', { method: 'POST' }); load(); };
+$('exportBtn').onclick = () => { window.location = '/api/admin/export'; };
 window.resolveHelp = async (id, resolved) => {
   await fetch('/api/admin/help/' + id, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ resolved }) });
   load();

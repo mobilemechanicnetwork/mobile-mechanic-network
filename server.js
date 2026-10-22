@@ -1169,6 +1169,32 @@ const server = http.createServer(async (req, res) => {
         help: helpStore.read().slice().reverse(),
       });
     }
+    if (p === '/api/admin/export' && req.method === 'GET') {
+      if (!adminAuthed(req)) return sendJson(res, 401, { error: 'Not authorized.' });
+      const dump = {
+        exportedAt: new Date().toISOString(),
+        users: usersStore.read(),
+        businesses: businessesStore.read(),
+        requests: requestsStore.read(),
+        quotes: quotesStore.read(),
+        promotions: promotionsStore.read(),
+        tickets: ticketsStore.read(),
+        vehicles: vehiclesStore.read(),
+        help: helpStore.read(),
+        ppi: ppiStore.read(),
+        reviews: reviewsStore.read(),
+        visits: visitsStore.read(),
+        searches: searchesStore.read(),
+      };
+      const body = JSON.stringify(dump);
+      const stamp = new Date().toISOString().slice(0, 10);
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Content-Disposition': 'attachment; filename="mmn-backup-' + stamp + '.json"',
+        'Content-Length': Buffer.byteLength(body),
+      });
+      return res.end(body);
+    }
     const adminBizToggle = p.match(/^\/api\/admin\/business\/([0-9a-f-]+)$/);
     if (adminBizToggle && req.method === 'POST') {
       if (!adminAuthed(req)) return sendJson(res, 401, { error: 'Not authorized.' });
