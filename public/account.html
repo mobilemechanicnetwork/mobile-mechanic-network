@@ -5,27 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Log in / Create account — Mobile Mechanic Network</title>
 <style>
-  body{font-family:system-ui,sans-serif;margin:0;background:#0b1220;color:#e8eef7}
-  main{max-width:420px;margin:6vh auto;padding:24px}
-  h1{font-size:1.4rem;margin-bottom:4px} p.sub{color:#9fb3c8;margin-top:0}
-  .tabs{display:flex;gap:8px;margin:20px 0}
-  .tabs button{flex:1;padding:10px;border-radius:8px;border:1px solid #334155;background:#111c30;color:#e8eef7;cursor:pointer}
+  body{font-family:system-ui,sans-serif;margin:0;background:#f2f5fa;color:#0f172a}
+  main{max-width:440px;margin:5vh auto;padding:24px}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px;box-shadow:0 4px 16px rgba(15,23,42,.06)}
+  .banner{width:100%;border-radius:10px;display:block;margin-bottom:16px}
+  p.sub{color:#64748b;margin-top:0}
+  .tabs{display:flex;gap:8px;margin:18px 0}
+  .tabs button{flex:1;padding:10px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;font-weight:600}
   .tabs button.active{background:#2563eb;border-color:#2563eb;color:#fff}
-  label{display:block;margin:14px 0 6px;font-size:.9rem;color:#c7d5e8}
-  input,select{width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f1a2e;color:#fff;box-sizing:border-box}
-  button.submit{width:100%;margin-top:20px;background:#2563eb;color:#fff;border:0;border-radius:8px;padding:12px;cursor:pointer;font-size:1rem}
-  .err{color:#fca5a5;min-height:1.2em;margin-top:12px;font-size:.9rem}
+  label{display:block;margin:14px 0 6px;font-size:.9rem;color:#475569;font-weight:600}
+  input,select{width:100%;padding:11px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;box-sizing:border-box;font-size:1rem}
+  button.submit{width:100%;margin-top:20px;background:#2563eb;color:#fff;border:0;border-radius:10px;padding:13px;cursor:pointer;font-size:1rem;font-weight:700;box-shadow:0 2px 8px rgba(37,99,235,.25)}
+  .err{color:#dc2626;min-height:1.2em;margin-top:12px;font-size:.9rem}
   .roles{display:flex;gap:8px}
-  .roles label{flex:1;border:1px solid #334155;border-radius:8px;padding:10px;text-align:center;cursor:pointer;margin:0}
+  .roles label{flex:1;border:1px solid #cbd5e1;background:#fff;border-radius:10px;padding:12px;text-align:center;cursor:pointer;margin:0;color:#475569}
   .roles input{display:none}
-  .roles input:checked + span{color:#fff;font-weight:600}
-  .roles label:has(input:checked){background:#1e3a8a;border-color:#2563eb}
-  a{color:#93c5fd}
+  .roles input:checked + span{color:#1d4ed8;font-weight:700}
+  .roles label:has(input:checked){background:#eff6ff;border-color:#2563eb}
+  .muted{color:#64748b;font-size:.9rem}
+  a{color:#1d4ed8}
+  .back{text-align:center;margin-top:16px}
 </style>
 </head>
 <body>
 <main>
-  <h1>Mobile Mechanic Network</h1>
+ <div class="card">
+  <img class="banner" src="/header-logo.webp" alt="Mobile Mechanic Network — Connecting drivers and mechanics.">
   <p class="sub" id="page-sub">Log in, or create your free account.</p>
 
   <div class="tabs">
@@ -48,7 +53,7 @@
       <label><input type="radio" name="role" value="owner" checked><span>Vehicle owner</span></label>
       <label><input type="radio" name="role" value="mechanic"><span>Mobile mechanic</span></label>
     </div>
-    <div id="mech-promo" hidden style="margin:12px 0;padding:14px;border:1px solid #2563eb;border-radius:10px;background:#0b1e3a">
+    <div id="mech-promo" hidden style="margin:12px 0;padding:14px;border:1px solid #2563eb;border-radius:10px;background:#eff6ff">
       <strong>Mobile mechanics: your first 90 days are free.</strong>
       <div class="muted" style="margin-top:6px">No payment information needed during the free trial. After 90 days it's $24.99/month or $200/year. Your account simply pauses until a payment method is added. Cancel anytime.</div>
     </div>
@@ -62,7 +67,8 @@
     <div class="err" id="err-register"></div>
   </form>
 
-  <p><a href="/">Back to the home page</a></p>
+  <p class="back"><a href="/">Back to the home page</a></p>
+ </div>
 </main>
 <script>
   const tabLogin = document.getElementById('tab-login');
