@@ -1,0 +1,1 @@
+{"description":"Mobile Mechanic Network mechanic info page (static, served for mobilemechanicinmyarea.com).","engines":{"node":">=18"},"main":"server.js","name":"mmn-info-page","private":true,"scripts":{"start":"node server.js"},"version":"1.0.0"}
