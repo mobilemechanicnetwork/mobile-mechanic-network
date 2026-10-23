@@ -93,12 +93,14 @@
     <p><a href="#" id="back">← Change my answers</a> · <a href="/">Home</a></p>
   </div>
 </main>
+<script src="/city-autocomplete.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', website: 'Website', google: 'Google reviews' };
 const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABELS).filter(k => soc[k]).map(k => `<a href="${esc(soc[k])}" target="_blank" rel="noopener">${SOC_LABELS[k]}</a>`); return links.length ? `<div style="margin-top:6px">${links.join(' · ')}</div>` : ''; };
 (async () => {
+  if (window.CityAC) window.CityAC.attach($('f-city'), { stateInput: $('f-state') });
   const d = await (await fetch('/api/services')).json();
   const prompt = document.createElement('option');
   prompt.value = '';
@@ -149,7 +151,7 @@ $('find-form').onsubmit = async (e) => {
   else if (m.reviewCount > 0) badges += `<span class="badge">★ ${m.avgRating} (${m.reviewCount} review${m.reviewCount === 1 ? '' : 's'})</span>`;
   (m.certifications || []).forEach(c => { badges += `<span class="badge badge-cert">${esc(c)}</span>`; });
   if (badges) badges = `<div class="badges">${badges}</div>`;
-  return `<div class="card">${m.coverUrl ? `<div style="margin:-16px -16px 12px;border-radius:10px 10px 0 0;overflow:hidden;max-height:140px"><img src="${esc(m.coverUrl)}" alt="" style="width:100%;display:block;object-fit:cover"></div>` : ''}<h3>${m.logoUrl ? `<img src="${esc(m.logoUrl)}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}${esc(m.name)}</h3><div class="muted">${esc(m.city)}, ${esc(m.state)} — ${esc(m.mechanicName)}</div>${badges}${m.phone ? `<div style="margin-top:6px"><a href="tel:${esc(m.phone.replace(/[^+\d]/g, ''))}">Call ${esc(m.phone)}</a></div>` : ''}${socialLinks(m.socials)}${m.promotion ? `<div style="margin-top:8px;border-left:4px solid #2563eb;padding:6px 10px;background:#eff6ff;border-radius:0 8px 8px 0"><strong style="font-size:.85rem">Special:</strong> <strong>${esc(m.promotion.title)}</strong></div>` : ''}<div class="muted">Serves: ${esc([m.city, ...(m.serviceCities || [])].join(', '))}</div><div>${(m.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('')}</div><div style="margin-top:10px"><a href="/shop.html?id=${esc(m.id)}">View full profile →</a></div></div>`;
+  return `<div class="card">${m.coverUrl ? `<div style="margin:-16px -16px 12px;border-radius:10px 10px 0 0;overflow:hidden;max-height:140px"><img src="${esc(m.coverUrl)}" alt="" style="width:100%;display:block;object-fit:cover"></div>` : ''}<h3>${m.logoUrl ? `<img src="${esc(m.logoUrl)}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}${esc(m.name)}</h3><div class="muted">${esc(m.city)}, ${esc(m.state)} — ${esc(m.mechanicName)}</div>${badges}${m.phone ? `<div style="margin-top:6px"><a href="tel:${esc(m.phone.replace(/[^+\d]/g, ''))}">Call ${esc(m.phone)}</a></div>` : ''}${socialLinks(m.socials)}${m.promotion ? `<div style="margin-top:8px;border-left:4px solid #2563eb;padding:6px 10px;background:#eff6ff;border-radius:0 8px 8px 0"><strong style="font-size:.85rem">Special:</strong> <strong>${esc(m.promotion.title)}</strong></div>` : ''}<div class="muted">Serves: ${esc([(m.city + ', ' + m.state), ...(m.serviceCities || [])].join('; '))}</div><div>${(m.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('')}</div><div style="margin-top:10px"><a href="/shop.html?id=${esc(m.id)}">View full profile →</a></div></div>`;
   };
   const greet = q.name ? `Thanks, ${esc(q.name)} — here are` : 'Here are';
   $('results').innerHTML = d.mechanics.length

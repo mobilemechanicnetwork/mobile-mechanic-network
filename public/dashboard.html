@@ -70,7 +70,7 @@
       <label for="b-name">Business name</label><input id="b-name" required>
       <label for="b-city">City you are based in</label><input id="b-city" required>
       <label for="b-state">State</label><input id="b-state" required maxlength="2" placeholder="LA">
-      <label for="b-cities">Other cities you serve (separate with commas). Requests are only sent to you for cities you serve. Your base city is always included.</label><textarea id="b-cities" rows="2" placeholder="Covington, Mandeville, Pearl River"></textarea>
+      <label>Other cities you serve</label><div id="b-cities"></div><p class="muted" style="font-size:.82rem;margin:4px 0 0">Requests are only sent to you for cities you serve. Your base city is always included.</p>
       <label>Services you offer</label>
       <div class="checks" id="b-services"></div>
       <label for="b-about">About your business</label><textarea id="b-about" rows="3"></textarea>
@@ -87,6 +87,7 @@
     <div id="inbox"></div>
   </section>
 </main>
+<script src="/city-autocomplete.js"></script>
 <script>
   const $ = id => document.getElementById(id);
   let SERVICES = [];
@@ -167,7 +168,7 @@
     checks.innerHTML = SERVICES.map(s => `<label><input type="checkbox" value="${s}" style="width:auto"> ${s}</label>`).join('');
     const d = await api('/api/business/me');
     if (d.business) {
-      $('b-name').value = d.business.name; $('b-city').value = d.business.city; $('b-state').value = d.business.state; $('b-cities').value = (d.business.serviceCities || []).join(', '); $('b-about').value = d.business.about || ''; $('b-phone').value = d.business.phone || ''; $('b-published').checked = true;
+      $('b-name').value = d.business.name; $('b-city').value = d.business.city; $('b-state').value = d.business.state; if (window.cityChips) window.cityChips.set(d.business.serviceCities || []); $('b-about').value = d.business.about || ''; $('b-phone').value = d.business.phone || ''; $('b-published').checked = true;
       checks.querySelectorAll('input').forEach(c => { c.checked = d.business.services.includes(c.value); });
       if (d.business.logoUrl) { $('b-logo-preview').src = d.business.logoUrl; $('b-logo-preview').style.display = 'block'; }
       if (d.business.coverUrl) { $('b-cover-preview').src = d.business.coverUrl; $('b-cover-preview').style.display = 'block'; }
@@ -234,7 +235,7 @@
     try {
       const logoUrl = await uploadImage('logo', $('b-logo'));
       const coverUrl = await uploadImage('cover', $('b-cover'));
-      const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked };
+      const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: window.cityChips ? window.cityChips.get() : [], services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked };
       if (logoUrl) body.logoUrl = logoUrl;
       if (coverUrl) body.coverUrl = coverUrl;
       await post('/api/business', body);
@@ -248,7 +249,7 @@
     $('hello').textContent = 'Welcome, ' + me.user.name;
     $('who').textContent = me.user.email + ' · ' + (me.user.role === 'mechanic' ? 'Mobile mechanic' : 'Vehicle owner');
     SERVICES = (await api('/api/services')).services;
-    if (me.user.role === 'mechanic') { $('mechanic').hidden = false; loadMechanic(); }
+    if (me.user.role === 'mechanic') { $('mechanic').hidden = false; window.cityChips = window.CityAC ? window.CityAC.chips(document.getElementById('b-cities')) : { get: () => [], set: () => {} }; loadMechanic(); }
     else { $('owner').hidden = false; loadOwner(); }
   })();
 </script>

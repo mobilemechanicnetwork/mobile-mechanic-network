@@ -67,9 +67,11 @@
   </form>
   <p><a href="/dashboard">My dashboard</a> · <a href="/mechanics">Browse mechanics</a> · <a href="/">Home</a></p>
 </main>
+<script src="/city-autocomplete.js"></script>
 <script>
   const err = document.getElementById('err'), ok = document.getElementById('ok');
   (async () => {
+    if (window.CityAC) window.CityAC.attach(document.getElementById('city'), { stateInput: document.getElementById('state') });
     const me = await (await fetch('/api/me')).json().catch(() => ({}));
     const isGuest = !me.user;
     window._isGuest = isGuest;

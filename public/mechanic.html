@@ -145,7 +145,7 @@
       <label for="b-name">Business name</label><input id="b-name" required>
       <label for="b-city">City you are based in</label><input id="b-city" required>
       <label for="b-state">State</label><input id="b-state" required maxlength="2" placeholder="LA">
-      <label for="b-cities">Other cities you serve (separate with commas). Requests are only sent to you for cities you serve. Your base city is always included.</label><textarea id="b-cities" rows="2" placeholder="Covington, Mandeville, Pearl River"></textarea>
+      <label>Other cities you serve</label><div id="b-cities"></div><p class="muted" style="font-size:.82rem;margin:4px 0 0">Requests are only sent to you for cities you serve. Your base city is always included.</p>
       <label>Services you offer</label>
       <div class="checks" id="b-services"></div>
       <label style="margin-top:10px"><input type="checkbox" id="b-urgent"> Accept urgent requests <span class="muted">— urgent jobs from vehicle owners who need help now will be sent to you</span></label>
@@ -271,6 +271,7 @@
     </form>
   </section>
 </main>
+<script src="/city-autocomplete.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -393,7 +394,7 @@ async function loadProfile() {
     window._bizName = b.name;
     window._bizId = b.id;
     $('b-name').value = b.name; $('b-city').value = b.city; $('b-state').value = b.state;
-    $('b-cities').value = (b.serviceCities || []).join(', '); $('b-about').value = b.about || ''; $('b-warranty').value = b.warranty || '';
+    window.cityChips.set(b.serviceCities || []); $('b-about').value = b.about || ''; $('b-warranty').value = b.warranty || '';
     $('b-certs').value = (b.certifications || []).join('\n');
     $('b-earned').innerHTML = earnedBadgesHtml(b) || '<span class="muted">Earn badges: respond to quote requests quickly and collect 5-star reviews.</span>';
     if ($('t-warranty')) $('t-warranty').placeholder = b.warranty ? 'Leave blank to use profile default: ' + b.warranty.slice(0, 80) : 'e.g. 12 months / 12,000 miles on parts and labor';
@@ -449,7 +450,7 @@ async function renderPvView() {
         </div>
         ${b.about ? `<div class="card"><h3>About</h3><p style="margin:0">${esc(b.about)}</p></div>` : `<div class="card"><h3>About</h3><p class="muted" style="margin:0">No description yet. <a href="#" id="pv-edit-about">Add one</a>.</p></div>`}
         <div class="card"><h3>Services</h3><div>${(b.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('') || '<span class="muted">No services selected.</span>'}</div></div>
-        <div class="card"><h3>Service area</h3><p class="muted" style="margin:0">${esc([b.city, ...(b.serviceCities || [])].join(', '))}</p></div>
+        <div class="card"><h3>Service area</h3><p class="muted" style="margin:0">${esc([(b.city + ', ' + b.state), ...(b.serviceCities || [])].join('; '))}</p></div>
         ${gallery ? `<div class="card"><h3>Photos</h3><div class="gallery">${gallery}</div></div>` : ''}
         ${b.promotion ? `<div class="card"><h3>Current special</h3><div class="promo"><strong>${esc(b.promotion.title)}</strong><div class="muted">${esc(b.promotion.description || '')}${b.promotion.validUntil ? ' · Valid until ' + esc(b.promotion.validUntil) : ''}</div></div></div>` : ''}
         ${b.warranty ? `<div class="card"><h3>Warranty</h3><p style="margin:0">${esc(b.warranty)}</p></div>` : ''}
@@ -548,7 +549,7 @@ $('biz-form').onsubmit = async (e) => {
   try {
     const socials = {};
     for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website', 'google']) socials[k] = $('b-soc-' + k).value;
-    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked, socials, warranty: $('b-warranty').value, acceptUrgent: $('b-urgent').checked, certifications: $('b-certs').value.split('\n') };
+    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: window.cityChips.get(), services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked, socials, warranty: $('b-warranty').value, acceptUrgent: $('b-urgent').checked, certifications: $('b-certs').value.split('\n') };
     if ($('b-logo').files.length) body.logoUrl = await uploadImage('logo', $('b-logo').files[0]);
     if ($('b-cover').files.length) body.coverUrl = await uploadImage('cover', $('b-cover').files[0]);
     await post('/api/business', body);
@@ -1011,6 +1012,8 @@ async function loadStats() {
     $('frozen-billing').onclick = () => document.querySelector('[data-tab="billing"]').click();
   }
   await loadServices();
+  if (window.CityAC) { window.cityChips = window.CityAC.chips(document.getElementById('b-cities')); }
+  else { window.cityChips = { get: () => [], set: () => {} }; }
   await loadProfile();
   await loadInbox();
   renderPvView();

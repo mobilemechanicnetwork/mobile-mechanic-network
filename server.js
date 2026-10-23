@@ -43,6 +43,26 @@ const ppiStore = store('ppi.json');
 const reviewsStore = store('reviews.json');
 
 const sessions = new Map(); // token -> userId (in-memory at this stage)
+
+// US city,state dataset for autocomplete (bundled with the code, not in DATA_DIR)
+let US_CITIES = [];
+try { US_CITIES = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'us-cities.json'), 'utf8')); } catch (e) { US_CITIES = []; }
+function searchCities(q, state, limit) {
+  q = String(q || '').trim().toLowerCase();
+  state = String(state || '').trim().toUpperCase();
+  limit = Math.min(10, Math.max(1, parseInt(limit, 10) || 8));
+  if (q.length < 2) return [];
+  const starts = [], contains = [];
+  for (const pair of US_CITIES) {
+    const name = pair[0], st = pair[1];
+    if (state && st !== state) continue;
+    const ln = name.toLowerCase();
+    if (ln.startsWith(q)) { if (starts.length < limit) starts.push({ city: name, state: st }); }
+    else if (ln.includes(q)) { if (contains.length < limit) contains.push({ city: name, state: st }); }
+    if (starts.length >= limit && contains.length >= limit) break;
+  }
+  return starts.concat(contains).slice(0, limit);
+}
 const visitsStore = store('visits.json');
 const searchesStore = store('searches.json');
 function clientIpHash(req) {
@@ -205,9 +225,24 @@ function ticketFromAcceptedQuote(quote, row) {
   const biz = businessesStore.read().find(b => b.id === quote.businessId);
   return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'estimate', customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, total: subtotal, createdAt: new Date().toISOString() };
 }
-function servedCities(biz) {
-  const list = [biz.city, ...(Array.isArray(biz.serviceCities) ? biz.serviceCities : [])];
-  return list.map(c => String(c).trim().toLowerCase()).filter(Boolean);
+// Service areas are stored as "City, ST" strings so a mechanic can serve
+// cities in other states (e.g. Slidell, LA serving Picayune, MS).
+// Legacy bare city names are treated as being in the business's base state.
+function parseCityState(entry, fallbackState) {
+  const m = String(entry || '').trim().match(/^(.+?),\s*([A-Za-z]{2})$/);
+  if (m) return { city: m[1].trim(), state: m[2].toUpperCase() };
+  const bare = String(entry || '').trim();
+  if (!bare) return null;
+  return { city: bare, state: String(fallbackState || '').toUpperCase() };
+}
+function servedCityKeys(biz) {
+  const list = [biz.city + ', ' + biz.state, ...(Array.isArray(biz.serviceCities) ? biz.serviceCities : [])];
+  const keys = [];
+  for (const c of list) {
+    const p = parseCityState(c, biz.state);
+    if (p && p.city) keys.push(p.city.toLowerCase() + '|' + p.state);
+  }
+  return keys;
 }
 function requestMatchesBusiness(reqRow, biz) {
   if (!biz || !biz.published) return false;
@@ -215,9 +250,8 @@ function requestMatchesBusiness(reqRow, biz) {
   if (!reqRow.businessId && reqRow.urgent && !biz.acceptUrgent) return false;
   const owner = usersStore.read().find(u => u.id === biz.userId);
   if (mechanicFrozen(owner)) return false;
-  return biz.state.toLowerCase() === reqRow.state.toLowerCase()
-    && biz.services.includes(reqRow.service)
-    && servedCities(biz).includes(reqRow.city.toLowerCase());
+  return biz.services.includes(reqRow.service)
+    && servedCityKeys(biz).includes(String(reqRow.city || '').toLowerCase() + '|' + String(reqRow.state || '').toUpperCase());
 }
 function publicBusiness(b) {
   const owner = usersStore.read().find(u => u.id === b.userId);
@@ -591,8 +625,17 @@ const server = http.createServer(async (req, res) => {
       if (cleanServices.length === 0) return sendJson(res, 400, { error: 'Pick at least one valid service.' });
       const businesses = businessesStore.read();
       let biz = businesses.find(b => b.userId === user.id);
-      const rawCities = Array.isArray(serviceCities) ? serviceCities.join(',') : String(serviceCities || '');
-      const cleanCities = [...new Set(rawCities.split(/[,\n]/).map(s => s.trim()).filter(Boolean))];
+      const bizState = String(state).trim().toUpperCase();
+      const rawList = Array.isArray(serviceCities) ? serviceCities : String(serviceCities || '').split(/[\n;]+/);
+      const cleanCities = [];
+      const seenCity = new Set();
+      for (const entry of rawList) {
+        const p = parseCityState(entry, bizState);
+        if (!p || !p.city) continue;
+        const norm = p.city + ', ' + p.state;
+        const key = norm.toLowerCase();
+        if (!seenCity.has(key)) { seenCity.add(key); cleanCities.push(norm); }
+      }
       const cleanSocials = {};
       if (socials && typeof socials === 'object') for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website', 'google']) {
         const v = String(socials[k] || '').trim().slice(0, 300);
@@ -653,6 +696,9 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { business: { ...publicBusiness(biz), promotion: latestPromotion(biz.id) } });
     }
     if (p === '/api/services' && req.method === 'GET') return sendJson(res, 200, { services: SERVICES });
+    if (p === '/api/cities' && req.method === 'GET') {
+      return sendJson(res, 200, { cities: searchCities(url.searchParams.get('q'), url.searchParams.get('state'), url.searchParams.get('limit')) });
+    }
 
     // ---------- Quote requests ----------
     if (p === '/api/requests' && req.method === 'POST') {
