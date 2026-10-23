@@ -5,35 +5,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mobile mechanic — Mobile Mechanic Network</title>
 <style>
-  body{font-family:system-ui,sans-serif;margin:0;background:#0b1220;color:#e8eef7}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f2f5fa;color:#0f172a}
   main{max-width:760px;margin:0 auto;padding:0 0 40px}
-  a{color:#93c5fd}
+  a{color:#1d4ed8}
   .cover{width:100%;max-height:280px;object-fit:cover;display:block}
-  .cover-ph{height:120px;background:linear-gradient(135deg,#1e3a8a,#0f1a2e)}
+  .cover-ph{height:120px;background:linear-gradient(135deg,#dbeafe,#f2f5fa)}
   .body{padding:0 24px}
   .head{display:flex;gap:16px;align-items:center;margin:-36px 0 12px;position:relative}
-  .head img.logo{width:88px;height:88px;object-fit:cover;border-radius:14px;border:3px solid #0b1220;background:#0f1a2e}
-  .head h1{margin:0;font-size:1.6rem}
-  .muted{color:#9fb3c8;font-size:.92rem}
-  .tag{display:inline-block;border:1px solid #334155;border-radius:999px;padding:3px 12px;margin:2px 4px 2px 0;font-size:.85rem;color:#c7d5e8}
+  .head img.logo{width:88px;height:88px;object-fit:cover;border-radius:14px;border:3px solid #f2f5fa;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.1)}
+  .head h1{margin:0;font-size:1.6rem;color:#0f172a}
+  .muted{color:#64748b;font-size:.92rem}
+  .tag{display:inline-block;border:1px solid #e2e8f0;background:#fff;border-radius:999px;padding:3px 12px;margin:2px 4px 2px 0;font-size:.85rem;color:#475569}
   .badges{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
-  .badge{display:inline-block;font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:999px;background:#1e293b;border:1px solid #334155;color:#e2e8f0}
-  .badge-fr{background:#052e1b;border-color:#16a34a;color:#86efac}
-  .badge-hr{background:#3b2f04;border-color:#d97706;color:#fcd34d}
-  .badge-cert{background:#1e1b4b;border-color:#6366f1;color:#c7d2fe}
-  .review{border-top:1px solid #1e293b;padding:12px 0}
+  .badge{display:inline-block;font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:999px;background:#f1f5f9;border:1px solid #e2e8f0;color:#334155}
+  .badge-fr{background:#dcfce7;border-color:#16a34a;color:#15803d}
+  .badge-hr{background:#fef3c7;border-color:#d97706;color:#b45309}
+  .badge-cert{background:#e0e7ff;border-color:#6366f1;color:#4338ca}
+  .review{border-top:1px solid #e2e8f0;padding:12px 0}
   .review:first-of-type{border-top:none}
   .stars{color:#f59e0b;letter-spacing:2px}
-  .card{border:1px solid #334155;border-radius:10px;padding:16px;margin:14px 0;background:#0f1a2e}
-  .card h3{margin:0 0 8px;font-size:1.05rem}
+  .card{border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin:14px 0;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.05)}
+  .card h3{margin:0 0 8px;font-size:1.05rem;color:#0f172a}
   .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
-  .btn{display:inline-block;background:#2563eb;color:#fff;border:0;border-radius:8px;padding:12px 22px;font-size:1rem;text-decoration:none;cursor:pointer}
+  .btn{display:inline-block;background:#2563eb;color:#fff;border:0;border-radius:8px;padding:12px 22px;font-size:1rem;text-decoration:none;cursor:pointer;box-shadow:0 2px 8px rgba(37,99,235,.25)}
   .btn.call{background:#16a34a}
   .gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
   .gallery img{width:100%;height:110px;object-fit:cover;border-radius:8px;cursor:pointer}
-  .promo{border-left:4px solid #2563eb;padding:8px 12px;background:#0b1e3a;border-radius:0 8px 8px 0;margin-top:8px}
+  .promo{border-left:4px solid #2563eb;padding:8px 12px;background:#eff6ff;border-radius:0 8px 8px 0;margin-top:8px}
   .soc{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
-  .urgent{display:inline-block;background:#7f1d1d;color:#fecaca;border-radius:6px;padding:3px 10px;font-size:.78rem;font-weight:700}
+  .urgent{display:inline-block;background:#fee2e2;color:#b91c1c;border-radius:6px;padding:3px 10px;font-size:.78rem;font-weight:700}
   .back{display:inline-block;margin:16px 24px 0;font-size:.9rem}
   #lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:50;cursor:pointer}
   #lightbox img{max-width:92vw;max-height:92vh;border-radius:10px}

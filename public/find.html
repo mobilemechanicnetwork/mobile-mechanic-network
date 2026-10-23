@@ -66,6 +66,10 @@
         <label for="f-moreinfo">Anything else the mechanic should know? <span class="muted">(optional)</span></label>
         <textarea id="f-moreinfo" rows="2" placeholder="Extra details for the mechanic (optional)"></textarea>
       </div>
+      <div id="f-desc-wrap" hidden>
+        <label for="f-desc">What is going on with the vehicle?</label>
+        <textarea id="f-desc" rows="3" required placeholder="Describe the problem"></textarea>
+      </div>
       <label for="f-date">When do you need it?</label>
       <input id="f-date" type="date" required>
       <button class="primary" type="submit">Find mechanics</button>
@@ -75,7 +79,17 @@
   <div id="results-view" hidden>
     <h1 id="r-head">Mechanics near you</h1>
     <div id="results"></div>
-    <div class="cta" id="req-cta" hidden><a id="req-link" href="/request"><button type="button">Request quotes from these mechanics</button></a></div>
+    <div class="cta" id="req-cta" hidden>
+      <button type="button" class="primary" id="req-send" style="margin-top:0">Send quote request</button>
+      <p id="req-err" style="color:#b91c1c;font-size:.9rem"></p>
+    </div>
+    <div id="req-done" hidden>
+      <div class="card" style="border:1px solid #2563eb">
+        <h3 style="margin-top:0">Request sent!</h3>
+        <p class="muted" id="req-done-msg"></p>
+      </div>
+      <div id="find-guest-cta" hidden style="margin-top:14px;border:1px solid #2563eb;border-radius:10px;padding:14px;font-size:.95rem;background:#fff"><strong>Create a free account to get the most out of it:</strong><ul style="margin:8px 0;padding-left:20px;line-height:1.6"><li><strong>Your quotes in one place</strong> — compare them side by side and accept with one tap</li><li><strong>Your vehicles saved</strong> — no retyping year, make, and model every time</li><li><strong>Repair history</strong> — a running record of every job done on your vehicles</li><li><strong>This request follows you</strong> — it will be waiting in your dashboard the moment you sign up</li></ul><span class="muted">Free for vehicle owners, forever. Your phone number is already filled in.</span><br><br><a id="find-guest-signup" href="/account" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;padding:10px 18px;font-weight:700">Create my free account</a></div>
+    </div>
     <p><a href="#" id="back">← Change my answers</a> · <a href="/">Home</a></p>
   </div>
 </main>
@@ -100,7 +114,11 @@ const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABE
     $('urgent-banner').hidden = false;
     document.querySelector('#find-form button.primary').textContent = 'Find mechanics now';
   }
-  const refreshFindDiag = () => { $('f-diag-symptoms').hidden = $('f-service').value !== 'Diagnostics'; };
+  const refreshFindDiag = () => {
+    const isDiag = $('f-service').value === 'Diagnostics';
+    $('f-diag-symptoms').hidden = !isDiag;
+    $('f-desc-wrap').hidden = isDiag;
+  };
   $('f-service').addEventListener('change', refreshFindDiag);
   refreshFindDiag();
 })();
@@ -137,17 +155,65 @@ $('find-form').onsubmit = async (e) => {
   $('results').innerHTML = d.mechanics.length
     ? `<p class="muted">${greet} mobile mechanics that serve your area for <strong>${esc(q.service)}</strong>.</p>` + d.mechanics.map(card).join('')
     : `<p class="muted">We are sorry, mobile mechanics in your area coming soon.</p>`;
-  if (!d.mechanics.length) $('req-link').querySelector('button').textContent = 'Send a quote request anyway';
-  const rp = new URLSearchParams({ service: q.service, vehicle: q.vehicle, city: q.city, state: q.state, date: q.date });
-  if (q.zip) rp.set('zip', q.zip);
-  if (q.phone) rp.set('phone', q.phone);
-  if (q.symptoms && q.symptoms.length) rp.set('symptoms', q.symptoms.join('|'));
-  if (q.moreinfo) rp.set('moreinfo', q.moreinfo);
-  if (new URLSearchParams(location.search).get('urgent') === '1') rp.set('urgent', '1');
-  $('req-link').href = '/request?' + rp.toString();
-  try { sessionStorage.setItem('mmn_find', JSON.stringify(q)); } catch (e) {}
+  $('req-send').textContent = d.mechanics.length ? 'Send quote request' : 'Send a quote request anyway';
+  $('req-send').disabled = false;
+  $('req-err').textContent = '';
+  $('req-done').hidden = true;
+  $('find-guest-cta').hidden = true;
   $('req-cta').hidden = false;
   window.scrollTo(0, 0);
+};
+$('req-send').onclick = async () => {
+  const errEl = $('req-err');
+  errEl.textContent = '';
+  const svc = $('f-service').value;
+  let desc = '';
+  if (svc === 'Diagnostics') {
+    const picked = Array.from(document.querySelectorAll('#f-symptom-chips input:checked')).map(i => i.value);
+    const more = $('f-moreinfo').value.trim();
+    if (picked.length) desc = 'Symptoms: ' + picked.join(', ') + '.' + (more ? '\n' + more : '');
+    else desc = more;
+    if (!desc) { errEl.textContent = 'Please pick a symptom or describe what is going on.'; return; }
+  } else {
+    desc = $('f-desc').value.trim();
+    if (!desc) { errEl.textContent = 'Please describe what is going on with the vehicle.'; return; }
+  }
+  const body = {
+    service: svc,
+    vehicle: $('f-vehicle').value.trim(),
+    vin: '',
+    city: $('f-city').value.trim(),
+    state: $('f-state').value.trim(),
+    description: desc,
+    phone: $('f-phone').value.trim(),
+    date: $('f-date').value,
+    urgent: new URLSearchParams(location.search).get('urgent') === '1',
+    zip: $('f-zip').value.trim(),
+  };
+  const btn = $('req-send');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { errEl.textContent = d.error || 'Something went wrong.'; btn.disabled = false; btn.textContent = 'Send quote request'; return; }
+    const me = await (await fetch('/api/me')).json().catch(() => ({}));
+    const isGuest = !me.user;
+    $('req-done-msg').textContent = d.mechanicsNotified > 0
+      ? (isGuest ? `Request sent. ${d.mechanicsNotified} mobile mechanic(s) in your area can quote it — you'll get their quotes by text.` : `Request sent. ${d.mechanicsNotified} mobile mechanic(s) in your area can quote it. Watch your dashboard for quotes.`)
+      : (isGuest ? 'Request sent. No mechanics in your area match yet, but your request is posted and will match as mechanics join. You\'ll get quotes by text.' : 'Request sent. No mechanics in your area match yet, but your request is posted and will match as mechanics join.');
+    if (isGuest) {
+      $('find-guest-signup').href = '/account?phone=' + encodeURIComponent(body.phone);
+      $('find-guest-cta').hidden = false;
+    }
+    $('req-cta').hidden = true;
+    $('req-done').hidden = false;
+    window.scrollTo(0, 0);
+  } catch (e) {
+    errEl.textContent = 'Something went wrong. Please try again.';
+    btn.disabled = false;
+    btn.textContent = 'Send quote request';
+  }
 };
 $('back').onclick = (e) => { e.preventDefault(); $('results-view').hidden = true; $('form-view').hidden = false; };
 </script>
