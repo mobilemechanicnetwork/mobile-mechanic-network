@@ -1386,7 +1386,9 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/admin/logout' && req.method === 'POST') {
       const match = (req.headers.cookie || '').match(/mmn_admin=([a-f0-9]+)/);
       if (match) adminSessions.delete(match[1]);
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'mmn_admin=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0' });
+      const smatch = (req.headers.cookie || '').match(/mmn_session=([a-f0-9]+)/);
+      if (smatch) sessions.delete(smatch[1]);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': ['mmn_admin=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0', 'mmn_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'] });
       return res.end('{}');
     }
     if (p === '/api/admin/promote' && req.method === 'POST') {
