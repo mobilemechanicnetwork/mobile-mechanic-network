@@ -42,6 +42,8 @@
     <form id="find-form">
       <label for="f-name">Your name</label>
       <input id="f-name" autocomplete="name" required>
+      <label for="f-phone">Phone number <span class="muted">(mechanics reach you here)</span></label>
+      <input id="f-phone" type="tel" autocomplete="tel" required>
       <div class="row">
         <div><label for="f-city">City</label><input id="f-city" required></div>
         <div><label for="f-state">State</label><input id="f-state" required maxlength="2"></div>
@@ -107,6 +109,7 @@ $('find-form').onsubmit = async (e) => {
   const symptoms = Array.from(document.querySelectorAll('#f-symptom-chips input:checked')).map(i => i.value);
   const q = {
     name: $('f-name').value.trim(),
+    phone: $('f-phone').value.trim(),
     city: $('f-city').value.trim(),
     state: $('f-state').value.trim(),
     zip: $('f-zip').value.trim(),
@@ -137,6 +140,7 @@ $('find-form').onsubmit = async (e) => {
   if (!d.mechanics.length) $('req-link').querySelector('button').textContent = 'Send a quote request anyway';
   const rp = new URLSearchParams({ service: q.service, vehicle: q.vehicle, city: q.city, state: q.state, date: q.date });
   if (q.zip) rp.set('zip', q.zip);
+  if (q.phone) rp.set('phone', q.phone);
   if (q.symptoms && q.symptoms.length) rp.set('symptoms', q.symptoms.join('|'));
   if (q.moreinfo) rp.set('moreinfo', q.moreinfo);
   if (new URLSearchParams(location.search).get('urgent') === '1') rp.set('urgent', '1');

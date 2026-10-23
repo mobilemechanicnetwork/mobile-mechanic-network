@@ -125,6 +125,9 @@
     if (preSymptoms.length) chipInputs.forEach(i => { if (preSymptoms.indexOf(i.value) !== -1) i.checked = true; });
     const moreParam = qp.get('moreinfo') || pre.moreinfo || '';
     if (moreParam && !descInput.value) descInput.value = moreParam;
+    const phoneParam = qp.get('phone') || pre.phone || '';
+    const phoneInput = document.getElementById('phone');
+    if (phoneParam && !phoneInput.value) phoneInput.value = phoneParam;
     window._refreshDiag();
     if (get('vehicle')) document.getElementById('vehicle').value = get('vehicle');
     if (get('city')) document.getElementById('city').value = get('city');
