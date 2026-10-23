@@ -49,8 +49,8 @@
         <div><label for="f-state">State</label><input id="f-state" required maxlength="2"></div>
         <div><label for="f-zip">ZIP <span class="muted">(optional)</span></label><input id="f-zip" inputmode="numeric" maxlength="10" placeholder="e.g. 70460"></div>
       </div>
-      <label for="f-vehicle">Vehicle (year, make, model)</label>
-      <input id="f-vehicle" required>
+      <label>Vehicle (year, make, model)</label>
+      <div class="row"><div><label for="f-year">Year</label><select id="f-year"></select></div><div><label for="f-make">Make</label><select id="f-make"></select></div><div><label for="f-model">Model</label><select id="f-model"></select></div></div>
       <label for="f-service">Service needed</label>
       <select id="f-service" required></select>
       <div id="f-diag-symptoms" hidden>
@@ -73,6 +73,7 @@
       <label for="f-date">When do you need it?</label>
       <input id="f-date" type="date" required>
       <button class="primary" type="submit">Find mechanics</button>
+      <p id="f-err" style="color:#b91c1c;font-size:.9rem"></p>
     </form>
     <p><a href="/">Back to the home page</a></p>
   </div>
@@ -94,6 +95,7 @@
   </div>
 </main>
 <script src="/city-autocomplete.js"></script>
+<script src="/vehicle-picker.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -101,6 +103,7 @@ const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikT
 const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABELS).filter(k => soc[k]).map(k => `<a href="${esc(soc[k])}" target="_blank" rel="noopener">${SOC_LABELS[k]}</a>`); return links.length ? `<div style="margin-top:6px">${links.join(' · ')}</div>` : ''; };
 (async () => {
   if (window.CityAC) window.CityAC.attach($('f-city'), { stateInput: $('f-state') });
+  if (window.VehiclePicker) window._findVeh = VehiclePicker.attach({ year: 'f-year', make: 'f-make', model: 'f-model' });
   const d = await (await fetch('/api/services')).json();
   const prompt = document.createElement('option');
   prompt.value = '';
@@ -126,6 +129,9 @@ const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABE
 })();
 $('find-form').onsubmit = async (e) => {
   e.preventDefault();
+  $('f-err').textContent = '';
+  const veh = window._findVeh ? window._findVeh.vehicleString() : '';
+  if (!veh) { $('f-err').textContent = 'Please pick your vehicle year, make, and model.'; return; }
   const symptoms = Array.from(document.querySelectorAll('#f-symptom-chips input:checked')).map(i => i.value);
   const q = {
     name: $('f-name').value.trim(),
@@ -133,7 +139,7 @@ $('find-form').onsubmit = async (e) => {
     city: $('f-city').value.trim(),
     state: $('f-state').value.trim(),
     zip: $('f-zip').value.trim(),
-    vehicle: $('f-vehicle').value.trim(),
+    vehicle: veh,
     service: $('f-service').value,
     date: $('f-date').value,
     symptoms: symptoms,
@@ -168,6 +174,8 @@ $('find-form').onsubmit = async (e) => {
 $('req-send').onclick = async () => {
   const errEl = $('req-err');
   errEl.textContent = '';
+  const veh = window._findVeh ? window._findVeh.vehicleString() : '';
+  if (!veh) { errEl.textContent = 'Please pick your vehicle year, make, and model.'; return; }
   const svc = $('f-service').value;
   let desc = '';
   if (svc === 'Diagnostics') {
@@ -182,7 +190,7 @@ $('req-send').onclick = async () => {
   }
   const body = {
     service: svc,
-    vehicle: $('f-vehicle').value.trim(),
+    vehicle: veh,
     vin: '',
     city: $('f-city').value.trim(),
     state: $('f-state').value.trim(),

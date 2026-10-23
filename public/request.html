@@ -14,6 +14,7 @@
   button{width:100%;margin-top:20px;background:#2563eb;color:#fff;border:0;border-radius:8px;padding:12px;cursor:pointer;font-size:1rem;box-shadow:0 2px 8px rgba(37,99,235,.25)}
   .err{color:#b91c1c;min-height:1.2em;margin-top:12px;font-size:.9rem}
   .ok{color:#15803d;margin-top:12px}
+  .row{display:flex;gap:10px}.row>div{flex:1;min-width:0}.row label{margin-top:0}
   .muted{color:#64748b}
   .urgent-banner{background:#fee2e2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin:0 0 6px;font-size:.95rem}
   .chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px}
@@ -43,8 +44,8 @@
         <label class="chip"><input type="checkbox" value="Unsure — needs mechanic assessment"> Unsure — need a mechanic to assess</label>
       </div>
     </div>
-    <label for="vehicle">Vehicle (year, make, model)</label>
-    <input id="vehicle" required>
+    <label>Vehicle (year, make, model)</label>
+    <div class="row"><div><label for="v-year">Year</label><select id="v-year"></select></div><div><label for="v-make">Make</label><select id="v-make"></select></div><div><label for="v-model">Model</label><select id="v-model"></select></div></div>
     <div id="my-vehicles-row" style="margin-top:6px" hidden><label for="my-vehicles" style="margin-top:0">Or pick one of your saved vehicles</label><select id="my-vehicles"><option value="">Choose…</option></select></div>
     <label for="vin">VIN (optional, 17 characters)</label>
     <input id="vin" maxlength="17" placeholder="e.g. 1HGCM82633A004352" style="text-transform:uppercase">
@@ -68,10 +69,12 @@
   <p><a href="/dashboard">My dashboard</a> · <a href="/mechanics">Browse mechanics</a> · <a href="/">Home</a></p>
 </main>
 <script src="/city-autocomplete.js"></script>
+<script src="/vehicle-picker.js"></script>
 <script>
   const err = document.getElementById('err'), ok = document.getElementById('ok');
   (async () => {
     if (window.CityAC) window.CityAC.attach(document.getElementById('city'), { stateInput: document.getElementById('state') });
+    if (window.VehiclePicker) window._reqVeh = VehiclePicker.attach({ year: 'v-year', make: 'v-make', model: 'v-model' });
     const me = await (await fetch('/api/me')).json().catch(() => ({}));
     const isGuest = !me.user;
     window._isGuest = isGuest;
@@ -132,7 +135,7 @@
     const phoneInput = document.getElementById('phone');
     if (phoneParam && !phoneInput.value) phoneInput.value = phoneParam;
     window._refreshDiag();
-    if (get('vehicle')) document.getElementById('vehicle').value = get('vehicle');
+    if (get('vehicle') && window._reqVeh) window._reqVeh.setFromString(get('vehicle'));
     if (get('city')) document.getElementById('city').value = get('city');
     if (get('state')) document.getElementById('state').value = get('state');
     if (get('date')) document.getElementById('date').value = get('date');
@@ -140,13 +143,15 @@
     const v = await (await fetch('/api/vehicles/me')).json().catch(() => ({}));
     if (v.vehicles && v.vehicles.length) {
       const vsel = document.getElementById('my-vehicles');
-      v.vehicles.forEach(x => { const o = document.createElement('option'); o.value = `${x.year} ${x.make} ${x.model}`; o.textContent = o.value; vsel.appendChild(o); });
+      v.vehicles.forEach((x, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = `${x.year} ${x.make} ${x.model}`; vsel.appendChild(o); });
       document.getElementById('my-vehicles-row').hidden = false;
-      vsel.onchange = () => { if (vsel.value) document.getElementById('vehicle').value = vsel.value; };
+      vsel.onchange = () => { const x = v.vehicles[Number(vsel.value)]; if (x && window._reqVeh) window._reqVeh.set(x.year, x.make, x.model); };
     }
   })();
   document.getElementById('form').onsubmit = async (e) => {
     e.preventDefault(); err.textContent = ''; ok.textContent = '';
+    const veh = window._reqVeh ? window._reqVeh.vehicleString() : '';
+    if (!veh) { err.textContent = 'Please pick your vehicle year, make, and model.'; return; }
     const svc = document.getElementById('service').value;
     let descVal = document.getElementById('description').value.trim();
     if (svc === 'Diagnostics') {
@@ -154,7 +159,7 @@
       if (picked.length) descVal = 'Symptoms: ' + picked.join(', ') + '.' + (descVal ? '\n' + descVal : '');
       if (!descVal) { err.textContent = 'Please pick a symptom or describe what is going on.'; return; }
     }
-    const body = { service: svc, vehicle: document.getElementById('vehicle').value, vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: descVal, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: window._isUrgent === true, zip: document.getElementById('zip').value, businessId: window._directBizId || undefined };
+    const body = { service: svc, vehicle: veh, vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: descVal, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: window._isUrgent === true, zip: document.getElementById('zip').value, businessId: window._directBizId || undefined };
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { err.textContent = d.error || 'Something went wrong.'; return; }

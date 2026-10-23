@@ -47,6 +47,21 @@ const sessions = new Map(); // token -> userId (in-memory at this stage)
 // US city,state dataset for autocomplete (bundled with the code, not in DATA_DIR)
 let US_CITIES = [];
 try { US_CITIES = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'us-cities.json'), 'utf8')); } catch (e) { US_CITIES = []; }
+// ---------- Vehicle year/make/model data (NHTSA vPIC, US 1980-now) ----------
+let VEHICLES = null;
+try { VEHICLES = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'us-vehicles.json'), 'utf8')); } catch (e) { VEHICLES = null; }
+function vehicleYears() { return (VEHICLES && VEHICLES.years) || []; }
+function vehicleMakes(year) {
+  if (!VEHICLES) return [];
+  const y = String(year || '');
+  const set = {};
+  for (const k of Object.keys(VEHICLES.models)) if (k.indexOf(y + '|') === 0) set[k.slice(y.length + 1)] = true;
+  return Object.keys(set).sort((a, b) => a.localeCompare(b));
+}
+function vehicleModels(year, make) {
+  if (!VEHICLES) return [];
+  return VEHICLES.models[String(year || '') + '|' + String(make || '')] || [];
+}
 function searchCities(q, state, limit) {
   q = String(q || '').trim().toLowerCase();
   state = String(state || '').trim().toUpperCase();
@@ -703,6 +718,15 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/services' && req.method === 'GET') return sendJson(res, 200, { services: SERVICES });
     if (p === '/api/cities' && req.method === 'GET') {
       return sendJson(res, 200, { cities: searchCities(url.searchParams.get('q'), url.searchParams.get('state'), url.searchParams.get('limit')) });
+    }
+    if (p === '/api/vehicles/years' && req.method === 'GET') {
+      return sendJson(res, 200, { years: vehicleYears() });
+    }
+    if (p === '/api/vehicles/makes' && req.method === 'GET') {
+      return sendJson(res, 200, { makes: vehicleMakes(url.searchParams.get('year')) });
+    }
+    if (p === '/api/vehicles/models' && req.method === 'GET') {
+      return sendJson(res, 200, { models: vehicleModels(url.searchParams.get('year'), url.searchParams.get('make')) });
     }
 
     // ---------- Quote requests ----------

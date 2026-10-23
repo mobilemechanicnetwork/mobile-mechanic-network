@@ -43,9 +43,9 @@
     <div id="my-vehicles"></div>
     <div class="card">
       <div class="muted">Add a vehicle</div>
-      <label for="v-year">Year</label><input id="v-year" placeholder="2019" maxlength="10">
-      <label for="v-make">Make</label><input id="v-make" placeholder="Ford" maxlength="60">
-      <label for="v-model">Model</label><input id="v-model" placeholder="F-150" maxlength="60">
+      <label for="v-year">Year</label><select id="v-year"></select>
+      <label for="v-make">Make</label><select id="v-make"></select>
+      <label for="v-model">Model</label><select id="v-model"></select>
       <p><button type="button" onclick="addVehicle()">Add vehicle</button></p>
       <div class="err" id="v-err"></div>
     </div>
@@ -87,6 +87,7 @@
   </section>
 </main>
 <script src="/city-autocomplete.js"></script>
+<script src="/vehicle-picker.js"></script>
 <script>
   const $ = id => document.getElementById(id);
   let SERVICES = [];
@@ -94,6 +95,8 @@
   async function post(url, body) { return api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
 
   $('logout').onclick = async (e) => { e.preventDefault(); await fetch('/api/logout', { method: 'POST' }); location.href = '/'; };
+
+  window._vehPicker = VehiclePicker.attach({ year: 'v-year', make: 'v-make', model: 'v-model' });
 
   async function loadOwner() {
     const me = await api('/api/me');
@@ -139,7 +142,9 @@
   };
   window.addVehicle = async () => {
     $('v-err').textContent = '';
-    try { await post('/api/vehicles', { year: $('v-year').value, make: $('v-make').value, model: $('v-model').value }); $('v-year').value = ''; $('v-make').value = ''; $('v-model').value = ''; loadOwner(); }
+    const v = window._vehPicker ? window._vehPicker.get() : null;
+    if (!v) { $('v-err').textContent = 'Please pick the year, make, and model.'; return; }
+    try { await post('/api/vehicles', v); window._vehPicker.reset(); loadOwner(); }
     catch (e) { $('v-err').textContent = e.message; }
   };
   window.delVehicle = async (id) => { if (!confirm('Remove this vehicle?')) return; await api('/api/vehicles/' + id, { method: 'DELETE' }); loadOwner(); };
