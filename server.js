@@ -685,7 +685,10 @@ const server = http.createServer(async (req, res) => {
       const frozenIds = new Set(usersStore.read().filter(mechanicFrozen).map(u => u.id));
       let list = businessesStore.read().filter(b => !frozenIds.has(b.userId));
       if (state) list = list.filter(b => b.state.toLowerCase() === state);
-      if (city) list = list.filter(b => b.city.toLowerCase() === city);
+      if (city) {
+        const ck = state ? city + '|' + state.toUpperCase() : null;
+        list = list.filter(b => b.city.toLowerCase() === city || (ck && servedCityKeys(b).includes(ck)));
+      }
       if (service) list = list.filter(b => b.services.includes(service));
       return sendJson(res, 200, { mechanics: list.map(b => ({ ...publicBusiness(b), promotion: latestPromotion(b.id) })) });
     }
