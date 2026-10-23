@@ -78,12 +78,12 @@ async function load() {
   const c = data.counts;
   $('stats').innerHTML = [
     ['Vehicle owners', c.owners], ['Mechanics', c.mechanics],
-    ['Businesses', c.businesses], ['Published', c.publishedBusinesses],
+    ['Businesses', c.businesses], ['Visible', c.visibleBusinesses],
     ['Requests', c.requests], ['Quotes', c.quotes],
   ].map(([l, v]) => `<div class="card"><b>${v}</b><span>${l}</span></div>`).join('');
 
   $('businesses').innerHTML = data.businesses.length ? `<table><tr><th>Business</th><th>Mechanic</th><th>Area</th><th>Services</th><th>Status</th><th></th></tr>` +
-    data.businesses.map(b => `<tr><td>${esc(b.name)}<br><span style="color:#64748b">${esc(b.city)}, ${esc(b.state)}</span></td><td>${esc(b.mechanicName)}</td><td>${esc((b.serviceCities||[]).join('; '))}</td><td>${esc((b.services||[]).join(', '))}</td><td><span class="pill ${b.published?'on':'off'}">${b.published?'Published':'Hidden'}</span></td><td><button class="ghost" data-biz="${b.id}" data-pub="${b.published?0:1}">${b.published?'Hide':'Publish'}</button></td></tr>`).join('') + `</table>`
+    data.businesses.map(b => `<tr><td>${esc(b.name)}<br><span style="color:#64748b">${esc(b.city)}, ${esc(b.state)}</span></td><td>${esc(b.mechanicName)}</td><td>${esc((b.serviceCities||[]).join('; '))}</td><td>${esc((b.services||[]).join(', '))}</td><td><span class="pill ${b.frozen?'off':'on'}">${b.frozen?'Frozen':'Visible'}</span></td><td></td></tr>`).join('') + `</table>`
     : `<div class="empty">No mechanic businesses yet.</div>`;
 
   $('accounts').innerHTML = data.users.length ? `<table><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th></th></tr>` +
@@ -122,15 +122,6 @@ async function load() {
       if (!confirm(`Remove the account "${btn.dataset.name}" and all of its data? This cannot be undone.`)) return;
       const r = await fetch('/api/admin/users/' + btn.dataset.deluser, { method: 'DELETE' });
       if (r.ok) load(); else alert('Could not remove that account.');
-    };
-  });
-  document.querySelectorAll('[data-biz]').forEach(btn => {
-    btn.onclick = async () => {
-      const r = await fetch('/api/admin/business/' + btn.dataset.biz, {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ published: btn.dataset.pub === '1' })
-      });
-      if (r.ok) load();
     };
   });
 }

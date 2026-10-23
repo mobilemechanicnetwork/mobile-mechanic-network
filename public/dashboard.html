@@ -79,7 +79,6 @@
       <img id="b-logo-preview" alt="Logo preview" style="max-width:120px;display:none;margin:6px 0;border-radius:8px">
       <label for="b-cover">Cover photo</label><input id="b-cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
       <img id="b-cover-preview" alt="Cover preview" style="max-width:100%;display:none;margin:6px 0;border-radius:8px">
-      <label><input type="checkbox" id="b-published" style="width:auto"> Published (visible in search, can receive requests)</label>
       <button type="submit">Save business page</button>
       <div class="err" id="b-err"></div><div class="ok" id="b-ok"></div>
     </form>
@@ -168,7 +167,7 @@
     checks.innerHTML = SERVICES.map(s => `<label><input type="checkbox" value="${s}" style="width:auto"> ${s}</label>`).join('');
     const d = await api('/api/business/me');
     if (d.business) {
-      $('b-name').value = d.business.name; $('b-city').value = d.business.city; $('b-state').value = d.business.state; if (window.cityChips) window.cityChips.set(d.business.serviceCities || []); $('b-about').value = d.business.about || ''; $('b-phone').value = d.business.phone || ''; $('b-published').checked = true;
+      $('b-name').value = d.business.name; $('b-city').value = d.business.city; $('b-state').value = d.business.state; if (window.cityChips) window.cityChips.set(d.business.serviceCities || []); $('b-about').value = d.business.about || ''; $('b-phone').value = d.business.phone || '';
       checks.querySelectorAll('input').forEach(c => { c.checked = d.business.services.includes(c.value); });
       if (d.business.logoUrl) { $('b-logo-preview').src = d.business.logoUrl; $('b-logo-preview').style.display = 'block'; }
       if (d.business.coverUrl) { $('b-cover-preview').src = d.business.coverUrl; $('b-cover-preview').style.display = 'block'; }
@@ -235,7 +234,7 @@
     try {
       const logoUrl = await uploadImage('logo', $('b-logo'));
       const coverUrl = await uploadImage('cover', $('b-cover'));
-      const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: window.cityChips ? window.cityChips.get() : [], services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked };
+      const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: window.cityChips ? window.cityChips.get() : [], services, about: $('b-about').value, phone: $('b-phone').value };
       if (logoUrl) body.logoUrl = logoUrl;
       if (coverUrl) body.coverUrl = coverUrl;
       await post('/api/business', body);

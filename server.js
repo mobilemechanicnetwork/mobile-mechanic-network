@@ -245,7 +245,7 @@ function servedCityKeys(biz) {
   return keys;
 }
 function requestMatchesBusiness(reqRow, biz) {
-  if (!biz || !biz.published) return false;
+  if (!biz) return false;
   if (reqRow.businessId && reqRow.businessId !== biz.id) return false;
   if (!reqRow.businessId && reqRow.urgent && !biz.acceptUrgent) return false;
   const owner = usersStore.read().find(u => u.id === biz.userId);
@@ -618,7 +618,7 @@ const server = http.createServer(async (req, res) => {
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Only mobile mechanic accounts have a business page.' });
       if (mechanicFrozen(user)) return frozenError(res);
-      const { name, city, state, serviceCities, services, about, published, phone, logoUrl, coverUrl, coverPosition, socials, warranty, acceptUrgent, certifications } = await parseBody(req);
+      const { name, city, state, serviceCities, services, about, phone, logoUrl, coverUrl, coverPosition, socials, warranty, acceptUrgent, certifications } = await parseBody(req);
       if (!name || !city || !state || !Array.isArray(services) || services.length === 0)
         return sendJson(res, 400, { error: 'Business name, city, state, and at least one service are required.' });
       const cleanServices = services.filter(s => SERVICES.includes(s));
@@ -641,7 +641,7 @@ const server = http.createServer(async (req, res) => {
         const v = String(socials[k] || '').trim().slice(0, 300);
         if (v) cleanSocials[k] = v;
       }
-      const fields = { name: String(name).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), serviceCities: cleanCities, services: cleanServices, about: String(about || ''), phone: String(phone || '').trim(), published: !!published, socials: cleanSocials, warranty: String(warranty || '').trim().slice(0, 2000), acceptUrgent: acceptUrgent === true, certifications: cleanCertifications(certifications) };
+      const fields = { name: String(name).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), serviceCities: cleanCities, services: cleanServices, about: String(about || ''), phone: String(phone || '').trim(), socials: cleanSocials, warranty: String(warranty || '').trim().slice(0, 2000), acceptUrgent: acceptUrgent === true, certifications: cleanCertifications(certifications) };
       const cpm = String(coverPosition || '').trim().match(/^(\d{1,3}(?:\.\d+)?)% (\d{1,3}(?:\.\d+)?)%$/);
       if (cpm) fields.coverPosition = Math.min(100, Math.max(0, Math.round(parseFloat(cpm[1])))) + '% ' + Math.min(100, Math.max(0, Math.round(parseFloat(cpm[2])))) + '%';
       if (typeof logoUrl === 'string' && logoUrl.startsWith('/uploads/')) fields.logoUrl = logoUrl;
@@ -683,7 +683,7 @@ const server = http.createServer(async (req, res) => {
         } catch (e) {}
       }
       const frozenIds = new Set(usersStore.read().filter(mechanicFrozen).map(u => u.id));
-      let list = businessesStore.read().filter(b => b.published && !frozenIds.has(b.userId));
+      let list = businessesStore.read().filter(b => !frozenIds.has(b.userId));
       if (state) list = list.filter(b => b.state.toLowerCase() === state);
       if (city) list = list.filter(b => b.city.toLowerCase() === city);
       if (service) list = list.filter(b => b.services.includes(service));
@@ -691,7 +691,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/business/public' && req.method === 'GET') {
       const id = String(url.searchParams.get('id') || '');
-      const biz = businessesStore.read().find(b => b.id === id && b.published);
+      const biz = businessesStore.read().find(b => b.id === id);
       if (!biz) return sendJson(res, 404, { error: 'Business not found.' });
       const owner = usersStore.read().find(u => u.id === biz.userId);
       if (mechanicFrozen(owner)) return sendJson(res, 404, { error: 'Business not found.' });
@@ -714,7 +714,7 @@ const server = http.createServer(async (req, res) => {
       if (guest && !guestRateOk(req)) return sendJson(res, 429, { error: 'Too many requests from this device. Please wait a bit before sending another.' });
       let targetBiz = null;
       if (businessId) {
-        targetBiz = businessesStore.read().find(b => b.id === String(businessId) && b.published);
+        targetBiz = businessesStore.read().find(b => b.id === String(businessId));
         if (!targetBiz) return sendJson(res, 400, { error: 'That mechanic is no longer available.' });
         const tOwner = usersStore.read().find(u => u.id === targetBiz.userId);
         if (mechanicFrozen(tOwner)) return sendJson(res, 400, { error: 'That mechanic is no longer available.' });
@@ -752,7 +752,7 @@ const server = http.createServer(async (req, res) => {
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
       const biz = myBusiness(user.id);
-      if (!biz || !biz.published) return sendJson(res, 200, { requests: [], booked: [], needsBusiness: true });
+      if (!biz) return sendJson(res, 200, { requests: [], booked: [], needsBusiness: true });
       const quotes = quotesStore.read();
       const myTickets = ticketsStore.read().filter(t => t.mechanicId === user.id);
       const inbox = requestsStore.read()
@@ -1420,12 +1420,13 @@ const server = http.createServer(async (req, res) => {
         const k = [s.city, s.state].filter(Boolean).join(', ');
         if (k) cityCounts[k] = (cityCounts[k] || 0) + 1;
       }
+      const frozenIds = new Set(users.filter(mechanicFrozen).map(u => u.id));
       return sendJson(res, 200, {
         counts: {
           owners: users.filter(u => u.role === 'owner').length,
           mechanics: users.filter(u => u.role === 'mechanic').length,
           businesses: businesses.length,
-          publishedBusinesses: businesses.filter(b => b.published).length,
+          visibleBusinesses: businesses.filter(b => !frozenIds.has(b.userId)).length,
           requests: requests.length,
           quotes: quotes.length,
         },
@@ -1441,7 +1442,7 @@ const server = http.createServer(async (req, res) => {
           recentSearches: searches.slice(-50).reverse().map(s => ({ t: s.t, city: s.city, state: s.state, service: s.service })),
         },
         users: users.map(publicUser),
-        businesses: businesses.map(b => ({ ...publicBusiness(b), published: !!b.published, createdAt: b.createdAt })),
+        businesses: businesses.map(b => ({ ...publicBusiness(b), frozen: frozenIds.has(b.userId), createdAt: b.createdAt })),
         requests: requests.map(r => ({ id: r.id, ownerName: r.ownerName, phone: r.phone, city: r.city, state: r.state, service: r.service, vehicle: r.vehicle, status: r.status, createdAt: r.createdAt })),
         quotes: quotes.map(q => ({ id: q.id, requestId: q.requestId, price: q.price, status: q.status, createdAt: q.createdAt })),
         help: helpStore.read().slice().reverse(),
@@ -1472,17 +1473,6 @@ const server = http.createServer(async (req, res) => {
         'Content-Length': Buffer.byteLength(body),
       });
       return res.end(body);
-    }
-    const adminBizToggle = p.match(/^\/api\/admin\/business\/([0-9a-f-]+)$/);
-    if (adminBizToggle && req.method === 'POST') {
-      if (!adminAuthed(req)) return sendJson(res, 401, { error: 'Not authorized.' });
-      const { published } = await parseBody(req);
-      const businesses = businessesStore.read();
-      const biz = businesses.find(b => b.id === adminBizToggle[1]);
-      if (!biz) return sendJson(res, 404, { error: 'Business not found.' });
-      biz.published = !!published;
-      businessesStore.write(businesses);
-      return sendJson(res, 200, { business: { id: biz.id, published: biz.published } });
     }
     const adminUserDel = p.match(/^\/api\/admin\/users\/([0-9a-f-]+)$/);
     if (adminUserDel && req.method === 'DELETE') {

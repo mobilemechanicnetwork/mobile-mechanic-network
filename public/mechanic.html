@@ -168,7 +168,6 @@
       <img id="b-logo-preview" class="thumb" alt="Logo preview" style="display:none">
       <label for="b-cover">Cover photo</label><input id="b-cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
       <div id="b-cover-wrap" style="position:relative;display:none;margin:6px 0"><img id="b-cover-preview" alt="Cover preview" style="width:100%;max-height:280px;object-fit:cover;display:block;border-radius:14px 14px 0 0;cursor:grab;touch-action:none"><span style="position:absolute;bottom:8px;right:12px;background:rgba(0,0,0,.55);color:#fff;font-size:.75rem;padding:4px 10px;border-radius:999px;pointer-events:none">Drag to reposition</span></div>
-      <label><input type="checkbox" id="b-published" style="width:auto"> Published (visible in search, can receive requests)</label>
       <button class="primary" type="submit">Save business page</button>
       <div class="err" id="b-err"></div><div class="ok" id="b-ok"></div>
     </form>
@@ -398,7 +397,7 @@ async function loadProfile() {
     $('b-certs').value = (b.certifications || []).join('\n');
     $('b-earned').innerHTML = earnedBadgesHtml(b) || '<span class="muted">Earn badges: respond to quote requests quickly and collect 5-star reviews.</span>';
     if ($('t-warranty')) $('t-warranty').placeholder = b.warranty ? 'Leave blank to use profile default: ' + b.warranty.slice(0, 80) : 'e.g. 12 months / 12,000 miles on parts and labor';
-    $('b-phone').value = b.phone || ''; $('b-published').checked = !!b.published;
+    $('b-phone').value = b.phone || '';
     for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website', 'google']) $('b-soc-' + k).value = (b.socials && b.socials[k]) || '';
     document.querySelectorAll('#b-services input').forEach(c => { c.checked = (b.services || []).includes(c.value); });
     $('b-urgent').checked = !!b.acceptUrgent;
@@ -549,7 +548,7 @@ $('biz-form').onsubmit = async (e) => {
   try {
     const socials = {};
     for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website', 'google']) socials[k] = $('b-soc-' + k).value;
-    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: window.cityChips.get(), services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked, socials, warranty: $('b-warranty').value, acceptUrgent: $('b-urgent').checked, certifications: $('b-certs').value.split('\n') };
+    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: window.cityChips.get(), services, about: $('b-about').value, phone: $('b-phone').value, socials, warranty: $('b-warranty').value, acceptUrgent: $('b-urgent').checked, certifications: $('b-certs').value.split('\n') };
     if ($('b-logo').files.length) body.logoUrl = await uploadImage('logo', $('b-logo').files[0]);
     if ($('b-cover').files.length) body.coverUrl = await uploadImage('cover', $('b-cover').files[0]);
     if ($('b-cover-wrap').style.display !== 'none') {
