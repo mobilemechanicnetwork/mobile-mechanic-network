@@ -92,7 +92,6 @@
 
   <section class="tab" id="tab-profile">
     <h2>Business profile</h2>
-    <p><a id="b-preview" href="#" target="_blank" rel="noopener">View your public profile as customers see it →</a></p>
     <form id="biz-form">
       <label for="b-name">Business name</label><input id="b-name" required>
       <label for="b-city">City you are based in</label><input id="b-city" required>
@@ -340,8 +339,6 @@ async function loadProfile() {
     const b = d.business;
     window._bizName = b.name;
     window._bizId = b.id;
-    const pv = $('b-preview');
-    if (pv && b.id) pv.href = '/shop.html?id=' + encodeURIComponent(b.id);
     $('b-name').value = b.name; $('b-city').value = b.city; $('b-state').value = b.state;
     $('b-cities').value = (b.serviceCities || []).join(', '); $('b-about').value = b.about || ''; $('b-warranty').value = b.warranty || '';
     $('b-certs').value = (b.certifications || []).join('\n');
