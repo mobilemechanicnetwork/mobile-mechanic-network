@@ -668,7 +668,7 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       const biz = myBusiness(user.id);
-      return sendJson(res, 200, { business: biz ? publicBusiness(biz) : null });
+      return sendJson(res, 200, { business: biz ? { ...publicBusiness(biz), promotion: latestPromotion(biz.id) } : null });
     }
     if (p === '/api/mechanics' && req.method === 'GET') {
       const city = (url.searchParams.get('city') || '').toLowerCase();
