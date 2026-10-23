@@ -95,7 +95,7 @@ async function reviewHtml(businessId) {
           <a class="btn" href="/request?business=${esc(b.id)}">Request a quote from ${esc(b.name)}</a>
         </div>
         ${b.about ? `<div class="card"><h3>About</h3><p style="margin:0">${esc(b.about)}</p></div>` : ''}
-        <div class="card"><h3>Services</h3><div>${(b.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('')}</div>${(b.vehicleTypes || ['car']).length > 1 || !(b.vehicleTypes || ['car']).includes('car') ? `<div class="muted" style="margin-top:8px">Services: ${(b.vehicleTypes || ['car']).map(t => t === 'car' ? 'Cars & trucks' : t === 'motorcycle' ? 'Motorcycles' : 'Bus / Commercial').join(' · ')}</div>` : ''}</div>
+        <div class="card"><h3>Services</h3><div>${(b.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('')}</div>${(b.vehicleTypes || ['car']).length > 1 || !(b.vehicleTypes || ['car']).includes('car') ? `<div class="muted" style="margin-top:8px">Services: ${(b.vehicleTypes || ['car']).map(t => t === 'car' ? 'Cars & trucks' : t === 'motorcycle' ? 'Motorcycles' : t === 'commercial' ? 'Bus / Commercial' : 'Small Engine').join(' · ')}</div>` : ''}</div>
         <div class="card"><h3>Service area</h3><p class="muted" style="margin:0">${esc([(b.city + ', ' + b.state), ...(b.serviceCities || [])].join('; '))}</p></div>
         ${gallery ? `<div class="card"><h3>Photos</h3><div class="gallery">${gallery}</div></div>` : ''}
         ${b.promotion ? `<div class="card"><h3>Current special</h3><div class="promo"><strong>${esc(b.promotion.title)}</strong><div class="muted">${esc(b.promotion.description || '')}${b.promotion.validUntil ? ' · Valid until ' + esc(b.promotion.validUntil) : ''}</div></div></div>` : ''}

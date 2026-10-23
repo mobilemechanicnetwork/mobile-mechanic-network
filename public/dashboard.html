@@ -108,7 +108,7 @@
     if (!me.user.phone) $('phone-banner').hidden = false;
     const v = await api('/api/vehicles/me');
     $('my-vehicles').innerHTML = v.vehicles.length ? v.vehicles.map(x => `<div class="card">
-      <strong>${x.year} ${x.make} ${x.model}</strong>${x.type && x.type !== 'car' ? ` <span class="muted">(${x.type === 'motorcycle' ? 'Motorcycle' : 'Bus / Commercial'})</span>` : ''}
+      <strong>${x.year} ${x.make} ${x.model}</strong>${x.type && x.type !== 'car' ? ` <span class="muted">(${x.type === 'motorcycle' ? 'Motorcycle' : x.type === 'commercial' ? 'Bus / Commercial' : 'Small Engine'})</span>` : ''}
       <div style="margin-top:6px"><button class="ghost" onclick="delVehicle('${x.id}')">Remove</button></div>
     </div>`).join('') : '<p class="muted">No vehicles saved yet.</p>';
     const d = await api('/api/requests/mine');

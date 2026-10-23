@@ -50,6 +50,10 @@ try { US_CITIES = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'us-ci
 // ---------- Vehicle year/make/model data (NHTSA vPIC, US 1980-now) ----------
 let VEHICLES = null;
 try { VEHICLES = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'us-vehicles.json'), 'utf8')); } catch (e) { VEHICLES = null; }
+// Vehicle types: car (NHTSA), motorcycle (NHTSA), commercial (NHTSA),
+// smallengine (curated brand list, client-side)
+const VTYPES = ['car', 'motorcycle', 'commercial', 'smallengine'];
+const VTYPE_LABELS = { car: 'cars and trucks', motorcycle: 'motorcycles', commercial: 'buses and commercial vehicles', smallengine: 'small engines' };
 function vehicleYears() { return (VEHICLES && VEHICLES.years) || []; }
 function vehicleTypeOf(make) {
   if (!VEHICLES || !VEHICLES.types) return 'car';
@@ -624,7 +628,7 @@ const server = http.createServer(async (req, res) => {
       const { year, make, model, type } = await parseBody(req);
       if (!year || !make || !model) return sendJson(res, 400, { error: 'Year, make, and model are required.' });
       const vehicles = vehiclesStore.read();
-      const v = { id: crypto.randomUUID(), ownerId: user.id, year: String(year).trim().slice(0, 10), make: String(make).trim().slice(0, 60), model: String(model).trim().slice(0, 60), type: ['car', 'motorcycle', 'commercial'].includes(type) ? type : 'car', createdAt: new Date().toISOString() };
+      const v = { id: crypto.randomUUID(), ownerId: user.id, year: String(year).trim().slice(0, 10), make: String(make).trim().slice(0, 60), model: String(model).trim().slice(0, 60), type: VTYPES.includes(type) ? type : 'car', createdAt: new Date().toISOString() };
       vehicles.push(v); vehiclesStore.write(vehicles);
       return sendJson(res, 201, { vehicle: v });
     }
@@ -650,7 +654,7 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { error: 'Business name, city, state, and at least one service are required.' });
       const cleanServices = services.filter(s => SERVICES.includes(s));
       if (cleanServices.length === 0) return sendJson(res, 400, { error: 'Pick at least one valid service.' });
-      const cleanTypes = Array.isArray(vehicleTypes) ? vehicleTypes.filter(t => ['car', 'motorcycle', 'commercial'].includes(t)) : [];
+      const cleanTypes = Array.isArray(vehicleTypes) ? vehicleTypes.filter(t => VTYPES.includes(t)) : [];
       if (cleanTypes.length === 0) cleanTypes.push('car');
       const businesses = businessesStore.read();
       let biz = businesses.find(b => b.userId === user.id);
@@ -720,7 +724,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (service) list = list.filter(b => b.services.includes(service));
       const vtype = url.searchParams.get('type') || 'car';
-      if (['car', 'motorcycle', 'commercial'].includes(vtype)) {
+      if (VTYPES.includes(vtype)) {
         list = list.filter(b => (Array.isArray(b.vehicleTypes) && b.vehicleTypes.length ? b.vehicleTypes : ['car']).includes(vtype));
       }
       return sendJson(res, 200, { mechanics: list.map(b => ({ ...publicBusiness(b), promotion: latestPromotion(b.id) })) });
@@ -755,7 +759,7 @@ const server = http.createServer(async (req, res) => {
       const e164 = normalizePhone(phone);
       if (!city || !state || !SERVICES.includes(service) || !vehicle || !description || !e164)
         return sendJson(res, 400, { error: 'City, state, service, vehicle, a description, and a valid 10-digit phone number are required.' });
-      const vt = ['car', 'motorcycle', 'commercial'].includes(vehicleType) ? vehicleType : 'car';
+      const vt = VTYPES.includes(vehicleType) ? vehicleType : 'car';
       const guest = !user;
       if (guest && !guestRateOk(req)) return sendJson(res, 429, { error: 'Too many requests from this device. Please wait a bit before sending another.' });
       let targetBiz = null;
@@ -765,7 +769,7 @@ const server = http.createServer(async (req, res) => {
         const tOwner = usersStore.read().find(u => u.id === targetBiz.userId);
         if (mechanicFrozen(tOwner)) return sendJson(res, 400, { error: 'That mechanic is no longer available.' });
         const tTypes = Array.isArray(targetBiz.vehicleTypes) && targetBiz.vehicleTypes.length ? targetBiz.vehicleTypes : ['car'];
-        if (!tTypes.includes(vt)) return sendJson(res, 400, { error: 'That mechanic does not service ' + (vt === 'car' ? 'cars and trucks' : vt === 'motorcycle' ? 'motorcycles' : 'buses and commercial vehicles') + '.' });
+        if (!tTypes.includes(vt)) return sendJson(res, 400, { error: 'That mechanic does not service ' + (VTYPE_LABELS[vt] || 'cars and trucks') + '.' });
       }
       let cleanVinValue = '';
       if (vin && String(vin).trim()) {

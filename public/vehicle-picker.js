@@ -19,8 +19,15 @@
   const TYPES = [
     { id: 'car', label: 'Car / Truck' },
     { id: 'motorcycle', label: 'Motorcycle' },
-    { id: 'commercial', label: 'Bus / Commercial' }
+    { id: 'commercial', label: 'Bus / Commercial' },
+    { id: 'smallengine', label: 'Small Engine' }
   ];
+  // Curated brand list: NHTSA does not track outdoor power equipment,
+  // so small engines use a static list + free-text model instead of year/make/model.
+  const SMALL_ENGINE_BRANDS = ['Ariens', 'Briggs & Stratton', 'Champion', 'Craftsman', 'Cub Cadet',
+    'Dewalt', 'ECHO', 'EGO', 'Generac', 'Greenworks', 'Honda', 'Husqvarna', 'John Deere',
+    'Kawasaki', 'Kohler', 'MTD', 'Poulan Pro', 'Predator', 'Ryobi', 'Snapper', 'STIHL',
+    'Tecumseh', 'Toro', 'Troy-Bilt', 'Westinghouse'];
   const cache = { years: null, makes: {}, models: {} };
 
   async function getYears() {
@@ -118,7 +125,40 @@
 
     function fire() { if (typeof opts.onChange === 'function') { try { opts.onChange(api.get()); } catch (e) {} } }
 
+    function isSmallEngine() { return curType === 'smallengine'; }
+    function yearLabel() { return document.querySelector('label[for="' + yearSel.id + '"]'); }
+
+    // Small-engine mode: no year; brand dropdown + free-text equipment model.
+    function configureForType() {
+      const se = isSmallEngine();
+      yearSel.style.display = se ? 'none' : '';
+      const yl = yearLabel();
+      if (yl) yl.style.display = se ? 'none' : '';
+      if (se) {
+        fillSelect(makeSel, SMALL_ENGINE_BRANDS, 'Select brand');
+        makeSel.disabled = false;
+        modelSel.style.display = 'none';
+        modelOther.style.display = '';
+        modelOther.placeholder = 'Equipment, e.g. 21" push mower';
+        modelOther.value = '';
+        makeOther.style.display = 'none';
+        makeOther.value = '';
+      } else {
+        modelOther.placeholder = 'Enter the model';
+        api.reset();
+      }
+      fire();
+    }
+
     function syncOther() {
+      if (isSmallEngine()) {
+        const mOther = makeSel.value === OTHER;
+        makeOther.style.display = mOther ? '' : 'none';
+        if (!mOther) makeOther.value = '';
+        modelSel.style.display = 'none';
+        modelOther.style.display = '';
+        return;
+      }
       const mOther = makeSel.value === OTHER;
       const dOther = modelSel.value === OTHER;
       makeOther.style.display = mOther ? '' : 'none';
@@ -168,9 +208,22 @@
         if (!TYPES.some(x => x.id === t) || t === curType) return;
         curType = t;
         paintType();
+        if (isSmallEngine()) { configureForType(); return; }
+        // leaving small-engine mode: restore the normal cascade
+        yearSel.style.display = '';
+        const yl = yearLabel();
+        if (yl) yl.style.display = '';
+        modelSel.style.display = '';
         reloadMakes();
       },
       get() {
+        if (isSmallEngine()) {
+          const b = makeSel.value;
+          if (!b || b === OTHER) return null;
+          const mo = modelOther.value.trim();
+          if (!mo) return null;
+          return { year: '', make: b, model: mo, type: curType };
+        }
         const y = yearSel.value;
         if (!y) return null;
         let m = makeSel.value, mo;
@@ -188,11 +241,25 @@
       },
       vehicleString() {
         const v = this.get();
-        return v ? (v.year + ' ' + v.make + ' ' + v.model) : '';
+        if (!v) return '';
+        return v.type === 'smallengine' ? (v.make + ' ' + v.model) : (v.year + ' ' + v.make + ' ' + v.model);
       },
       async set(y, m, mo) {
-        this.reset();
         y = String(y || ''); m = String(m || ''); mo = String(mo || '');
+        if (isSmallEngine()) {
+          if (!SMALL_ENGINE_BRANDS.includes(m)) {
+            // unknown brand: leave type tab, stash as free text via Other
+            makeSel.value = OTHER; syncOther();
+            makeOther.value = m; modelOther.value = mo;
+            syncOther(); fire();
+            return;
+          }
+          makeSel.value = m;
+          modelOther.value = mo;
+          syncOther(); fire();
+          return;
+        }
+        this.reset();
         const years = await getYears();
         if (y && years.map(String).includes(y)) {
           yearSel.value = y;
@@ -227,6 +294,15 @@
       },
       async setFromString(str) {
         str = String(str || '').trim();
+        if (isSmallEngine()) {
+          // format is "Brand <equipment>" with no year
+          let hit = '';
+          const sl = str.toLowerCase();
+          SMALL_ENGINE_BRANDS.forEach(b => { if (sl.indexOf(b.toLowerCase()) === 0 && b.length > hit.length) hit = b; });
+          if (hit) await this.set('', hit, str.slice(hit.length).trim());
+          else await this.set('', str, '');
+          return;
+        }
         const ym = str.match(/^(\d{4})\s+(.+)$/);
         if (!ym) {
           // no leading year: stash the whole thing as free text
@@ -256,6 +332,7 @@
         }
       },
       reset() {
+        if (isSmallEngine()) { configureForType(); return; }
         fillSelect(makeSel, [], 'Select make');
         fillSelect(modelSel, [], 'Select model');
         makeSel.disabled = true; modelSel.disabled = true;
