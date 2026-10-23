@@ -222,7 +222,7 @@ function requestMatchesBusiness(reqRow, biz) {
 function publicBusiness(b) {
   const owner = usersStore.read().find(u => u.id === b.userId);
   const rating = businessRating(b.id);
-  return { id: b.id, name: b.name, city: b.city, state: b.state, serviceCities: b.serviceCities || [], services: b.services, about: b.about, phone: b.phone || '', logoUrl: b.logoUrl || '', coverUrl: b.coverUrl || '', gallery: b.gallery || [], socials: b.socials || {}, warranty: b.warranty || '', acceptUrgent: !!b.acceptUrgent, certifications: b.certifications || [], avgRating: rating.avg, reviewCount: rating.count, fastResponder: isFastResponder(b.id), mechanicName: owner ? owner.name : '' };
+  return { id: b.id, name: b.name, city: b.city, state: b.state, serviceCities: b.serviceCities || [], services: b.services, about: b.about, phone: b.phone || '', logoUrl: b.logoUrl || '', coverUrl: b.coverUrl || '', coverPosition: b.coverPosition || '50% 50%', gallery: b.gallery || [], socials: b.socials || {}, warranty: b.warranty || '', acceptUrgent: !!b.acceptUrgent, certifications: b.certifications || [], avgRating: rating.avg, reviewCount: rating.count, fastResponder: isFastResponder(b.id), mechanicName: owner ? owner.name : '' };
 }
 function businessRating(businessId) {
   const revs = reviewsStore.read().filter(r => r.businessId === businessId);
@@ -604,6 +604,20 @@ const server = http.createServer(async (req, res) => {
       if (biz) Object.assign(biz, fields); else { biz = { id: crypto.randomUUID(), userId: user.id, createdAt: new Date().toISOString(), ...fields }; businesses.push(biz); }
       businessesStore.write(businesses);
       return sendJson(res, 200, { business: publicBusiness(biz) });
+    }
+    if (p === '/api/business/cover-position' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const businesses = businessesStore.read();
+      const biz = businesses.find(b => b.userId === user.id);
+      if (!biz) return sendJson(res, 404, { error: 'No business profile.' });
+      const { coverPosition } = await parseBody(req);
+      const m = String(coverPosition || '').trim().match(/^(\d{1,3})% (\d{1,3})%$/);
+      if (!m) return sendJson(res, 400, { error: 'Invalid position.' });
+      biz.coverPosition = Math.min(100, Math.max(0, parseInt(m[1], 10))) + '% ' + Math.min(100, Math.max(0, parseInt(m[2], 10))) + '%';
+      businessesStore.write(businesses);
+      return sendJson(res, 200, { coverPosition: biz.coverPosition });
     }
     if (p === '/api/business/me' && req.method === 'GET') {
       const user = getSessionUser(req);

@@ -82,7 +82,7 @@ async function reviewHtml(businessId) {
     const gallery = galleryUrls.map((u, i) => `<img src="${esc(u)}" alt="" loading="lazy" onclick="lbOpen(${i})">`).join('');
     page.innerHTML = `
       <a class="back" href="/mechanics">← Back to directory</a>
-      ${b.coverUrl ? `<img class="cover" src="${esc(b.coverUrl)}" alt="">` : `<div class="cover-ph"></div>`}
+      ${b.coverUrl ? `<img class="cover" src="${esc(b.coverUrl)}" alt="" style="object-position:${esc(b.coverPosition || '50% 50%')}">` : `<div class="cover-ph"></div>`}
       <div class="body">
         <div class="head">
           ${b.logoUrl ? `<img class="logo" src="${esc(b.logoUrl)}" alt="">` : ''}
