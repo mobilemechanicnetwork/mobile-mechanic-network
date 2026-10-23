@@ -642,8 +642,8 @@ const server = http.createServer(async (req, res) => {
         if (v) cleanSocials[k] = v;
       }
       const fields = { name: String(name).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), serviceCities: cleanCities, services: cleanServices, about: String(about || ''), phone: String(phone || '').trim(), published: !!published, socials: cleanSocials, warranty: String(warranty || '').trim().slice(0, 2000), acceptUrgent: acceptUrgent === true, certifications: cleanCertifications(certifications) };
-      const cpm = String(coverPosition || '').trim().match(/^(\d{1,3})% (\d{1,3})%$/);
-      if (cpm) fields.coverPosition = Math.min(100, Math.max(0, parseInt(cpm[1], 10))) + '% ' + Math.min(100, Math.max(0, parseInt(cpm[2], 10))) + '%';
+      const cpm = String(coverPosition || '').trim().match(/^(\d{1,3}(?:\.\d+)?)% (\d{1,3}(?:\.\d+)?)%$/);
+      if (cpm) fields.coverPosition = Math.min(100, Math.max(0, Math.round(parseFloat(cpm[1])))) + '% ' + Math.min(100, Math.max(0, Math.round(parseFloat(cpm[2])))) + '%';
       if (typeof logoUrl === 'string' && logoUrl.startsWith('/uploads/')) fields.logoUrl = logoUrl;
       if (typeof coverUrl === 'string' && coverUrl.startsWith('/uploads/')) fields.coverUrl = coverUrl;
       if (biz) Object.assign(biz, fields); else { biz = { id: crypto.randomUUID(), userId: user.id, createdAt: new Date().toISOString(), ...fields }; businesses.push(biz); }
@@ -658,9 +658,9 @@ const server = http.createServer(async (req, res) => {
       const biz = businesses.find(b => b.userId === user.id);
       if (!biz) return sendJson(res, 404, { error: 'No business profile.' });
       const { coverPosition } = await parseBody(req);
-      const m = String(coverPosition || '').trim().match(/^(\d{1,3})% (\d{1,3})%$/);
+      const m = String(coverPosition || '').trim().match(/^(\d{1,3}(?:\.\d+)?)% (\d{1,3}(?:\.\d+)?)%$/);
       if (!m) return sendJson(res, 400, { error: 'Invalid position.' });
-      biz.coverPosition = Math.min(100, Math.max(0, parseInt(m[1], 10))) + '% ' + Math.min(100, Math.max(0, parseInt(m[2], 10))) + '%';
+      biz.coverPosition = Math.min(100, Math.max(0, Math.round(parseFloat(m[1])))) + '% ' + Math.min(100, Math.max(0, Math.round(parseFloat(m[2])))) + '%';
       businessesStore.write(businesses);
       return sendJson(res, 200, { coverPosition: biz.coverPosition });
     }

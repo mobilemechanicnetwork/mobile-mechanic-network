@@ -517,8 +517,8 @@ $('b-cover').onchange = () => { const f = $('b-cover').files[0]; if (f) { $('b-c
   if (!cov) return;
   let dragging = false, pid = null, sx = 0, sy = 0, spx = 50, spy = 50;
   const curPos = () => {
-    const m = (cov.style.objectPosition || '50% 50%').match(/(\d+)% (\d+)%/);
-    return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : [50, 50];
+    const m = (cov.style.objectPosition || '50% 50%').match(/([\d.]+)% ([\d.]+)%/);
+    return m ? [parseFloat(m[1]), parseFloat(m[2])] : [50, 50];
   };
   cov.addEventListener('pointerdown', (e) => {
     dragging = true; pid = e.pointerId; sx = e.clientX; sy = e.clientY;
@@ -552,7 +552,10 @@ $('biz-form').onsubmit = async (e) => {
     const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: window.cityChips.get(), services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked, socials, warranty: $('b-warranty').value, acceptUrgent: $('b-urgent').checked, certifications: $('b-certs').value.split('\n') };
     if ($('b-logo').files.length) body.logoUrl = await uploadImage('logo', $('b-logo').files[0]);
     if ($('b-cover').files.length) body.coverUrl = await uploadImage('cover', $('b-cover').files[0]);
-    if ($('b-cover-wrap').style.display !== 'none') body.coverPosition = $('b-cover-preview').style.objectPosition || '50% 50%';
+    if ($('b-cover-wrap').style.display !== 'none') {
+      const pm = ($('b-cover-preview').style.objectPosition || '').match(/([\d.]+)% ([\d.]+)%/);
+      body.coverPosition = pm ? Math.round(parseFloat(pm[1])) + '% ' + Math.round(parseFloat(pm[2])) + '%' : '50% 50%';
+    }
     await post('/api/business', body);
     $('b-ok').textContent = 'Saved.';
     $('b-logo').value = ''; $('b-cover').value = '';
