@@ -261,13 +261,14 @@ async function loadInbox() {
   const inbox = await api('/api/requests/inbox');
   const box = $('inbox');
   window._booked = inbox.booked || [];
+  window._inboxRequests = inbox.requests || [];
   if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Publish your business page to start receiving requests in your area.</p>'; return; }
   if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
   inbox.requests.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
   box.innerHTML = inbox.requests.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
     ${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
     <p>${esc(r.description)}</p>
-    ${r.myQuote ? `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p>` : `
+    ${r.myQuote ? `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p>${r.myQuote.status === 'pending' ? `<p><button type="button" class="ghost" onclick="textQuote('${r.id}')">Text quote from my phone</button></p>` : ''}` : `
     <div id="qb-${r.id}">
       <p style="margin:8px 0 4px"><strong>Build your itemized quote</strong> <span class="muted">— sent under your business name</span></p>
       <div id="qi-${r.id}"></div>
@@ -286,6 +287,17 @@ async function loadInbox() {
     <p>${b.hasTicket ? '<span class="ok">Ticket created</span>' : `<button type="button" class="primary" onclick="bookedToTicket('${b.id}')">Create ticket from quote</button>`}</p>
   </div>`).join('') : '<p class="muted">No booked jobs yet. When a customer accepts your quote, it shows up here.</p>';
 }
+window.textQuote = (rid) => {
+  const r = (window._inboxRequests || []).find(x => x.id === rid);
+  if (!r || !r.myQuote) return;
+  const total = r.myQuote.total != null ? r.myQuote.total : r.myQuote.price;
+  const bizName = window._bizName || 'your mobile mechanic';
+  const ownerName = (r.ownerName || '').trim();
+  const msg = `Hi${ownerName ? ' ' + ownerName : ''}, this is ${bizName} with Mobile Mechanic Network. Your quote for ${r.service} (${r.vehicle}) is $${Number(total).toFixed(2)}. View and accept it here: https://mobilemechanicsinmyarea.com/dashboard`;
+  const phone = String(r.phone || '').replace(/[^+\d]/g, '');
+  if (!phone) { alert('No phone number on this request.'); return; }
+  window.location.href = `sms:${phone}?body=${encodeURIComponent(msg)}`;
+};
 window.bookedToTicket = async (bid) => {
   try {
     const d = await post('/api/tickets/from-request/' + bid, {});
@@ -325,6 +337,7 @@ async function loadProfile() {
   const d = await api('/api/business/me');
   if (d.business) {
     const b = d.business;
+    window._bizName = b.name;
     $('b-name').value = b.name; $('b-city').value = b.city; $('b-state').value = b.state;
     $('b-cities').value = (b.serviceCities || []).join(', '); $('b-about').value = b.about || ''; $('b-warranty').value = b.warranty || '';
     $('b-certs').value = (b.certifications || []).join('\n');
