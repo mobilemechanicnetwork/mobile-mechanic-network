@@ -5,28 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Founder Admin — Mobile Mechanic Network</title>
 <style>
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0f172a;color:#e2e8f0}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f2f5fa;color:#0f172a}
   .wrap{max-width:1100px;margin:0 auto;padding:24px 16px 64px}
-  h1{font-size:24px;margin:0 0 4px}
-  .sub{color:#94a3b8;font-size:14px;margin-bottom:20px}
+  h1{font-size:24px;margin:0 0 4px;color:#0f172a}
+  .sub{color:#64748b;font-size:14px;margin-bottom:20px}
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:28px}
-  .card{background:#1e293b;border-radius:10px;padding:14px}
-  .card b{font-size:26px;display:block}
-  .card span{color:#94a3b8;font-size:13px}
-  table{width:100%;border-collapse:collapse;background:#1e293b;border-radius:10px;overflow:hidden;margin-bottom:28px;font-size:14px}
-  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #334155}
-  th{color:#94a3b8;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px;box-shadow:0 2px 8px rgba(15,23,42,.05)}
+  .card b{font-size:26px;display:block;color:#0f172a}
+  .card span{color:#64748b;font-size:13px}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:28px;font-size:14px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #e2e8f0;color:#0f172a}
+  th{color:#64748b;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
   tr:last-child td{border-bottom:0}
-  h2{font-size:18px;margin:28px 0 10px}
+  h2{font-size:18px;margin:28px 0 10px;color:#0f172a}
   .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px}
-  .on{background:#14532d;color:#bbf7d0}
-  .off{background:#3f3f46;color:#d4d4d8}
+  .on{background:#dcfce7;color:#15803d}
+  .off{background:#f1f5f9;color:#64748b}
   button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px}
-  button.ghost{background:#334155}
-  input{background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:10px 12px;font-size:14px;width:280px;max-width:100%}
-  .login{margin:60px auto;max-width:380px;text-align:center;background:#1e293b;border-radius:12px;padding:32px 24px}
-  .login p{color:#94a3b8;font-size:14px}
-  .err{color:#fca5a5;font-size:13px;min-height:18px}
+  button.ghost{background:#e2e8f0;color:#334155}
+  input{background:#fff;border:1px solid #cbd5e1;color:#0f172a;border-radius:8px;padding:10px 12px;font-size:14px;width:280px;max-width:100%}
+  .login{margin:60px auto;max-width:380px;text-align:center;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:32px 24px;box-shadow:0 2px 8px rgba(15,23,42,.05)}
+  .login p{color:#64748b;font-size:14px}
+  .err{color:#b91c1c;font-size:13px;min-height:18px}
   .row{display:flex;gap:10px;justify-content:center;margin-top:12px}
   .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
   .empty{color:#64748b;font-size:14px;padding:16px}
@@ -83,7 +83,7 @@ async function load() {
   ].map(([l, v]) => `<div class="card"><b>${v}</b><span>${l}</span></div>`).join('');
 
   $('businesses').innerHTML = data.businesses.length ? `<table><tr><th>Business</th><th>Mechanic</th><th>Area</th><th>Services</th><th>Status</th><th></th></tr>` +
-    data.businesses.map(b => `<tr><td>${esc(b.name)}<br><span style="color:#94a3b8">${esc(b.city)}, ${esc(b.state)}</span></td><td>${esc(b.mechanicName)}</td><td>${esc((b.serviceCities||[]).join(', '))}</td><td>${esc((b.services||[]).join(', '))}</td><td><span class="pill ${b.published?'on':'off'}">${b.published?'Published':'Hidden'}</span></td><td><button class="ghost" data-biz="${b.id}" data-pub="${b.published?0:1}">${b.published?'Hide':'Publish'}</button></td></tr>`).join('') + `</table>`
+    data.businesses.map(b => `<tr><td>${esc(b.name)}<br><span style="color:#64748b">${esc(b.city)}, ${esc(b.state)}</span></td><td>${esc(b.mechanicName)}</td><td>${esc((b.serviceCities||[]).join(', '))}</td><td>${esc((b.services||[]).join(', '))}</td><td><span class="pill ${b.published?'on':'off'}">${b.published?'Published':'Hidden'}</span></td><td><button class="ghost" data-biz="${b.id}" data-pub="${b.published?0:1}">${b.published?'Hide':'Publish'}</button></td></tr>`).join('') + `</table>`
     : `<div class="empty">No mechanic businesses yet.</div>`;
 
   $('accounts').innerHTML = data.users.length ? `<table><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th></th></tr>` +
@@ -91,7 +91,7 @@ async function load() {
     : `<div class="empty">No accounts yet.</div>`;
 
   $('requests').innerHTML = data.requests.length ? `<table><tr><th>Owner</th><th>Job</th><th>Area</th><th>Status</th><th>Created</th></tr>` +
-    data.requests.map(r => `<tr><td>${esc(r.ownerName)}<br><span style="color:#94a3b8">${esc(r.phone)}</span></td><td>${esc(r.service)} — ${esc(r.vehicle)}</td><td>${esc(r.city)}, ${esc(r.state)}</td><td>${esc(r.status)}</td><td>${d(r.createdAt)}</td></tr>`).join('') + `</table>`
+    data.requests.map(r => `<tr><td>${esc(r.ownerName)}<br><span style="color:#64748b">${esc(r.phone)}</span></td><td>${esc(r.service)} — ${esc(r.vehicle)}</td><td>${esc(r.city)}, ${esc(r.state)}</td><td>${esc(r.status)}</td><td>${d(r.createdAt)}</td></tr>`).join('') + `</table>`
     : `<div class="empty">No quote requests yet.</div>`;
 
   $('quotes').innerHTML = data.quotes.length ? `<table><tr><th>Price</th><th>Status</th><th>Created</th></tr>` +
@@ -99,7 +99,7 @@ async function load() {
     : `<div class="empty">No quotes yet.</div>`;
 
   $('help').innerHTML = (data.help && data.help.length) ? `<table><tr><th>From</th><th>Subject</th><th>Message</th><th>Status</th><th>Created</th><th></th></tr>` +
-    data.help.map(h => `<tr><td>${esc(h.name)}<br><span style="color:#94a3b8">${esc(h.email)} · ${esc(h.role)}</span></td><td>${esc(h.subject || '—')}</td><td>${esc(h.message)}</td><td>${esc(h.status)}</td><td>${d(h.createdAt)}</td><td>${h.status === 'open' ? `<button onclick="resolveHelp('${h.id}',true)">Resolve</button>` : `<button class="ghost" onclick="resolveHelp('${h.id}',false)">Reopen</button>`}</td></tr>`).join('') + `</table>`
+    data.help.map(h => `<tr><td>${esc(h.name)}<br><span style="color:#64748b">${esc(h.email)} · ${esc(h.role)}</span></td><td>${esc(h.subject || '—')}</td><td>${esc(h.message)}</td><td>${esc(h.status)}</td><td>${d(h.createdAt)}</td><td>${h.status === 'open' ? `<button onclick="resolveHelp('${h.id}',true)">Resolve</button>` : `<button class="ghost" onclick="resolveHelp('${h.id}',false)">Reopen</button>`}</td></tr>`).join('') + `</table>`
     : `<div class="empty">No help requests yet.</div>`;
 
   const a = data.analytics || {};

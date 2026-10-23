@@ -5,20 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Request quotes — Mobile Mechanic Network</title>
 <style>
-  body{font-family:system-ui,sans-serif;margin:0;background:#0b1220;color:#e8eef7}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f2f5fa;color:#0f172a}
   main{max-width:520px;margin:5vh auto;padding:24px}
-  h1{font-size:1.5rem} a{color:#93c5fd}
-  label{display:block;margin:14px 0 6px;font-size:.9rem;color:#c7d5e8}
-  input,select,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f1a2e;color:#fff;box-sizing:border-box}
-  button{width:100%;margin-top:20px;background:#2563eb;color:#fff;border:0;border-radius:8px;padding:12px;cursor:pointer;font-size:1rem}
-  .err{color:#fca5a5;min-height:1.2em;margin-top:12px;font-size:.9rem}
-  .ok{color:#86efac;margin-top:12px}
-  .muted{color:#9fb3c8}
-  .urgent-banner{background:#7f1d1d;border:1px solid #b91c1c;color:#fff;border-radius:10px;padding:12px 14px;margin:0 0 6px;font-size:.95rem}
+  h1{font-size:1.5rem;color:#0f172a} a{color:#1d4ed8}
+  label{display:block;margin:14px 0 6px;font-size:.9rem;color:#475569;font-weight:600}
+  input,select,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;box-sizing:border-box;font-size:1rem}
+  textarea{font-family:inherit}
+  button{width:100%;margin-top:20px;background:#2563eb;color:#fff;border:0;border-radius:8px;padding:12px;cursor:pointer;font-size:1rem;box-shadow:0 2px 8px rgba(37,99,235,.25)}
+  .err{color:#b91c1c;min-height:1.2em;margin-top:12px;font-size:.9rem}
+  .ok{color:#15803d;margin-top:12px}
+  .muted{color:#64748b}
+  .urgent-banner{background:#fee2e2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin:0 0 6px;font-size:.95rem}
   .chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px}
-  .chip{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid #334155;border-radius:999px;cursor:pointer;font-size:.85rem;color:#c7d5e8;background:#0f1a2e;margin:0}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:999px;cursor:pointer;font-size:.85rem;color:#475569;background:#fff;margin:0;font-weight:600}
   .chip input{accent-color:#2563eb;margin:0;width:auto;flex:none}
-  .chip:has(input:checked){border-color:#2563eb;background:#1e3a8a;color:#fff}
+  .chip:has(input:checked){border-color:#2563eb;background:#eff6ff;color:#1d4ed8}
 </style>
 </head>
 <body>
