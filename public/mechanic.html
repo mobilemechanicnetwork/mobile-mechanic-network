@@ -162,6 +162,7 @@
         <input id="b-soc-youtube" placeholder="YouTube URL">
         <input id="b-soc-x" placeholder="X URL">
         <input id="b-soc-website" placeholder="Website URL">
+        <input id="b-soc-google" placeholder="Google Business Profile URL">
       </div>
       <label for="b-logo">Logo</label><input id="b-logo" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
       <img id="b-logo-preview" class="thumb" alt="Logo preview" style="display:none">
@@ -397,7 +398,7 @@ async function loadProfile() {
     $('b-earned').innerHTML = earnedBadgesHtml(b) || '<span class="muted">Earn badges: respond to quote requests quickly and collect 5-star reviews.</span>';
     if ($('t-warranty')) $('t-warranty').placeholder = b.warranty ? 'Leave blank to use profile default: ' + b.warranty.slice(0, 80) : 'e.g. 12 months / 12,000 miles on parts and labor';
     $('b-phone').value = b.phone || ''; $('b-published').checked = !!b.published;
-    for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website']) $('b-soc-' + k).value = (b.socials && b.socials[k]) || '';
+    for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website', 'google']) $('b-soc-' + k).value = (b.socials && b.socials[k]) || '';
     document.querySelectorAll('#b-services input').forEach(c => { c.checked = (b.services || []).includes(c.value); });
     $('b-urgent').checked = !!b.acceptUrgent;
     if (b.logoUrl) { $('b-logo-preview').src = b.logoUrl; $('b-logo-preview').style.display = 'block'; }
@@ -406,7 +407,7 @@ async function loadProfile() {
   }
 }
 /* ---------- Customer-view preview ---------- */
-const PV_SOC = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', website: 'Website' };
+const PV_SOC = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', website: 'Website', google: 'Google reviews' };
 function pvBadgeHtml(b) {
   let h = '';
   if (b.fastResponder) h += '<span class="badge badge-fr">Fast Responder</span>';
@@ -514,7 +515,7 @@ $('biz-form').onsubmit = async (e) => {
   const services = [...document.querySelectorAll('#b-services input:checked')].map(c => c.value);
   try {
     const socials = {};
-    for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website']) socials[k] = $('b-soc-' + k).value;
+    for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website', 'google']) socials[k] = $('b-soc-' + k).value;
     const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: $('b-cities').value, services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked, socials, warranty: $('b-warranty').value, acceptUrgent: $('b-urgent').checked, certifications: $('b-certs').value.split('\n') };
     if ($('b-logo').files.length) body.logoUrl = await uploadImage('logo', $('b-logo').files[0]);
     if ($('b-cover').files.length) body.coverUrl = await uploadImage('cover', $('b-cover').files[0]);

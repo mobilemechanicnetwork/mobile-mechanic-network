@@ -594,7 +594,7 @@ const server = http.createServer(async (req, res) => {
       const rawCities = Array.isArray(serviceCities) ? serviceCities.join(',') : String(serviceCities || '');
       const cleanCities = [...new Set(rawCities.split(/[,\n]/).map(s => s.trim()).filter(Boolean))];
       const cleanSocials = {};
-      if (socials && typeof socials === 'object') for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website']) {
+      if (socials && typeof socials === 'object') for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website', 'google']) {
         const v = String(socials[k] || '').trim().slice(0, 300);
         if (v) cleanSocials[k] = v;
       }

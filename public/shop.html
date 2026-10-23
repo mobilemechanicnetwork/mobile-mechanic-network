@@ -50,7 +50,7 @@
 <div id="lightbox"><button class="lb-btn" id="lb-x" aria-label="Close">×</button><button class="lb-btn" id="lb-prev" aria-label="Previous photo">‹</button><img id="lightbox-img" alt=""><button class="lb-btn" id="lb-next" aria-label="Next photo">›</button><div id="lb-count"></div></div>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', website: 'Website' };
+const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', website: 'Website', google: 'Google reviews' };
 function badgeHtml(b) {
   let h = '';
   if (b.fastResponder) h += '<span class="badge badge-fr">Fast Responder</span>';

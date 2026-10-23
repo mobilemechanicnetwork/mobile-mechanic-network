@@ -96,7 +96,7 @@
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', website: 'Website' };
+const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', website: 'Website', google: 'Google reviews' };
 const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABELS).filter(k => soc[k]).map(k => `<a href="${esc(soc[k])}" target="_blank" rel="noopener">${SOC_LABELS[k]}</a>`); return links.length ? `<div style="margin-top:6px">${links.join(' · ')}</div>` : ''; };
 (async () => {
   const d = await (await fetch('/api/services')).json();
