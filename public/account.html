@@ -163,7 +163,7 @@
         show('2fa');
         return;
       }
-      location.href = d.user.role === 'mechanic' ? '/mechanic' : '/dashboard';
+      location.href = d.user.isAdmin ? '/admin' : (d.user.role === 'mechanic' ? '/mechanic' : '/dashboard');
     } catch (ex) { err.textContent = ex.message; }
   };
   form2fa.onsubmit = async (e) => {
@@ -171,7 +171,7 @@
     const err = document.getElementById('err-2fa'); err.textContent = '';
     try {
       const d = await post('/api/login/verify-2fa', { challengeToken: tfaChallenge, code: document.getElementById('tfa-code').value.trim() });
-      location.href = d.user.role === 'mechanic' ? '/mechanic' : '/dashboard';
+      location.href = d.user.isAdmin ? '/admin' : (d.user.role === 'mechanic' ? '/mechanic' : '/dashboard');
     } catch (ex) { err.textContent = ex.message; }
   };
   let fpEmail = '';
@@ -210,7 +210,7 @@
         phone: document.getElementById('rg-phone').value,
         role: document.querySelector('input[name="role"]:checked').value,
       });
-      location.href = d.user.role === 'mechanic' ? '/mechanic' : '/dashboard';
+      location.href = d.user.isAdmin ? '/admin' : (d.user.role === 'mechanic' ? '/mechanic' : '/dashboard');
     } catch (ex) { err.textContent = ex.message; }
   };
 </script>
