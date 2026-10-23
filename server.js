@@ -618,7 +618,7 @@ const server = http.createServer(async (req, res) => {
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Only mobile mechanic accounts have a business page.' });
       if (mechanicFrozen(user)) return frozenError(res);
-      const { name, city, state, serviceCities, services, about, published, phone, logoUrl, coverUrl, socials, warranty, acceptUrgent, certifications } = await parseBody(req);
+      const { name, city, state, serviceCities, services, about, published, phone, logoUrl, coverUrl, coverPosition, socials, warranty, acceptUrgent, certifications } = await parseBody(req);
       if (!name || !city || !state || !Array.isArray(services) || services.length === 0)
         return sendJson(res, 400, { error: 'Business name, city, state, and at least one service are required.' });
       const cleanServices = services.filter(s => SERVICES.includes(s));
@@ -642,6 +642,8 @@ const server = http.createServer(async (req, res) => {
         if (v) cleanSocials[k] = v;
       }
       const fields = { name: String(name).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), serviceCities: cleanCities, services: cleanServices, about: String(about || ''), phone: String(phone || '').trim(), published: !!published, socials: cleanSocials, warranty: String(warranty || '').trim().slice(0, 2000), acceptUrgent: acceptUrgent === true, certifications: cleanCertifications(certifications) };
+      const cpm = String(coverPosition || '').trim().match(/^(\d{1,3})% (\d{1,3})%$/);
+      if (cpm) fields.coverPosition = Math.min(100, Math.max(0, parseInt(cpm[1], 10))) + '% ' + Math.min(100, Math.max(0, parseInt(cpm[2], 10))) + '%';
       if (typeof logoUrl === 'string' && logoUrl.startsWith('/uploads/')) fields.logoUrl = logoUrl;
       if (typeof coverUrl === 'string' && coverUrl.startsWith('/uploads/')) fields.coverUrl = coverUrl;
       if (biz) Object.assign(biz, fields); else { biz = { id: crypto.randomUUID(), userId: user.id, createdAt: new Date().toISOString(), ...fields }; businesses.push(biz); }

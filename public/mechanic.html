@@ -552,6 +552,7 @@ $('biz-form').onsubmit = async (e) => {
     const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: window.cityChips.get(), services, about: $('b-about').value, phone: $('b-phone').value, published: $('b-published').checked, socials, warranty: $('b-warranty').value, acceptUrgent: $('b-urgent').checked, certifications: $('b-certs').value.split('\n') };
     if ($('b-logo').files.length) body.logoUrl = await uploadImage('logo', $('b-logo').files[0]);
     if ($('b-cover').files.length) body.coverUrl = await uploadImage('cover', $('b-cover').files[0]);
+    if ($('b-cover-wrap').style.display !== 'none') body.coverPosition = $('b-cover-preview').style.objectPosition || '50% 50%';
     await post('/api/business', body);
     $('b-ok').textContent = 'Saved.';
     $('b-logo').value = ''; $('b-cover').value = '';
