@@ -167,7 +167,7 @@
       <label for="b-logo">Logo</label><input id="b-logo" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
       <img id="b-logo-preview" class="thumb" alt="Logo preview" style="display:none">
       <label for="b-cover">Cover photo</label><input id="b-cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
-      <img id="b-cover-preview" class="coverprev" alt="Cover preview" style="display:none">
+      <div id="b-cover-wrap" style="position:relative;display:none;margin:6px 0"><img id="b-cover-preview" alt="Cover preview" style="width:100%;height:180px;object-fit:cover;border-radius:8px;display:block;cursor:grab;touch-action:none"><span style="position:absolute;bottom:8px;right:12px;background:rgba(0,0,0,.55);color:#fff;font-size:.75rem;padding:4px 10px;border-radius:999px;pointer-events:none">Drag to reposition</span></div>
       <label><input type="checkbox" id="b-published" style="width:auto"> Published (visible in search, can receive requests)</label>
       <button class="primary" type="submit">Save business page</button>
       <div class="err" id="b-err"></div><div class="ok" id="b-ok"></div>
@@ -403,7 +403,7 @@ async function loadProfile() {
     document.querySelectorAll('#b-services input').forEach(c => { c.checked = (b.services || []).includes(c.value); });
     $('b-urgent').checked = !!b.acceptUrgent;
     if (b.logoUrl) { $('b-logo-preview').src = b.logoUrl; $('b-logo-preview').style.display = 'block'; }
-    if (b.coverUrl) { $('b-cover-preview').src = b.coverUrl; $('b-cover-preview').style.display = 'block'; }
+    if (b.coverUrl) { $('b-cover-wrap').style.display = 'block'; $('b-cover-preview').src = b.coverUrl; $('b-cover-preview').style.objectPosition = b.coverPosition || '50% 50%'; }
     renderGallery(b.gallery || []);
   }
 }
@@ -437,7 +437,7 @@ async function renderPvView() {
     pvLbImgs = galleryUrls;
     const gallery = galleryUrls.map((u, i) => `<img src="${esc(u)}" alt="" loading="lazy" onclick="pvLbOpen(${i})">`).join('');
     box.innerHTML = `<div class="pvc">
-      ${b.coverUrl ? `<div style="position:relative"><img id="pv-cover-img" class="cover" src="${esc(b.coverUrl)}" alt="" style="object-position:${esc(b.coverPosition || '50% 50%')}"><span style="position:absolute;bottom:8px;right:12px;background:rgba(0,0,0,.55);color:#fff;font-size:.75rem;padding:4px 10px;border-radius:999px;pointer-events:none">Drag to reposition</span></div>` : `<div class="cover-ph"></div>`}
+      ${b.coverUrl ? `<img class="cover" src="${esc(b.coverUrl)}" alt="" style="object-position:${esc(b.coverPosition || '50% 50%')}">` : `<div class="cover-ph"></div>`}
       <div class="body">
         <div class="head">
           ${b.logoUrl ? `<img class="logo" src="${esc(b.logoUrl)}" alt="">` : ''}
@@ -461,38 +461,6 @@ async function renderPvView() {
     $('pv-reviews').innerHTML = await pvReviewHtml(b.id);
     const ea = $('pv-edit-about');
     if (ea) ea.onclick = (e) => { e.preventDefault(); pvShowEdit(); };
-    const cov = $('pv-cover-img');
-    if (cov) {
-      cov.style.touchAction = 'none';
-      cov.style.cursor = 'grab';
-      let dragging = false, pid = null, sx = 0, sy = 0, spx = 50, spy = 50;
-      const curPos = () => {
-        const m = (cov.style.objectPosition || '50% 50%').match(/(\d+)% (\d+)%/);
-        return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : [50, 50];
-      };
-      cov.addEventListener('pointerdown', (e) => {
-        dragging = true; pid = e.pointerId; sx = e.clientX; sy = e.clientY;
-        [spx, spy] = curPos();
-        try { cov.setPointerCapture(pid); } catch (err) {}
-        cov.style.cursor = 'grabbing';
-      });
-      cov.addEventListener('pointermove', (e) => {
-        if (!dragging || e.pointerId !== pid) return;
-        const r = cov.getBoundingClientRect();
-        const nx = Math.min(100, Math.max(0, spx - ((e.clientX - sx) / r.width) * 100));
-        const ny = Math.min(100, Math.max(0, spy - ((e.clientY - sy) / r.height) * 100));
-        cov.style.objectPosition = `${nx}% ${ny}%`;
-      });
-      const endDrag = async (e) => {
-        if (!dragging || (e.pointerId !== undefined && e.pointerId !== pid)) return;
-        dragging = false; pid = null;
-        cov.style.cursor = 'grab';
-        const [fx, fy] = curPos();
-        try { await post('/api/business/cover-position', { coverPosition: `${Math.round(fx)}% ${Math.round(fy)}%` }); } catch (err) {}
-      };
-      cov.addEventListener('pointerup', endDrag);
-      cov.addEventListener('pointercancel', endDrag);
-    }
   } catch (e) { box.innerHTML = '<p class="muted">Could not load preview.</p>'; }
 }
 function pvShowEdit() { $('pv-view').hidden = true; $('pv-edit').hidden = false; window.scrollTo(0, 0); }
@@ -542,7 +510,39 @@ async function uploadImage(kind, file) {
   return d.url;
 }
 $('b-logo').onchange = () => { const f = $('b-logo').files[0]; if (f) { $('b-logo-preview').src = URL.createObjectURL(f); $('b-logo-preview').style.display = 'block'; } };
-$('b-cover').onchange = () => { const f = $('b-cover').files[0]; if (f) { $('b-cover-preview').src = URL.createObjectURL(f); $('b-cover-preview').style.display = 'block'; } };
+$('b-cover').onchange = () => { const f = $('b-cover').files[0]; if (f) { $('b-cover-wrap').style.display = 'block'; const pv = $('b-cover-preview'); pv.src = URL.createObjectURL(f); pv.style.objectPosition = '50% 50%'; } };
+/* Drag to reposition the cover while editing (saves immediately) */
+(() => {
+  const cov = $('b-cover-preview');
+  if (!cov) return;
+  let dragging = false, pid = null, sx = 0, sy = 0, spx = 50, spy = 50;
+  const curPos = () => {
+    const m = (cov.style.objectPosition || '50% 50%').match(/(\d+)% (\d+)%/);
+    return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : [50, 50];
+  };
+  cov.addEventListener('pointerdown', (e) => {
+    dragging = true; pid = e.pointerId; sx = e.clientX; sy = e.clientY;
+    [spx, spy] = curPos();
+    try { cov.setPointerCapture(pid); } catch (err) {}
+    cov.style.cursor = 'grabbing';
+  });
+  cov.addEventListener('pointermove', (e) => {
+    if (!dragging || e.pointerId !== pid) return;
+    const r = cov.getBoundingClientRect();
+    const nx = Math.min(100, Math.max(0, spx - ((e.clientX - sx) / r.width) * 100));
+    const ny = Math.min(100, Math.max(0, spy - ((e.clientY - sy) / r.height) * 100));
+    cov.style.objectPosition = `${nx}% ${ny}%`;
+  });
+  const endDrag = async (e) => {
+    if (!dragging || (e.pointerId !== undefined && e.pointerId !== pid)) return;
+    dragging = false; pid = null;
+    cov.style.cursor = 'grab';
+    const [fx, fy] = curPos();
+    try { await post('/api/business/cover-position', { coverPosition: `${Math.round(fx)}% ${Math.round(fy)}%` }); } catch (err) {}
+  };
+  cov.addEventListener('pointerup', endDrag);
+  cov.addEventListener('pointercancel', endDrag);
+})();
 $('biz-form').onsubmit = async (e) => {
   e.preventDefault(); $('b-err').textContent = ''; $('b-ok').textContent = '';
   const services = [...document.querySelectorAll('#b-services input:checked')].map(c => c.value);
