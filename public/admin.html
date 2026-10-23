@@ -53,6 +53,7 @@
     <div id="accounts"></div>
     <h2>Site traffic</h2>
     <div class="cards" id="traffic"></div>
+    <div class="row" style="margin-bottom:18px"><button class="ghost" id="clearAnalyticsBtn">Clear traffic stats, searches &amp; top pages</button></div>
     <h2 style="font-size:15px">Recent mechanic searches</h2>
     <div id="searches"></div>
     <h2 style="font-size:15px">Top pages</h2>
@@ -137,6 +138,11 @@ $('loginBtn').onclick = async () => {
 };
 $('token').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
 $('logoutBtn').onclick = async () => { await fetch('/api/admin/logout', { method: 'POST' }); load(); };
+$('clearAnalyticsBtn').onclick = async () => {
+  if (!confirm('Clear all site traffic stats, mechanic searches, and top pages? This cannot be undone.')) return;
+  const r = await fetch('/api/admin/clear-analytics', { method: 'POST' });
+  if (r.ok) load(); else alert('Could not clear analytics.');
+};
 $('exportBtn').onclick = () => { window.location = '/api/admin/export'; };
 window.resolveHelp = async (id, resolved) => {
   await fetch('/api/admin/help/' + id, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ resolved }) });

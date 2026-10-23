@@ -1477,6 +1477,12 @@ const server = http.createServer(async (req, res) => {
       });
       return res.end(body);
     }
+    if (p === '/api/admin/clear-analytics' && req.method === 'POST') {
+      if (!adminAuthed(req)) return sendJson(res, 401, { error: 'Not authorized.' });
+      visitsStore.write([]);
+      searchesStore.write([]);
+      return sendJson(res, 200, { ok: true });
+    }
     const adminUserDel = p.match(/^\/api\/admin\/users\/([0-9a-f-]+)$/);
     if (adminUserDel && req.method === 'DELETE') {
       if (!adminAuthed(req)) return sendJson(res, 401, { error: 'Not authorized.' });
