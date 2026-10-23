@@ -92,8 +92,14 @@
   #pv-content .promo{border-left:4px solid #2563eb;padding:8px 12px;background:#eff6ff;border-radius:0 8px 8px 0;margin-top:8px}
   #pv-content .soc{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
   #pv-content .urgent{display:inline-block;background:#fee2e2;color:#b91c1c;border-radius:6px;padding:3px 10px;font-size:.78rem;font-weight:700}
-  #pv-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:50;cursor:pointer}
-  #pv-lightbox img{max-width:92vw;max-height:92vh;border-radius:10px}
+  #pv-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;z-index:50;touch-action:pan-y}
+  #pv-lightbox img{max-width:92vw;max-height:92vh;border-radius:10px;user-select:none;-webkit-user-select:none}
+  #pv-lightbox .lb-btn{position:absolute;background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:999px;width:44px;height:44px;font-size:24px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  #pv-lightbox .lb-btn:active{background:rgba(255,255,255,.3)}
+  #pv-lb-x{top:14px;right:14px}
+  #pv-lb-prev{left:10px;top:50%;transform:translateY(-50%)}
+  #pv-lb-next{right:10px;top:50%;transform:translateY(-50%)}
+  #pv-lb-count{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);color:#fff;font-size:.85rem;background:rgba(0,0,0,.5);padding:4px 12px;border-radius:999px}
 </style>
 </head>
 <body>
@@ -166,7 +172,7 @@
       <div class="err" id="b-err"></div><div class="ok" id="b-ok"></div>
     </form>
     </div>
-    <div id="pv-lightbox" onclick="this.style.display='none'"><img id="pv-lightbox-img" alt=""></div>
+    <div id="pv-lightbox"><button class="lb-btn" id="pv-lb-x" aria-label="Close">×</button><button class="lb-btn" id="pv-lb-prev" aria-label="Previous photo">‹</button><img id="pv-lightbox-img" alt=""><button class="lb-btn" id="pv-lb-next" aria-label="Next photo">›</button><div id="pv-lb-count"></div></div>
   </section>
 
   <section class="tab" id="tab-promos">
@@ -425,7 +431,9 @@ async function renderPvView() {
     if (!b) { box.innerHTML = '<p class="muted">No business profile yet.</p>'; return; }
     const soc = b.socials || {};
     const socLinks = Object.keys(PV_SOC).filter(k => soc[k]).map(k => `<a href="${esc(String(soc[k]).replace(/"/g, ''))}" target="_blank" rel="noopener">${PV_SOC[k]}</a>`).join('');
-    const gallery = (b.gallery || []).map(u => `<img src="${esc(u)}" alt="" loading="lazy" onclick="document.getElementById('pv-lightbox-img').src=this.src;document.getElementById('pv-lightbox').style.display='flex'">`).join('');
+    const galleryUrls = b.gallery || [];
+    pvLbImgs = galleryUrls;
+    const gallery = galleryUrls.map((u, i) => `<img src="${esc(u)}" alt="" loading="lazy" onclick="pvLbOpen(${i})">`).join('');
     box.innerHTML = `<div class="pvc">
       ${b.coverUrl ? `<img class="cover" src="${esc(b.coverUrl)}" alt="">` : `<div class="cover-ph"></div>`}
       <div class="body">
@@ -457,6 +465,39 @@ function pvShowEdit() { $('pv-view').hidden = true; $('pv-edit').hidden = false;
 function pvShowView() { $('pv-edit').hidden = true; $('pv-view').hidden = false; window.scrollTo(0, 0); }
 $('pv-edit-btn').onclick = pvShowEdit;
 $('pv-cancel-btn').onclick = pvShowView;
+/* Swipeable gallery lightbox (profile preview) */
+let pvLbImgs = [], pvLbIdx = 0;
+function pvLbShow() {
+  document.getElementById('pv-lightbox-img').src = pvLbImgs[pvLbIdx];
+  const multi = pvLbImgs.length > 1;
+  document.getElementById('pv-lb-count').textContent = multi ? (pvLbIdx + 1) + ' / ' + pvLbImgs.length : '';
+  document.getElementById('pv-lb-prev').style.display = multi ? '' : 'none';
+  document.getElementById('pv-lb-next').style.display = multi ? '' : 'none';
+}
+function pvLbOpen(i) { pvLbIdx = i; pvLbShow(); document.getElementById('pv-lightbox').style.display = 'flex'; }
+function pvLbClose() { document.getElementById('pv-lightbox').style.display = 'none'; }
+function pvLbNav(d) { pvLbIdx = (pvLbIdx + d + pvLbImgs.length) % pvLbImgs.length; pvLbShow(); }
+document.getElementById('pv-lb-x').onclick = (e) => { e.stopPropagation(); pvLbClose(); };
+document.getElementById('pv-lb-prev').onclick = (e) => { e.stopPropagation(); pvLbNav(-1); };
+document.getElementById('pv-lb-next').onclick = (e) => { e.stopPropagation(); pvLbNav(1); };
+document.getElementById('pv-lightbox').addEventListener('click', (e) => { if (e.target.id === 'pv-lightbox') pvLbClose(); });
+document.addEventListener('keydown', (e) => {
+  if (document.getElementById('pv-lightbox').style.display !== 'flex') return;
+  if (e.key === 'Escape') pvLbClose();
+  else if (e.key === 'ArrowLeft') pvLbNav(-1);
+  else if (e.key === 'ArrowRight') pvLbNav(1);
+});
+(() => {
+  let tx = null;
+  const el = document.getElementById('pv-lightbox');
+  el.addEventListener('touchstart', (e) => { tx = e.touches[0].clientX; }, { passive: true });
+  el.addEventListener('touchend', (e) => {
+    if (tx === null) return;
+    const dx = e.changedTouches[0].clientX - tx;
+    tx = null;
+    if (Math.abs(dx) > 40 && pvLbImgs.length > 1) pvLbNav(dx < 0 ? 1 : -1);
+  }, { passive: true });
+})();
 async function uploadImage(kind, file) {
   const fd = new FormData();
   fd.append('kind', kind);

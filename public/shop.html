@@ -35,13 +35,19 @@
   .soc{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
   .urgent{display:inline-block;background:#fee2e2;color:#b91c1c;border-radius:6px;padding:3px 10px;font-size:.78rem;font-weight:700}
   .back{display:inline-block;margin:16px 24px 0;font-size:.9rem}
-  #lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:50;cursor:pointer}
-  #lightbox img{max-width:92vw;max-height:92vh;border-radius:10px}
+  #lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;z-index:50;touch-action:pan-y}
+  #lightbox img{max-width:92vw;max-height:92vh;border-radius:10px;user-select:none;-webkit-user-select:none}
+  #lightbox .lb-btn{position:absolute;background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:999px;width:44px;height:44px;font-size:24px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  #lightbox .lb-btn:active{background:rgba(255,255,255,.3)}
+  #lb-x{top:14px;right:14px}
+  #lb-prev{left:10px;top:50%;transform:translateY(-50%)}
+  #lb-next{right:10px;top:50%;transform:translateY(-50%)}
+  #lb-count{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);color:#fff;font-size:.85rem;background:rgba(0,0,0,.5);padding:4px 12px;border-radius:999px}
 </style>
 </head>
 <body>
 <main id="page"><p class="body">Loading…</p></main>
-<div id="lightbox" onclick="this.style.display='none'"><img id="lightbox-img" alt=""></div>
+<div id="lightbox"><button class="lb-btn" id="lb-x" aria-label="Close">×</button><button class="lb-btn" id="lb-prev" aria-label="Previous photo">‹</button><img id="lightbox-img" alt=""><button class="lb-btn" id="lb-next" aria-label="Next photo">›</button><div id="lb-count"></div></div>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', website: 'Website' };
@@ -71,7 +77,9 @@ async function reviewHtml(businessId) {
     document.title = b.name + ' — Mobile Mechanic Network';
     const soc = b.socials || {};
     const socLinks = Object.keys(SOC_LABELS).filter(k => soc[k]).map(k => `<a href="${esc(String(soc[k]).replace(/"/g, ''))}" target="_blank" rel="noopener">${SOC_LABELS[k]}</a>`).join('');
-    const gallery = (b.gallery || []).map(u => `<img src="${esc(u)}" alt="" loading="lazy" onclick="document.getElementById('lightbox-img').src=this.src;document.getElementById('lightbox').style.display='flex'">`).join('');
+    const galleryUrls = b.gallery || [];
+    lbImgs = galleryUrls;
+    const gallery = galleryUrls.map((u, i) => `<img src="${esc(u)}" alt="" loading="lazy" onclick="lbOpen(${i})">`).join('');
     page.innerHTML = `
       <a class="back" href="/mechanics">← Back to directory</a>
       ${b.coverUrl ? `<img class="cover" src="${esc(b.coverUrl)}" alt="">` : `<div class="cover-ph"></div>`}
@@ -97,6 +105,39 @@ async function reviewHtml(businessId) {
       </div>`;
     document.getElementById('reviews').innerHTML = await reviewHtml(b.id);
   } catch (e) { page.innerHTML = '<p class="body">' + esc(e.message) + ' <a href="/mechanics">Back to directory</a>.</p>'; }
+})();
+/* Swipeable gallery lightbox */
+let lbImgs = [], lbIdx = 0;
+function lbShow() {
+  document.getElementById('lightbox-img').src = lbImgs[lbIdx];
+  const multi = lbImgs.length > 1;
+  document.getElementById('lb-count').textContent = multi ? (lbIdx + 1) + ' / ' + lbImgs.length : '';
+  document.getElementById('lb-prev').style.display = multi ? '' : 'none';
+  document.getElementById('lb-next').style.display = multi ? '' : 'none';
+}
+function lbOpen(i) { lbIdx = i; lbShow(); document.getElementById('lightbox').style.display = 'flex'; }
+function lbClose() { document.getElementById('lightbox').style.display = 'none'; }
+function lbNav(d) { lbIdx = (lbIdx + d + lbImgs.length) % lbImgs.length; lbShow(); }
+document.getElementById('lb-x').onclick = (e) => { e.stopPropagation(); lbClose(); };
+document.getElementById('lb-prev').onclick = (e) => { e.stopPropagation(); lbNav(-1); };
+document.getElementById('lb-next').onclick = (e) => { e.stopPropagation(); lbNav(1); };
+document.getElementById('lightbox').addEventListener('click', (e) => { if (e.target.id === 'lightbox') lbClose(); });
+document.addEventListener('keydown', (e) => {
+  if (document.getElementById('lightbox').style.display !== 'flex') return;
+  if (e.key === 'Escape') lbClose();
+  else if (e.key === 'ArrowLeft') lbNav(-1);
+  else if (e.key === 'ArrowRight') lbNav(1);
+});
+(() => {
+  let tx = null;
+  const el = document.getElementById('lightbox');
+  el.addEventListener('touchstart', (e) => { tx = e.touches[0].clientX; }, { passive: true });
+  el.addEventListener('touchend', (e) => {
+    if (tx === null) return;
+    const dx = e.changedTouches[0].clientX - tx;
+    tx = null;
+    if (Math.abs(dx) > 40 && lbImgs.length > 1) lbNav(dx < 0 ? 1 : -1);
+  }, { passive: true });
 })();
 </script>
 </body>
