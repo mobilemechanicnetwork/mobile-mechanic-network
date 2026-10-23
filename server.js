@@ -51,11 +51,20 @@ try { US_CITIES = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'us-ci
 let VEHICLES = null;
 try { VEHICLES = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'us-vehicles.json'), 'utf8')); } catch (e) { VEHICLES = null; }
 function vehicleYears() { return (VEHICLES && VEHICLES.years) || []; }
-function vehicleMakes(year) {
+function vehicleTypeOf(make) {
+  if (!VEHICLES || !VEHICLES.types) return 'car';
+  return VEHICLES.types[String(make || '')] || 'car';
+}
+function vehicleMakes(year, type) {
   if (!VEHICLES) return [];
-  const y = String(year || '');
+  const y = String(year || ''), t = String(type || 'car');
   const set = {};
-  for (const k of Object.keys(VEHICLES.models)) if (k.indexOf(y + '|') === 0) set[k.slice(y.length + 1)] = true;
+  for (const k of Object.keys(VEHICLES.models)) {
+    if (k.indexOf(y + '|') !== 0) continue;
+    const mk = k.slice(y.length + 1);
+    if (vehicleTypeOf(mk) !== t) continue;
+    set[mk] = true;
+  }
   return Object.keys(set).sort((a, b) => a.localeCompare(b));
 }
 function vehicleModels(year, make) {
@@ -265,13 +274,16 @@ function requestMatchesBusiness(reqRow, biz) {
   if (!reqRow.businessId && reqRow.urgent && !biz.acceptUrgent) return false;
   const owner = usersStore.read().find(u => u.id === biz.userId);
   if (mechanicFrozen(owner)) return false;
+  const vt = reqRow.vehicleType || 'car';
+  const bizTypes = Array.isArray(biz.vehicleTypes) && biz.vehicleTypes.length ? biz.vehicleTypes : ['car'];
+  if (!bizTypes.includes(vt)) return false;
   return biz.services.includes(reqRow.service)
     && servedCityKeys(biz).includes(String(reqRow.city || '').toLowerCase() + '|' + String(reqRow.state || '').toUpperCase());
 }
 function publicBusiness(b) {
   const owner = usersStore.read().find(u => u.id === b.userId);
   const rating = businessRating(b.id);
-  return { id: b.id, name: b.name, city: b.city, state: b.state, serviceCities: b.serviceCities || [], services: b.services, about: b.about, phone: b.phone || '', logoUrl: b.logoUrl || '', coverUrl: b.coverUrl || '', coverPosition: b.coverPosition || '50% 50%', gallery: b.gallery || [], socials: b.socials || {}, warranty: b.warranty || '', acceptUrgent: !!b.acceptUrgent, certifications: b.certifications || [], avgRating: rating.avg, reviewCount: rating.count, fastResponder: isFastResponder(b.id), mechanicName: owner ? owner.name : '' };
+  return { id: b.id, name: b.name, city: b.city, state: b.state, serviceCities: b.serviceCities || [], services: b.services, vehicleTypes: Array.isArray(b.vehicleTypes) && b.vehicleTypes.length ? b.vehicleTypes : ['car'], about: b.about, phone: b.phone || '', logoUrl: b.logoUrl || '', coverUrl: b.coverUrl || '', coverPosition: b.coverPosition || '50% 50%', gallery: b.gallery || [], socials: b.socials || {}, warranty: b.warranty || '', acceptUrgent: !!b.acceptUrgent, certifications: b.certifications || [], avgRating: rating.avg, reviewCount: rating.count, fastResponder: isFastResponder(b.id), mechanicName: owner ? owner.name : '' };
 }
 function businessRating(businessId) {
   const revs = reviewsStore.read().filter(r => r.businessId === businessId);
@@ -609,10 +621,10 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'owner') return sendJson(res, 403, { error: 'Vehicle owners only.' });
-      const { year, make, model } = await parseBody(req);
+      const { year, make, model, type } = await parseBody(req);
       if (!year || !make || !model) return sendJson(res, 400, { error: 'Year, make, and model are required.' });
       const vehicles = vehiclesStore.read();
-      const v = { id: crypto.randomUUID(), ownerId: user.id, year: String(year).trim().slice(0, 10), make: String(make).trim().slice(0, 60), model: String(model).trim().slice(0, 60), createdAt: new Date().toISOString() };
+      const v = { id: crypto.randomUUID(), ownerId: user.id, year: String(year).trim().slice(0, 10), make: String(make).trim().slice(0, 60), model: String(model).trim().slice(0, 60), type: ['car', 'motorcycle', 'commercial'].includes(type) ? type : 'car', createdAt: new Date().toISOString() };
       vehicles.push(v); vehiclesStore.write(vehicles);
       return sendJson(res, 201, { vehicle: v });
     }
@@ -633,11 +645,13 @@ const server = http.createServer(async (req, res) => {
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Only mobile mechanic accounts have a business page.' });
       if (mechanicFrozen(user)) return frozenError(res);
-      const { name, city, state, serviceCities, services, about, phone, logoUrl, coverUrl, coverPosition, socials, warranty, acceptUrgent, certifications } = await parseBody(req);
+      const { name, city, state, serviceCities, services, about, phone, logoUrl, coverUrl, coverPosition, socials, warranty, acceptUrgent, certifications, vehicleTypes } = await parseBody(req);
       if (!name || !city || !state || !Array.isArray(services) || services.length === 0)
         return sendJson(res, 400, { error: 'Business name, city, state, and at least one service are required.' });
       const cleanServices = services.filter(s => SERVICES.includes(s));
       if (cleanServices.length === 0) return sendJson(res, 400, { error: 'Pick at least one valid service.' });
+      const cleanTypes = Array.isArray(vehicleTypes) ? vehicleTypes.filter(t => ['car', 'motorcycle', 'commercial'].includes(t)) : [];
+      if (cleanTypes.length === 0) cleanTypes.push('car');
       const businesses = businessesStore.read();
       let biz = businesses.find(b => b.userId === user.id);
       const bizState = String(state).trim().toUpperCase();
@@ -656,7 +670,7 @@ const server = http.createServer(async (req, res) => {
         const v = String(socials[k] || '').trim().slice(0, 300);
         if (v) cleanSocials[k] = v;
       }
-      const fields = { name: String(name).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), serviceCities: cleanCities, services: cleanServices, about: String(about || ''), phone: String(phone || '').trim(), socials: cleanSocials, warranty: String(warranty || '').trim().slice(0, 2000), acceptUrgent: acceptUrgent === true, certifications: cleanCertifications(certifications) };
+      const fields = { name: String(name).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), serviceCities: cleanCities, services: cleanServices, vehicleTypes: cleanTypes, about: String(about || ''), phone: String(phone || '').trim(), socials: cleanSocials, warranty: String(warranty || '').trim().slice(0, 2000), acceptUrgent: acceptUrgent === true, certifications: cleanCertifications(certifications) };
       const cpm = String(coverPosition || '').trim().match(/^(\d{1,3}(?:\.\d+)?)% (\d{1,3}(?:\.\d+)?)%$/);
       if (cpm) fields.coverPosition = Math.min(100, Math.max(0, Math.round(parseFloat(cpm[1])))) + '% ' + Math.min(100, Math.max(0, Math.round(parseFloat(cpm[2])))) + '%';
       if (typeof logoUrl === 'string' && logoUrl.startsWith('/uploads/')) fields.logoUrl = logoUrl;
@@ -705,6 +719,10 @@ const server = http.createServer(async (req, res) => {
         list = list.filter(b => b.city.toLowerCase() === city || (ck && servedCityKeys(b).includes(ck)));
       }
       if (service) list = list.filter(b => b.services.includes(service));
+      const vtype = url.searchParams.get('type') || 'car';
+      if (['car', 'motorcycle', 'commercial'].includes(vtype)) {
+        list = list.filter(b => (Array.isArray(b.vehicleTypes) && b.vehicleTypes.length ? b.vehicleTypes : ['car']).includes(vtype));
+      }
       return sendJson(res, 200, { mechanics: list.map(b => ({ ...publicBusiness(b), promotion: latestPromotion(b.id) })) });
     }
     if (p === '/api/business/public' && req.method === 'GET') {
@@ -723,7 +741,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { years: vehicleYears() });
     }
     if (p === '/api/vehicles/makes' && req.method === 'GET') {
-      return sendJson(res, 200, { makes: vehicleMakes(url.searchParams.get('year')) });
+      return sendJson(res, 200, { makes: vehicleMakes(url.searchParams.get('year'), url.searchParams.get('type')) });
     }
     if (p === '/api/vehicles/models' && req.method === 'GET') {
       return sendJson(res, 200, { models: vehicleModels(url.searchParams.get('year'), url.searchParams.get('make')) });
@@ -733,10 +751,11 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/requests' && req.method === 'POST') {
       const user = getSessionUser(req);
       if (user && user.role !== 'owner') return sendJson(res, 403, { error: 'Only vehicle owner accounts can request quotes.' });
-      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip, businessId } = await parseBody(req);
+      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip, businessId, vehicleType } = await parseBody(req);
       const e164 = normalizePhone(phone);
       if (!city || !state || !SERVICES.includes(service) || !vehicle || !description || !e164)
         return sendJson(res, 400, { error: 'City, state, service, vehicle, a description, and a valid 10-digit phone number are required.' });
+      const vt = ['car', 'motorcycle', 'commercial'].includes(vehicleType) ? vehicleType : 'car';
       const guest = !user;
       if (guest && !guestRateOk(req)) return sendJson(res, 429, { error: 'Too many requests from this device. Please wait a bit before sending another.' });
       let targetBiz = null;
@@ -745,6 +764,8 @@ const server = http.createServer(async (req, res) => {
         if (!targetBiz) return sendJson(res, 400, { error: 'That mechanic is no longer available.' });
         const tOwner = usersStore.read().find(u => u.id === targetBiz.userId);
         if (mechanicFrozen(tOwner)) return sendJson(res, 400, { error: 'That mechanic is no longer available.' });
+        const tTypes = Array.isArray(targetBiz.vehicleTypes) && targetBiz.vehicleTypes.length ? targetBiz.vehicleTypes : ['car'];
+        if (!tTypes.includes(vt)) return sendJson(res, 400, { error: 'That mechanic does not service ' + (vt === 'car' ? 'cars and trucks' : vt === 'motorcycle' ? 'motorcycles' : 'buses and commercial vehicles') + '.' });
       }
       let cleanVinValue = '';
       if (vin && String(vin).trim()) {
@@ -752,7 +773,7 @@ const server = http.createServer(async (req, res) => {
         if (!cleanVinValue) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
       }
       const rows = requestsStore.read();
-      const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : '', guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, createdAt: new Date().toISOString() };
+      const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : '', guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vehicleType: vt, vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, createdAt: new Date().toISOString() };
       rows.push(row); requestsStore.write(rows);
       const matches = targetBiz ? 1 : businessesStore.read().filter(b => requestMatchesBusiness(row, b)).length;
       return sendJson(res, 201, { request: row, mechanicsNotified: matches });

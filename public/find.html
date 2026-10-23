@@ -50,6 +50,7 @@
         <div><label for="f-zip">ZIP <span class="muted">(optional)</span></label><input id="f-zip" inputmode="numeric" maxlength="10" placeholder="e.g. 70460"></div>
       </div>
       <label>Vehicle (year, make, model)</label>
+      <div id="f-type"></div>
       <div class="row"><div><label for="f-year">Year</label><select id="f-year"></select></div><div><label for="f-make">Make</label><select id="f-make"></select></div><div><label for="f-model">Model</label><select id="f-model"></select></div></div>
       <label for="f-service">Service needed</label>
       <select id="f-service" required></select>
@@ -103,7 +104,7 @@ const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikT
 const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABELS).filter(k => soc[k]).map(k => `<a href="${esc(soc[k])}" target="_blank" rel="noopener">${SOC_LABELS[k]}</a>`); return links.length ? `<div style="margin-top:6px">${links.join(' · ')}</div>` : ''; };
 (async () => {
   if (window.CityAC) window.CityAC.attach($('f-city'), { stateInput: $('f-state') });
-  if (window.VehiclePicker) window._findVeh = VehiclePicker.attach({ year: 'f-year', make: 'f-make', model: 'f-model' });
+  if (window.VehiclePicker) window._findVeh = VehiclePicker.attach({ year: 'f-year', make: 'f-make', model: 'f-model', type: 'f-type' });
   const d = await (await fetch('/api/services')).json();
   const prompt = document.createElement('option');
   prompt.value = '';
@@ -145,7 +146,7 @@ $('find-form').onsubmit = async (e) => {
     symptoms: symptoms,
     moreinfo: $('f-moreinfo').value.trim(),
   };
-  const params = new URLSearchParams({ city: q.city, state: q.state, service: q.service });
+  const params = new URLSearchParams({ city: q.city, state: q.state, service: q.service, type: window._findVeh ? window._findVeh.type : 'car' });
   const d = await (await fetch('/api/mechanics?' + params)).json();
   $('form-view').hidden = true;
   $('results-view').hidden = false;
@@ -191,6 +192,7 @@ $('req-send').onclick = async () => {
   const body = {
     service: svc,
     vehicle: veh,
+    vehicleType: window._findVeh ? window._findVeh.type : 'car',
     vin: '',
     city: $('f-city').value.trim(),
     state: $('f-state').value.trim(),

@@ -148,6 +148,13 @@
       <label>Other cities you serve</label><div id="b-cities"></div><p class="muted" style="font-size:.82rem;margin:4px 0 0">Requests are only sent to you for cities you serve. Your base city is always included.</p>
       <label>Services you offer</label>
       <div class="checks" id="b-services"></div>
+      <label style="margin-top:10px">Vehicle types you service</label>
+      <div class="checks" id="b-vtypes">
+        <label class="chip"><input type="checkbox" value="car" checked> Cars & trucks</label>
+        <label class="chip"><input type="checkbox" value="motorcycle"> Motorcycles</label>
+        <label class="chip"><input type="checkbox" value="commercial"> Bus / Commercial</label>
+      </div>
+      <p class="muted" style="font-size:.82rem;margin:4px 0 0">Quote requests are only sent to you for the vehicle types you check.</p>
       <label style="margin-top:10px"><input type="checkbox" id="b-urgent"> Accept urgent requests <span class="muted">— urgent jobs from vehicle owners who need help now will be sent to you</span></label>
       <label for="b-about">About your business</label><textarea id="b-about" rows="3"></textarea>
       <label for="b-warranty">Warranty policy (optional — shows on your quotes and tickets)</label><textarea id="b-warranty" rows="2" placeholder="e.g. 12 months / 12,000 miles on parts and labor"></textarea>
@@ -207,6 +214,7 @@
         <div><label for="t-customer">Customer name</label><input id="t-customer" list="t-customer-list" required autocomplete="off"><datalist id="t-customer-list"></datalist></div>
       </div>
       <label>Vehicle</label>
+      <div id="t-type"></div>
       <div class="row"><div><label for="t-year">Year</label><select id="t-year"></select></div><div><label for="t-make">Make</label><select id="t-make"></select></div><div><label for="t-model">Model</label><select id="t-model"></select></div></div>
       <div id="t-prev-vehicles" hidden><label for="t-prev-select">Customer's previous vehicles</label><select id="t-prev-select"><option value="">Choose…</option></select></div>
       <label for="t-vin">VIN <span class="muted" id="t-vin-note">(required on invoices and receipts)</span></label><input id="t-vin" maxlength="17" placeholder="17 characters" style="text-transform:uppercase">
@@ -246,6 +254,7 @@
       <label for="ppi-customer">Customer name</label><input id="ppi-customer" required maxlength="120">
       <label for="ppi-phone">Customer phone (optional)</label><input id="ppi-phone" maxlength="30">
       <label>Vehicle (year, make, model)</label>
+      <div id="ppi-type"></div>
       <div class="row"><div><label for="ppi-year">Year</label><select id="ppi-year"></select></div><div><label for="ppi-make">Make</label><select id="ppi-make"></select></div><div><label for="ppi-model">Model</label><select id="ppi-model"></select></div></div>
       <label for="ppi-vin">VIN (optional)</label><input id="ppi-vin" maxlength="17" placeholder="17 characters">
       <label for="ppi-mileage">Mileage (optional)</label><input id="ppi-mileage" maxlength="20" placeholder="e.g. 84,500">
@@ -279,8 +288,8 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 if (window.VehiclePicker) {
-  window._tVeh = VehiclePicker.attach({ year: 't-year', make: 't-make', model: 't-model', onChange: () => { try { fillVinFromVehicle(); } catch (e) {} } });
-  window._ppiVeh = VehiclePicker.attach({ year: 'ppi-year', make: 'ppi-make', model: 'ppi-model' });
+  window._tVeh = VehiclePicker.attach({ year: 't-year', make: 't-make', model: 't-model', type: 't-type', onChange: () => { try { fillVinFromVehicle(); } catch (e) {} } });
+  window._ppiVeh = VehiclePicker.attach({ year: 'ppi-year', make: 'ppi-make', model: 'ppi-model', type: 'ppi-type' });
 }
 /* Shared badge renderer: b carries fastResponder, avgRating, reviewCount, certifications */
 function badgeHtml(b) {
@@ -408,6 +417,7 @@ async function loadProfile() {
     $('b-phone').value = b.phone || '';
     for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website', 'google']) $('b-soc-' + k).value = (b.socials && b.socials[k]) || '';
     document.querySelectorAll('#b-services input').forEach(c => { c.checked = (b.services || []).includes(c.value); });
+    document.querySelectorAll('#b-vtypes input').forEach(c => { c.checked = (b.vehicleTypes || ['car']).includes(c.value); });
     $('b-urgent').checked = !!b.acceptUrgent;
     if (b.logoUrl) { $('b-logo-preview').src = b.logoUrl; $('b-logo-preview').style.display = 'block'; }
     if (b.coverUrl) { $('b-cover-wrap').style.display = 'block'; $('b-cover-preview').src = b.coverUrl; $('b-cover-preview').style.objectPosition = b.coverPosition || '50% 50%'; }
@@ -553,10 +563,11 @@ $('b-cover').onchange = () => { const f = $('b-cover').files[0]; if (f) { $('b-c
 $('biz-form').onsubmit = async (e) => {
   e.preventDefault(); $('b-err').textContent = ''; $('b-ok').textContent = '';
   const services = [...document.querySelectorAll('#b-services input:checked')].map(c => c.value);
+  const vehicleTypes = [...document.querySelectorAll('#b-vtypes input:checked')].map(c => c.value);
   try {
     const socials = {};
     for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website', 'google']) socials[k] = $('b-soc-' + k).value;
-    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: window.cityChips.get(), services, about: $('b-about').value, phone: $('b-phone').value, socials, warranty: $('b-warranty').value, acceptUrgent: $('b-urgent').checked, certifications: $('b-certs').value.split('\n') };
+    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: window.cityChips.get(), services, vehicleTypes, about: $('b-about').value, phone: $('b-phone').value, socials, warranty: $('b-warranty').value, acceptUrgent: $('b-urgent').checked, certifications: $('b-certs').value.split('\n') };
     if ($('b-logo').files.length) body.logoUrl = await uploadImage('logo', $('b-logo').files[0]);
     if ($('b-cover').files.length) body.coverUrl = await uploadImage('cover', $('b-cover').files[0]);
     if ($('b-cover-wrap').style.display !== 'none') {

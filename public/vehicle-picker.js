@@ -1,16 +1,26 @@
-/* VehiclePicker: three cascading dropdowns (Year -> Make -> Model) backed by
-   /api/vehicles/years, /api/vehicles/makes?year=, /api/vehicles/models?year=&make=.
-   Page provides three <select> elements; this script wires them up.
+/* VehiclePicker: vehicle-type tabs + three cascading dropdowns
+   (Year -> Make -> Model) backed by /api/vehicles/years,
+   /api/vehicles/makes?year=&type=, /api/vehicles/models?year=&make=.
+   Page provides three <select> elements and a container for the type tabs:
 
-   const picker = VehiclePicker.attach({ year: 'f-year', make: 'f-make', model: 'f-model', onChange: fn });
-   picker.get()            -> { year, make, model } or null when incomplete
+   <div id="f-type"></div>
+   <select id="f-year"></select><select id="f-make"></select><select id="f-model"></select>
+
+   const picker = VehiclePicker.attach({ year: 'f-year', make: 'f-make', model: 'f-model', type: 'f-type', onChange: fn });
+   picker.get()            -> { year, make, model, type } or null when incomplete
    picker.vehicleString()  -> "2020 Honda Accord" or ""
+   picker.setType('motorcycle')
    picker.set(year, make, model)      -> async; selects values (for saved vehicles)
    picker.setFromString("2020 Honda Accord") -> async; best-effort parse
-   picker.reset()          -> clears all three
+   picker.reset()          -> clears year/make/model (keeps type)
 */
 (function () {
   const OTHER = '__other';
+  const TYPES = [
+    { id: 'car', label: 'Car / Truck' },
+    { id: 'motorcycle', label: 'Motorcycle' },
+    { id: 'commercial', label: 'Bus / Commercial' }
+  ];
   const cache = { years: null, makes: {}, models: {} };
 
   async function getYears() {
@@ -20,12 +30,13 @@
     }
     return cache.years;
   }
-  async function getMakes(year) {
-    if (!cache.makes[year]) {
-      const d = await (await fetch('/api/vehicles/makes?year=' + encodeURIComponent(year))).json().catch(() => ({}));
-      cache.makes[year] = Array.isArray(d.makes) ? d.makes : [];
+  async function getMakes(year, type) {
+    const k = type + '|' + year;
+    if (!cache.makes[k]) {
+      const d = await (await fetch('/api/vehicles/makes?year=' + encodeURIComponent(year) + '&type=' + encodeURIComponent(type))).json().catch(() => ({}));
+      cache.makes[k] = Array.isArray(d.makes) ? d.makes : [];
     }
-    return cache.makes[year];
+    return cache.makes[k];
   }
   async function getModels(year, make) {
     const k = year + '|' + make;
@@ -51,11 +62,45 @@
     sel.appendChild(o);
   }
 
+  function ensureTypeStyles() {
+    if (document.getElementById('vp-type-styles')) return;
+    const st = document.createElement('style');
+    st.id = 'vp-type-styles';
+    st.textContent = '.vp-type{display:flex;gap:8px;margin:0 0 10px}' +
+      '.vp-type button{flex:1;padding:10px 6px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;' +
+      'font-size:14px;font-weight:600;color:#475569;cursor:pointer}' +
+      '.vp-type button.on{background:#2563eb;border-color:#2563eb;color:#fff}';
+    document.head.appendChild(st);
+  }
+
   function attach(opts) {
     const yearSel = document.getElementById(opts.year);
     const makeSel = document.getElementById(opts.make);
     const modelSel = document.getElementById(opts.model);
     if (!yearSel || !makeSel || !modelSel) return null;
+    ensureTypeStyles();
+
+    let curType = 'car';
+    const typeBox = opts.type ? document.getElementById(opts.type) : null;
+    if (typeBox) {
+      typeBox.className = (typeBox.className + ' vp-type').trim();
+      typeBox.innerHTML = '';
+      TYPES.forEach(t => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.t = t.id;
+        b.textContent = t.label;
+        if (t.id === curType) b.classList.add('on');
+        b.addEventListener('click', () => api.setType(t.id));
+        typeBox.appendChild(b);
+      });
+    }
+    function paintType() {
+      if (!typeBox) return;
+      Array.prototype.forEach.call(typeBox.querySelectorAll('button'), b => {
+        b.classList.toggle('on', b.dataset.t === curType);
+      });
+    }
 
     // "Other" free-text inputs, created and managed by the picker
     function makeOtherInput(sel, placeholder) {
@@ -85,20 +130,22 @@
       if (!modelFree) modelOther.value = '';
     }
 
-    yearSel.addEventListener('change', async () => {
+    async function reloadMakes() {
       const y = yearSel.value;
       fillSelect(makeSel, [], 'Select make');
       fillSelect(modelSel, [], 'Select model');
       makeSel.disabled = !y; modelSel.disabled = true;
       syncOther(); fire();
       if (!y) return;
-      const makes = await getMakes(y);
-      // keep the chosen year if the user moved on meanwhile
+      const makes = await getMakes(y, curType);
+      // keep the chosen year/type if the user moved on meanwhile
       if (yearSel.value !== y) return;
       fillSelect(makeSel, makes, 'Select make');
       makeSel.disabled = false;
       syncOther();
-    });
+    }
+
+    yearSel.addEventListener('change', reloadMakes);
     makeSel.addEventListener('change', async () => {
       const y = yearSel.value, m = makeSel.value;
       fillSelect(modelSel, [], 'Select model');
@@ -116,6 +163,13 @@
     modelOther.addEventListener('input', fire);
 
     const api = {
+      get type() { return curType; },
+      setType(t) {
+        if (!TYPES.some(x => x.id === t) || t === curType) return;
+        curType = t;
+        paintType();
+        reloadMakes();
+      },
       get() {
         const y = yearSel.value;
         if (!y) return null;
@@ -130,7 +184,7 @@
           if (mo === OTHER) mo = modelOther.value.trim();
         }
         if (!m || !mo) return null;
-        return { year: y, make: m, model: mo };
+        return { year: y, make: m, model: mo, type: curType };
       },
       vehicleString() {
         const v = this.get();
@@ -143,7 +197,7 @@
         if (y && years.map(String).includes(y)) {
           yearSel.value = y;
           yearSel.dispatchEvent(new Event('change'));
-          const makes = await getMakes(y);
+          const makes = await getMakes(y, curType);
           if (makes.includes(m)) {
             makeSel.value = m;
             makeSel.dispatchEvent(new Event('change'));
@@ -180,7 +234,7 @@
           if (!years.length) return;
           yearSel.value = String(years[0]);
           yearSel.dispatchEvent(new Event('change'));
-          await getMakes(yearSel.value);
+          await getMakes(yearSel.value, curType);
           makeSel.value = OTHER; syncOther();
           makeOther.value = ''; modelOther.value = str;
           syncOther(); fire();
@@ -189,7 +243,7 @@
         const y = ym[1], rest = ym[2];
         const years = await getYears();
         if (!years.map(String).includes(y)) { await this.set(y, '', rest); return; }
-        const makes = await getMakes(y);
+        const makes = await getMakes(y, curType);
         // longest make name that matches the start of the remainder
         let hit = '';
         const rl = rest.toLowerCase();
@@ -227,5 +281,5 @@
     return api;
   }
 
-  window.VehiclePicker = { attach, _cache: cache };
+  window.VehiclePicker = { attach, TYPES, _cache: cache };
 })();

@@ -43,6 +43,7 @@
     <div id="my-vehicles"></div>
     <div class="card">
       <div class="muted">Add a vehicle</div>
+      <div id="v-type"></div>
       <label for="v-year">Year</label><select id="v-year"></select>
       <label for="v-make">Make</label><select id="v-make"></select>
       <label for="v-model">Model</label><select id="v-model"></select>
@@ -96,7 +97,7 @@
 
   $('logout').onclick = async (e) => { e.preventDefault(); await fetch('/api/logout', { method: 'POST' }); location.href = '/'; };
 
-  window._vehPicker = VehiclePicker.attach({ year: 'v-year', make: 'v-make', model: 'v-model' });
+  window._vehPicker = VehiclePicker.attach({ year: 'v-year', make: 'v-make', model: 'v-model', type: 'v-type' });
 
   async function loadOwner() {
     const me = await api('/api/me');
@@ -107,7 +108,7 @@
     if (!me.user.phone) $('phone-banner').hidden = false;
     const v = await api('/api/vehicles/me');
     $('my-vehicles').innerHTML = v.vehicles.length ? v.vehicles.map(x => `<div class="card">
-      <strong>${x.year} ${x.make} ${x.model}</strong>
+      <strong>${x.year} ${x.make} ${x.model}</strong>${x.type && x.type !== 'car' ? ` <span class="muted">(${x.type === 'motorcycle' ? 'Motorcycle' : 'Bus / Commercial'})</span>` : ''}
       <div style="margin-top:6px"><button class="ghost" onclick="delVehicle('${x.id}')">Remove</button></div>
     </div>`).join('') : '<p class="muted">No vehicles saved yet.</p>';
     const d = await api('/api/requests/mine');

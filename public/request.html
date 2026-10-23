@@ -45,6 +45,7 @@
       </div>
     </div>
     <label>Vehicle (year, make, model)</label>
+    <div id="v-type"></div>
     <div class="row"><div><label for="v-year">Year</label><select id="v-year"></select></div><div><label for="v-make">Make</label><select id="v-make"></select></div><div><label for="v-model">Model</label><select id="v-model"></select></div></div>
     <div id="my-vehicles-row" style="margin-top:6px" hidden><label for="my-vehicles" style="margin-top:0">Or pick one of your saved vehicles</label><select id="my-vehicles"><option value="">Choose…</option></select></div>
     <label for="vin">VIN (optional, 17 characters)</label>
@@ -74,7 +75,7 @@
   const err = document.getElementById('err'), ok = document.getElementById('ok');
   (async () => {
     if (window.CityAC) window.CityAC.attach(document.getElementById('city'), { stateInput: document.getElementById('state') });
-    if (window.VehiclePicker) window._reqVeh = VehiclePicker.attach({ year: 'v-year', make: 'v-make', model: 'v-model' });
+    if (window.VehiclePicker) window._reqVeh = VehiclePicker.attach({ year: 'v-year', make: 'v-make', model: 'v-model', type: 'v-type' });
     const me = await (await fetch('/api/me')).json().catch(() => ({}));
     const isGuest = !me.user;
     window._isGuest = isGuest;
@@ -145,7 +146,7 @@
       const vsel = document.getElementById('my-vehicles');
       v.vehicles.forEach((x, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = `${x.year} ${x.make} ${x.model}`; vsel.appendChild(o); });
       document.getElementById('my-vehicles-row').hidden = false;
-      vsel.onchange = () => { const x = v.vehicles[Number(vsel.value)]; if (x && window._reqVeh) window._reqVeh.set(x.year, x.make, x.model); };
+      vsel.onchange = () => { const x = v.vehicles[Number(vsel.value)]; if (x && window._reqVeh) { window._reqVeh.setType(x.type || 'car'); window._reqVeh.set(x.year, x.make, x.model); } };
     }
   })();
   document.getElementById('form').onsubmit = async (e) => {
@@ -159,7 +160,7 @@
       if (picked.length) descVal = 'Symptoms: ' + picked.join(', ') + '.' + (descVal ? '\n' + descVal : '');
       if (!descVal) { err.textContent = 'Please pick a symptom or describe what is going on.'; return; }
     }
-    const body = { service: svc, vehicle: veh, vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: descVal, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: window._isUrgent === true, zip: document.getElementById('zip').value, businessId: window._directBizId || undefined };
+    const body = { service: svc, vehicle: veh, vehicleType: window._reqVeh ? window._reqVeh.type : 'car', vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: descVal, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: window._isUrgent === true, zip: document.getElementById('zip').value, businessId: window._directBizId || undefined };
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { err.textContent = d.error || 'Something went wrong.'; return; }
