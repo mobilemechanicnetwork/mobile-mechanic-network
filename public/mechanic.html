@@ -63,6 +63,37 @@
   .thumb{max-width:120px;border-radius:8px;display:block;margin:6px 0}
   .coverprev{max-width:100%;border-radius:8px;display:block;margin:6px 0}
   @media print{ .noprint{display:none} }
+  /* Customer-view preview (mirrors shop.html) */
+  #pv-content a{color:#1d4ed8}
+  #pv-content .cover{width:100%;max-height:280px;object-fit:cover;display:block;border-radius:14px 14px 0 0}
+  #pv-content .cover-ph{height:120px;background:linear-gradient(135deg,#dbeafe,#f2f5fa);border-radius:14px 14px 0 0}
+  #pv-content .pvc{border:1px solid #e2e8f0;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.05);overflow:hidden}
+  #pv-content .body{padding:12px 24px 20px}
+  #pv-content .head{display:flex;gap:16px;align-items:flex-end;margin:0 0 12px;position:relative;z-index:1}
+  #pv-content .head img.logo{width:88px;height:88px;object-fit:cover;border-radius:14px;border:3px solid #fff;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.1);margin-top:-52px;flex:none}
+  #pv-content .head h1{margin:0;font-size:1.6rem;color:#0f172a}
+  #pv-content .muted{color:#64748b;font-size:.92rem}
+  #pv-content .tag{display:inline-block;border:1px solid #e2e8f0;background:#fff;border-radius:999px;padding:3px 12px;margin:2px 4px 2px 0;font-size:.85rem;color:#475569}
+  #pv-content .badges{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
+  #pv-content .badge{display:inline-block;font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:999px;background:#f1f5f9;border:1px solid #e2e8f0;color:#334155}
+  #pv-content .badge-fr{background:#dcfce7;border-color:#16a34a;color:#15803d}
+  #pv-content .badge-hr{background:#fef3c7;border-color:#d97706;color:#b45309}
+  #pv-content .badge-cert{background:#e0e7ff;border-color:#6366f1;color:#4338ca}
+  #pv-content .review{border-top:1px solid #e2e8f0;padding:12px 0}
+  #pv-content .review:first-of-type{border-top:none}
+  #pv-content .stars{color:#f59e0b;letter-spacing:2px}
+  #pv-content .card{border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin:14px 0;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.05)}
+  #pv-content .card h3{margin:0 0 8px;font-size:1.05rem;color:#0f172a}
+  #pv-content .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+  #pv-content .btn{display:inline-block;background:#2563eb;color:#fff;border:0;border-radius:8px;padding:12px 22px;font-size:1rem;text-decoration:none;cursor:pointer;box-shadow:0 2px 8px rgba(37,99,235,.25)}
+  #pv-content .btn.call{background:#16a34a}
+  #pv-content .gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+  #pv-content .gallery img{width:100%;height:110px;object-fit:cover;border-radius:8px;cursor:pointer}
+  #pv-content .promo{border-left:4px solid #2563eb;padding:8px 12px;background:#eff6ff;border-radius:0 8px 8px 0;margin-top:8px}
+  #pv-content .soc{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
+  #pv-content .urgent{display:inline-block;background:#fee2e2;color:#b91c1c;border-radius:6px;padding:3px 10px;font-size:.78rem;font-weight:700}
+  #pv-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:50;cursor:pointer}
+  #pv-lightbox img{max-width:92vw;max-height:92vh;border-radius:10px}
 </style>
 </head>
 <body>
@@ -91,8 +122,20 @@
   </section>
 
   <section class="tab" id="tab-profile">
-    <h2>Business profile</h2>
-    <form id="biz-form">
+    <div id="pv-view">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <h2 style="margin:0">Business profile</h2>
+        <button type="button" class="ghost" id="pv-edit-btn">Edit profile</button>
+      </div>
+      <p class="muted">This is exactly how customers see your business page.</p>
+      <div id="pv-content"><p class="muted">Loading…</p></div>
+    </div>
+    <div id="pv-edit" hidden>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <h2 style="margin:0">Edit business profile</h2>
+        <button type="button" class="ghost" id="pv-cancel-btn">Cancel</button>
+      </div>
+      <form id="biz-form">
       <label for="b-name">Business name</label><input id="b-name" required>
       <label for="b-city">City you are based in</label><input id="b-city" required>
       <label for="b-state">State</label><input id="b-state" required maxlength="2" placeholder="LA">
@@ -122,6 +165,8 @@
       <button class="primary" type="submit">Save business page</button>
       <div class="err" id="b-err"></div><div class="ok" id="b-ok"></div>
     </form>
+    </div>
+    <div id="pv-lightbox" onclick="this.style.display='none'"><img id="pv-lightbox-img" alt=""></div>
   </section>
 
   <section class="tab" id="tab-promos">
@@ -244,6 +289,7 @@ document.querySelectorAll('.tabs button').forEach(b => {
     document.querySelectorAll('section.tab').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
     $('tab-' + b.dataset.tab).classList.add('active');
+    if (b.dataset.tab === 'profile') renderPvView();
   };
 });
 $('logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout', {}); location.href = '/'; };
@@ -353,6 +399,64 @@ async function loadProfile() {
     renderGallery(b.gallery || []);
   }
 }
+/* ---------- Customer-view preview ---------- */
+const PV_SOC = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', website: 'Website' };
+function pvBadgeHtml(b) {
+  let h = '';
+  if (b.fastResponder) h += '<span class="badge badge-fr">Fast Responder</span>';
+  if (b.reviewCount >= 3 && b.avgRating >= 4.5) h += `<span class="badge badge-hr">★ ${b.avgRating} Highly Rated</span>`;
+  else if (b.reviewCount > 0) h += `<span class="badge">★ ${b.avgRating} (${b.reviewCount} review${b.reviewCount === 1 ? '' : 's'})</span>`;
+  (b.certifications || []).forEach(c => { h += `<span class="badge badge-cert">${esc(c)}</span>`; });
+  return h ? `<div class="badges">${h}</div>` : '';
+}
+async function pvReviewHtml(businessId) {
+  try {
+    const d = await api('/api/reviews?businessId=' + encodeURIComponent(businessId));
+    if (!d.reviews.length) return '';
+    const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+    return `<div class="card"><h3>Reviews</h3>${d.reviews.map(r => `<div class="review"><div><span class="stars">${stars(r.rating)}</span> <strong>${esc(r.ownerName)}</strong></div>${r.text ? `<p style="margin:6px 0 0">${esc(r.text)}</p>` : ''}<div class="muted" style="font-size:.8rem">${new Date(r.createdAt).toLocaleDateString()}</div></div>`).join('')}</div>`;
+  } catch (e) { return ''; }
+}
+async function renderPvView() {
+  const box = $('pv-content');
+  try {
+    const d = await api('/api/business/me');
+    const b = d.business;
+    if (!b) { box.innerHTML = '<p class="muted">No business profile yet.</p>'; return; }
+    const soc = b.socials || {};
+    const socLinks = Object.keys(PV_SOC).filter(k => soc[k]).map(k => `<a href="${esc(String(soc[k]).replace(/"/g, ''))}" target="_blank" rel="noopener">${PV_SOC[k]}</a>`).join('');
+    const gallery = (b.gallery || []).map(u => `<img src="${esc(u)}" alt="" loading="lazy" onclick="document.getElementById('pv-lightbox-img').src=this.src;document.getElementById('pv-lightbox').style.display='flex'">`).join('');
+    box.innerHTML = `<div class="pvc">
+      ${b.coverUrl ? `<img class="cover" src="${esc(b.coverUrl)}" alt="">` : `<div class="cover-ph"></div>`}
+      <div class="body">
+        <div class="head">
+          ${b.logoUrl ? `<img class="logo" src="${esc(b.logoUrl)}" alt="">` : ''}
+          <div><h1>${esc(b.name)}</h1><div class="muted">${esc(b.city)}, ${esc(b.state)}${b.mechanicName ? ' · ' + esc(b.mechanicName) : ''}</div></div>
+        </div>
+        ${b.acceptUrgent ? `<div><span class="urgent">ACCEPTS URGENT REQUESTS</span></div>` : ''}
+        ${pvBadgeHtml(b)}
+        <div class="btnrow">
+          ${b.phone ? `<a class="btn call" href="tel:${esc(b.phone.replace(/[^+\d]/g, ''))}">Call ${esc(b.phone)}</a>` : '<span class="muted">No phone number on your listing — customers can\'t call you. Add one in Edit profile.</span>'}
+        </div>
+        ${b.about ? `<div class="card"><h3>About</h3><p style="margin:0">${esc(b.about)}</p></div>` : `<div class="card"><h3>About</h3><p class="muted" style="margin:0">No description yet. <a href="#" id="pv-edit-about">Add one</a>.</p></div>`}
+        <div class="card"><h3>Services</h3><div>${(b.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('') || '<span class="muted">No services selected.</span>'}</div></div>
+        <div class="card"><h3>Service area</h3><p class="muted" style="margin:0">${esc([b.city, ...(b.serviceCities || [])].join(', '))}</p></div>
+        ${gallery ? `<div class="card"><h3>Photos</h3><div class="gallery">${gallery}</div></div>` : ''}
+        ${b.promotion ? `<div class="card"><h3>Current special</h3><div class="promo"><strong>${esc(b.promotion.title)}</strong><div class="muted">${esc(b.promotion.description || '')}${b.promotion.validUntil ? ' · Valid until ' + esc(b.promotion.validUntil) : ''}</div></div></div>` : ''}
+        ${b.warranty ? `<div class="card"><h3>Warranty</h3><p style="margin:0">${esc(b.warranty)}</p></div>` : ''}
+        <div id="pv-reviews"></div>
+        ${socLinks ? `<div class="card"><h3>Follow</h3><div class="soc">${socLinks}</div></div>` : ''}
+      </div>
+    </div>`;
+    $('pv-reviews').innerHTML = await pvReviewHtml(b.id);
+    const ea = $('pv-edit-about');
+    if (ea) ea.onclick = (e) => { e.preventDefault(); pvShowEdit(); };
+  } catch (e) { box.innerHTML = '<p class="muted">Could not load preview.</p>'; }
+}
+function pvShowEdit() { $('pv-view').hidden = true; $('pv-edit').hidden = false; window.scrollTo(0, 0); }
+function pvShowView() { $('pv-edit').hidden = true; $('pv-view').hidden = false; window.scrollTo(0, 0); }
+$('pv-edit-btn').onclick = pvShowEdit;
+$('pv-cancel-btn').onclick = pvShowView;
 async function uploadImage(kind, file) {
   const fd = new FormData();
   fd.append('kind', kind);
@@ -377,6 +481,7 @@ $('biz-form').onsubmit = async (e) => {
     $('b-ok').textContent = 'Saved.';
     $('b-logo').value = ''; $('b-cover').value = '';
     loadProfile(); loadInbox();
+    pvShowView(); renderPvView();
   } catch (ex) { $('b-err').textContent = ex.message; }
 };
 
@@ -834,6 +939,7 @@ async function loadStats() {
   await loadServices();
   await loadProfile();
   await loadInbox();
+  renderPvView();
   await loadPromos();
   await loadTickets();
   await loadStats();
