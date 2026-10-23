@@ -33,8 +33,10 @@
   </div>
   <div id="results"></div>
 </main>
+<script src="/city-autocomplete.js"></script>
 <script>
   const results = document.getElementById('results');
+  if (window.CityAC) window.CityAC.attach(document.getElementById('city'), { stateInput: document.getElementById('state') });
   async function loadServices() {
     const d = await (await fetch('/api/services')).json();
     const sel = document.getElementById('service');
