@@ -81,6 +81,34 @@ function vehicleModels(year, make, type) {
   if (!Array.isArray(v)) return v[String(type || 'car')] || [];
   return v;
 }
+// Derive a garage vehicle {year, make, model, type} from a quote request.
+// Prefers structured fields saved at request time; falls back to parsing
+// the "YEAR MAKE MODEL" string against the known makes list. Returns null
+// when it cannot be split reliably (e.g. small-engine free text).
+function vehicleFromRequest(r) {
+  const type = VTYPES.includes(r.vehicleType) ? r.vehicleType : 'car';
+  if (r.vehicleMake && r.vehicleModel) {
+    return { year: String(r.vehicleYear || '').slice(0, 10), make: String(r.vehicleMake).slice(0, 60), model: String(r.vehicleModel).slice(0, 60), type };
+  }
+  const str = String(r.vehicle || '').trim();
+  const m = str.match(/^(\d{4})\s+(.+)$/);
+  if (!m || type === 'smallengine') return null;
+  const rest = m[2];
+  let make = '', model = '';
+  if (VEHICLES && Array.isArray(VEHICLES.makes)) {
+    const low = rest.toLowerCase();
+    let best = '';
+    for (const mk of VEHICLES.makes) {
+      if (low.startsWith(mk.toLowerCase() + ' ') || low === mk.toLowerCase()) {
+        if (mk.length > best.length) best = mk;
+      }
+    }
+    if (best) { make = best; model = rest.slice(best.length).trim(); }
+  }
+  if (!make) { const parts = rest.split(/\s+/); make = parts[0] || ''; model = parts.slice(1).join(' '); }
+  if (!make || !model) return null;
+  return { year: m[1], make: make.slice(0, 60), model: model.slice(0, 60), type };
+}
 function searchCities(q, state, limit) {
   q = String(q || '').trim().toLowerCase();
   state = String(state || '').trim().toUpperCase();
@@ -426,8 +454,23 @@ const server = http.createServer(async (req, res) => {
         try {
           const rows = requestsStore.read();
           let claimed = false;
-          rows.forEach(r => { if (!r.ownerId && r.phone === user.phone) { r.ownerId = user.id; r.ownerName = user.name; delete r.guest; claimed = true; } });
+          const claimedRows = [];
+          rows.forEach(r => { if (!r.ownerId && r.phone === user.phone) { r.ownerId = user.id; r.ownerName = user.name; delete r.guest; claimed = true; claimedRows.push(r); } });
           if (claimed) requestsStore.write(rows);
+          // The vehicle from their request goes into their garage.
+          if (claimedRows.length) {
+            const mine = vehiclesStore.read();
+            let added = false;
+            for (const r of claimedRows) {
+              const gv = vehicleFromRequest(r);
+              if (!gv) continue;
+              const dup = mine.some(v => v.ownerId === user.id && v.year === gv.year && v.make.toLowerCase() === gv.make.toLowerCase() && v.model.toLowerCase() === gv.model.toLowerCase() && v.type === gv.type);
+              if (dup) continue;
+              mine.push({ id: crypto.randomUUID(), ownerId: user.id, ...gv, createdAt: new Date().toISOString() });
+              added = true;
+            }
+            if (added) vehiclesStore.write(mine);
+          }
         } catch (e) {}
       }
       return startSession(res, 201, user, { user: publicUser(user) });
@@ -761,7 +804,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/requests' && req.method === 'POST') {
       const user = getSessionUser(req);
       if (user && user.role !== 'owner') return sendJson(res, 403, { error: 'Only vehicle owner accounts can request quotes.' });
-      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip, businessId, vehicleType } = await parseBody(req);
+      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip, businessId, vehicleType, vehicleYear, vehicleMake, vehicleModel } = await parseBody(req);
       const e164 = normalizePhone(phone);
       if (!city || !state || !SERVICES.includes(service) || !vehicle || !description || !e164)
         return sendJson(res, 400, { error: 'City, state, service, vehicle, a description, and a valid 10-digit phone number are required.' });
@@ -783,7 +826,7 @@ const server = http.createServer(async (req, res) => {
         if (!cleanVinValue) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
       }
       const rows = requestsStore.read();
-      const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : '', guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vehicleType: vt, vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, createdAt: new Date().toISOString() };
+      const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : '', guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vehicleType: vt, vehicleYear: String(vehicleYear || '').slice(0, 10), vehicleMake: String(vehicleMake || '').slice(0, 60), vehicleModel: String(vehicleModel || '').slice(0, 60), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, createdAt: new Date().toISOString() };
       rows.push(row); requestsStore.write(rows);
       const matches = targetBiz ? 1 : businessesStore.read().filter(b => requestMatchesBusiness(row, b)).length;
       return sendJson(res, 201, { request: row, mechanicsNotified: matches });
