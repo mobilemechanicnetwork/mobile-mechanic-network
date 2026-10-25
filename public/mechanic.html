@@ -447,7 +447,7 @@ async function loadProfile() {
     window._bizName = b.name;
     window._bizId = b.id;
     if (b.logoUrl) { const lg = $('hello-logo'); lg.src = b.logoUrl; lg.hidden = false; }
-    $('hello').textContent = 'My shop — ' + b.name;
+    $('hello').textContent = b.name;
     $('b-name').value = b.name; $('b-city').value = b.city; $('b-state').value = b.state;
     window.cityChips.set(b.serviceCities || []); $('b-about').value = b.about || ''; $('b-warranty').value = b.warranty || '';
     $('b-certs').value = (b.certifications || []).join('\n');
@@ -1067,7 +1067,7 @@ async function loadStats() {
   const me = await api('/api/me').catch(() => null);
   if (!me || !me.user) { location.href = '/account'; return; }
   if (me.user.role !== 'mechanic') { location.href = '/dashboard'; return; }
-  $('hello').textContent = 'My shop — ' + me.user.name;
+  $('hello').textContent = me.user.name;
   if (me.user.isAdmin) $('adminLink').innerHTML = '<a href="/admin">Admin</a> · ';
   if (!me.user.phone) $('phone-banner').hidden = false;
   if (me.user.frozen) {
