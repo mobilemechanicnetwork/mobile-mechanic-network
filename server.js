@@ -664,6 +664,38 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ---------- Owner vehicles ----------
+    // Wikimedia Commons photo for a vehicle: real, freely licensed photos of
+    // the actual model. Prefers exterior shots; returns { url, page } or null.
+    async function commonsVehiclePhoto(year, make, model) {
+      const skip = /badge|interior|engine|wheel|detail|dashboard|headlight|taillight|tail light|charging|emblem|grille|logo|key|seat/i;
+      const queries = [];
+      if (year) queries.push(year + ' ' + make + ' ' + model);
+      queries.push(make + ' ' + model);
+      for (const q of queries) {
+        try {
+          const api = 'https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=' + encodeURIComponent(q) + '&gsrnamespace=6&gsrlimit=10&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json';
+          const r = await fetch(api, { headers: { 'User-Agent': 'MobileMechanicNetwork/1.0 (contact: legal@mobilemechanicsinmyarea.com)' }, signal: AbortSignal.timeout(8000) });
+          if (!r.ok) continue;
+          const d = await r.json();
+          const pages = Object.values((d.query && d.query.pages) || {});
+          const good = pages.filter(pg => {
+            const t = String(pg.title || '').replace(/^File:/i, '');
+            if (skip.test(t)) return false;
+            const ii = (pg.imageinfo || [])[0];
+            return ii && ii.thumburl && ii.descriptionurl;
+          });
+          if (!good.length) continue;
+          good.sort((a, b) => {
+            const ay = year && String(a.title).replace(/^File:/i, '').toLowerCase().startsWith(String(year).toLowerCase()) ? 0 : 1;
+            const by = year && String(b.title).replace(/^File:/i, '').toLowerCase().startsWith(String(year).toLowerCase()) ? 0 : 1;
+            return ay - by;
+          });
+          const ii = good[0].imageinfo[0];
+          return { url: ii.thumburl, page: ii.descriptionurl };
+        } catch (e) { /* try the next query */ }
+      }
+      return null;
+    }
     if (p === '/api/vehicles/me' && req.method === 'GET') {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
@@ -689,7 +721,25 @@ const server = http.createServer(async (req, res) => {
           }
         } catch (e) {}
       }
-      return sendJson(res, 200, { vehicles: vehiclesStore.read().filter(v => v.ownerId === user.id) });
+      // Lazy Commons photos: one lookup per photo-less vehicle, remembered
+      // via photoChecked so a miss is not retried on every view.
+      let mine = vehiclesStore.read().filter(v => v.ownerId === user.id);
+      const unchecked = mine.filter(v => !v.photoUrl && !v.photoChecked);
+      if (unchecked.length) {
+        const results = await Promise.all(unchecked.map(async (v) => ({ v, found: await commonsVehiclePhoto(v.year, v.make, v.model) })));
+        const all = vehiclesStore.read();
+        let changed = false;
+        for (const { v, found } of results) {
+          const row = all.find(x => x.id === v.id);
+          if (!row) continue;
+          row.photoChecked = true;
+          if (found) { row.autoPhotoUrl = found.url; row.autoPhotoPage = found.page; }
+          changed = true;
+        }
+        if (changed) vehiclesStore.write(all);
+        mine = all.filter(v => v.ownerId === user.id);
+      }
+      return sendJson(res, 200, { vehicles: mine.map(v => ({ ...v, photoUrl: v.photoUrl || v.autoPhotoUrl || null, photoSource: v.photoUrl ? 'upload' : (v.autoPhotoUrl ? 'commons' : null), photoPage: v.photoUrl ? null : (v.autoPhotoPage || null) })) });
     }
     if (p === '/api/vehicles' && req.method === 'POST') {
       const user = getSessionUser(req);
@@ -710,6 +760,45 @@ const server = http.createServer(async (req, res) => {
       const ix = vehicles.findIndex(v => v.id === vehicleDel[1] && v.ownerId === user.id);
       if (ix === -1) return sendJson(res, 404, { error: 'Not found.' });
       vehicles.splice(ix, 1); vehiclesStore.write(vehicles);
+      return sendJson(res, 200, {});
+    }
+    const vehiclePhoto = p.match(/^\/api\/vehicles\/([0-9a-f-]+)\/photo$/);
+    if (vehiclePhoto && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const vehicles = vehiclesStore.read();
+      const row = vehicles.find(v => v.id === vehiclePhoto[1] && v.ownerId === user.id);
+      if (!row) return sendJson(res, 404, { error: 'Not found.' });
+      let parts;
+      try { parts = await parseMultipart(req); } catch (e) { return sendJson(res, 400, { error: 'Upload failed.' }); }
+      const filePart = parts.find(x => x.filename);
+      if (!filePart) return sendJson(res, 400, { error: 'Choose a photo to upload.' });
+      const allowed = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
+      const ext = allowed[filePart.contentType];
+      if (!ext) return sendJson(res, 400, { error: 'Only JPG, PNG, WebP or GIF images.' });
+      if (filePart.data.length > 5 * 1024 * 1024) return sendJson(res, 400, { error: 'Image must be under 5 MB.' });
+      const dir = path.join(DATA_DIR, 'uploads');
+      fs.mkdirSync(dir, { recursive: true });
+      for (const f of fs.readdirSync(dir)) if (f.startsWith(row.id + '-photo.')) fs.unlinkSync(path.join(dir, f));
+      const fname = row.id + '-photo.' + ext;
+      fs.writeFileSync(path.join(dir, fname), filePart.data);
+      row.photoUrl = '/uploads/' + fname;
+      vehiclesStore.write(vehicles);
+      return sendJson(res, 200, { url: row.photoUrl });
+    }
+    const vehiclePhotoRemove = p.match(/^\/api\/vehicles\/([0-9a-f-]+)\/photo\/remove$/);
+    if (vehiclePhotoRemove && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const vehicles = vehiclesStore.read();
+      const row = vehicles.find(v => v.id === vehiclePhotoRemove[1] && v.ownerId === user.id);
+      if (!row) return sendJson(res, 404, { error: 'Not found.' });
+      if (row.photoUrl) {
+        const name = row.photoUrl.slice('/uploads/'.length);
+        if (/^[A-Za-z0-9._-]+$/.test(name)) { try { fs.unlinkSync(path.join(DATA_DIR, 'uploads', name)); } catch (e) {} }
+        row.photoUrl = null;
+        vehiclesStore.write(vehicles);
+      }
       return sendJson(res, 200, {});
     }
 
@@ -1192,7 +1281,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (p.startsWith('/uploads/') && req.method === 'GET') {
       const fname = path.basename(p);
-      if (!/^[0-9a-f-]+\-(logo|cover|gallery\-[0-9a-f]+)\.(jpg|png|webp|gif)$/.test(fname)) { res.writeHead(404); return res.end('Not found'); }
+      if (!/^[0-9a-f-]+\-(logo|cover|gallery\-[0-9a-f]+|photo)\.(jpg|png|webp|gif)$/.test(fname)) { res.writeHead(404); return res.end('Not found'); }
       const file = path.join(DATA_DIR, 'uploads', fname);
       if (!fs.existsSync(file)) { res.writeHead(404); return res.end('Not found'); }
       return serveFile(res, file);
@@ -1628,6 +1717,12 @@ const server = http.createServer(async (req, res) => {
       const reqIds = requests.filter(r => r.ownerId === uid).map(r => r.id);
       requestsStore.write(requests.filter(r => r.ownerId !== uid));
       quotesStore.write(quotesStore.read().filter(q => q.mechanicId !== uid && !reqIds.includes(q.requestId)));
+      for (const v of vehiclesStore.read().filter(v => v.ownerId === uid)) {
+        if (typeof v.photoUrl === 'string' && v.photoUrl.startsWith('/uploads/')) {
+          const name = v.photoUrl.slice('/uploads/'.length);
+          if (/^[A-Za-z0-9._-]+$/.test(name)) { try { fs.unlinkSync(path.join(DATA_DIR, 'uploads', name)); } catch (e) {} }
+        }
+      }
       vehiclesStore.write(vehiclesStore.read().filter(v => v.ownerId !== uid));
       for (const [tok, sessUid] of sessions) if (sessUid === uid) sessions.delete(tok);
       return sendJson(res, 200, { deleted: uid });

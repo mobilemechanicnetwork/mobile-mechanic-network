@@ -108,9 +108,12 @@
     $('o-phone').value = me.user.phone || '';
     if (!me.user.phone) $('phone-banner').hidden = false;
     const v = await api('/api/vehicles/me');
-    $('my-vehicles').innerHTML = v.vehicles.length ? v.vehicles.map(x => `<div class="card">
+    $('my-vehicles').innerHTML = v.vehicles.length ? v.vehicles.map(x => `<div class="card" style="display:flex;gap:14px;align-items:center;justify-content:center">
+      ${x.photoUrl ? (x.photoPage ? `<a href="${x.photoPage}" target="_blank" rel="noopener"><img src="${x.photoUrl}" alt="" style="width:88px;height:88px;object-fit:cover;border-radius:12px;flex:none"></a>` : `<img src="${x.photoUrl}" alt="" style="width:88px;height:88px;object-fit:cover;border-radius:12px;flex:none">`) : ''}
+      <div style="text-align:left">
       <strong>${x.year} ${x.make} ${x.model}</strong>${x.type && x.type !== 'car' ? ` <span class="muted">(${x.type === 'motorcycle' ? 'Motorcycle' : x.type === 'commercial' ? 'Bus / Commercial' : 'Small Engine'})</span>` : ''}
-      <div style="margin-top:6px"><button class="ghost" onclick="delVehicle('${x.id}')">Remove</button></div>
+      <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap"><button class="ghost" onclick="document.getElementById('photo-${x.id}').click()">${x.photoSource === 'upload' ? 'Change photo' : x.photoSource === 'commons' ? 'Upload my own photo' : 'Add photo'}</button><input type="file" id="photo-${x.id}" accept="image/*" hidden onchange="uploadVehiclePhoto('${x.id}', this)">${x.photoSource === 'upload' ? `<button class="ghost" onclick="delVehiclePhoto('${x.id}')">Remove photo</button>` : ''}<button class="ghost" onclick="delVehicle('${x.id}')">Remove</button></div>
+      </div>
     </div>`).join('') : '<p class="muted">No vehicles saved yet.</p>';
     const d = await api('/api/requests/mine');
     const box = $('my-requests');
@@ -150,6 +153,17 @@
     catch (e) { $('v-err').textContent = e.message; }
   };
   window.delVehicle = async (id) => { if (!confirm('Remove this vehicle?')) return; await api('/api/vehicles/' + id, { method: 'DELETE' }); loadOwner(); };
+  window.uploadVehiclePhoto = async (id, input) => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('photo', file);
+    const r = await fetch('/api/vehicles/' + id + '/photo', { method: 'POST', body: fd });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { alert(d.error || 'Upload failed.'); return; }
+    loadOwner();
+  };
+  window.delVehiclePhoto = async (id) => { if (!confirm('Remove your photo? The automatic photo will show again if one was found.')) return; await api('/api/vehicles/' + id + '/photo/remove', { method: 'POST' }); loadOwner(); };
 
   document.getElementById('help-form').onsubmit = async (e) => {
     e.preventDefault(); $('h-err').textContent = ''; $('h-ok').textContent = '';
