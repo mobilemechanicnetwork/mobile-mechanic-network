@@ -127,6 +127,7 @@ function searchCities(q, state, limit) {
 }
 const visitsStore = store('visits.json');
 const searchesStore = store('searches.json');
+const notificationsStore = store('notifications.json');
 function clientIpHash(req) {
   const fwd = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   const ip = fwd || (req.socket && req.socket.remoteAddress) || 'unknown';
@@ -1100,10 +1101,43 @@ const server = http.createServer(async (req, res) => {
             mechanicNotified = sms.sent === true;
           }
         } catch (e) {}
+        // In-portal notification for the mechanic, so the acceptance is
+        // waiting on their profile even before they open a text.
+        try {
+          const notes = notificationsStore.read();
+          notes.push({ id: crypto.randomUUID(), userId: quote.mechanicId, type: 'quote_accepted', title: `${row.ownerName || 'A customer'} accepted your quote`, service: row.service, vehicle: row.vehicle || '', total: quote.total != null ? quote.total : quote.price, customerName: row.ownerName || '', customerPhone: row.phone || '', requestId: row.id, quoteId: quote.id, read: false, createdAt: new Date().toISOString() });
+          notificationsStore.write(notes);
+        } catch (e) {}
         return sendJson(res, 200, { quote, requestStatus: row.status, ticket: autoTicket, mechanicNotified });
       } else quote.status = 'declined';
       quotesStore.write(quotes); requestsStore.write(rows);
       return sendJson(res, 200, { quote, requestStatus: row.status });
+    }
+
+    // ---------- Mechanic notifications ----------
+    if (p === '/api/notifications' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const notes = notificationsStore.read().filter(n => n.userId === user.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+      return sendJson(res, 200, { notifications: notes, unread: notes.filter(n => !n.read).length });
+    }
+    if (p === '/api/notifications/read' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const notes = notificationsStore.read();
+      let changed = false;
+      for (const n of notes) if (n.userId === user.id && !n.read) { n.read = true; changed = true; }
+      if (changed) notificationsStore.write(notes);
+      return sendJson(res, 200, { ok: true });
+    }
+    if (p === '/api/notifications/clear' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      notificationsStore.write(notificationsStore.read().filter(n => n.userId !== user.id));
+      return sendJson(res, 200, { ok: true });
     }
 
     // ---------- Help requests ----------
@@ -1433,7 +1467,7 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
-      const tickets = ticketsStore.read().filter(t => t.mechanicId === user.id);
+      const tickets = ticketsStore.read().filter(t => t.mechanicId === user.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       return sendJson(res, 200, { tickets });
     }
     const ticketConvert = p.match(/^\/api\/tickets\/([0-9a-f-]+)\/convert$/);
@@ -1748,6 +1782,7 @@ const server = http.createServer(async (req, res) => {
         reviews: reviewsStore.read(),
         visits: visitsStore.read(),
         searches: searchesStore.read(),
+        notifications: notificationsStore.read(),
       };
       const body = JSON.stringify(dump);
       const stamp = new Date().toISOString().slice(0, 10);

@@ -110,6 +110,7 @@
   <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600">Add your phone number so you get new requests by text. <a href="/security" style="color:#b91c1c">Add it now →</a></div>
   <div class="tabs noprint">
     <button data-tab="requests" class="active">Requests</button>
+    <button data-tab="notifications">Notifications <span id="notif-badge" hidden style="display:inline-block;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 7px;font-size:.75rem;font-weight:700;margin-left:4px"></span></button>
     <button data-tab="profile">Business profile</button>
     <button data-tab="promos">Promotions</button>
     <button data-tab="photos">Photos</button>
@@ -125,6 +126,12 @@
     <div id="inbox"></div>
     <h2 style="margin-top:28px">Booked jobs</h2>
     <div id="booked"></div>
+  </section>
+
+  <section class="tab" id="tab-notifications">
+    <h2>Notifications</h2>
+    <p><button type="button" class="ghost" id="notif-clear">Clear all</button></p>
+    <div id="notif-list"></div>
   </section>
 
   <section class="tab" id="tab-profile">
@@ -316,6 +323,7 @@ document.querySelectorAll('.tabs button').forEach(b => {
     b.classList.add('active');
     $('tab-' + b.dataset.tab).classList.add('active');
     if (b.dataset.tab === 'profile') renderPvView();
+    if (b.dataset.tab === 'notifications') loadNotifications(true);
   };
 });
 $('logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout', {}); location.href = '/'; };
@@ -327,6 +335,30 @@ async function loadServices() {
   SERVICES = d.services;
   $('b-services').innerHTML = SERVICES.map(s => `<label><input type="checkbox" value="${esc(s)}"> ${esc(s)}</label>`).join('');
 }
+
+/* ---------- Notifications ---------- */
+function updateNotifBadge(count) {
+  const badge = $('notif-badge');
+  if (!badge) return;
+  if (count > 0) { badge.hidden = false; badge.textContent = count; }
+  else badge.hidden = true;
+}
+async function loadNotifications(markRead) {
+  try {
+    const d = await api('/api/notifications');
+    const notes = d.notifications || [];
+    $('notif-list').innerHTML = notes.length ? notes.map(n => `<div class="card" style="${n.read ? '' : 'border-left:4px solid #2563eb'}">
+      <strong>${esc(n.title)}</strong>
+      <div class="muted">${esc(n.service)}${n.vehicle ? ' · ' + esc(n.vehicle) : ''}${n.total != null ? ' · $' + Number(n.total).toFixed(2) : ''} · ${new Date(n.createdAt).toLocaleDateString()}</div>
+      ${n.customerPhone ? `<div style="margin-top:6px">${esc(n.customerName)} · <a href="tel:${esc(String(n.customerPhone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(n.customerPhone) : n.customerPhone)}</a> · <a href="sms:${esc(String(n.customerPhone).replace(/[^+\d]/g, ''))}">Text</a></div>` : ''}
+      <p><button type="button" class="ghost" onclick="viewBookedJob()">View booked job →</button></p>
+    </div>`).join('') : '<p class="muted">No notifications yet. When a customer accepts your quote, it will show up here.</p>';
+    updateNotifBadge(d.unread || 0);
+    if (markRead && (d.unread || 0) > 0) { await post('/api/notifications/read', {}); updateNotifBadge(0); }
+  } catch (e) {}
+}
+window.viewBookedJob = () => { document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('booked'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
+$('notif-clear').onclick = async () => { await post('/api/notifications/clear', {}); loadNotifications(false); };
 
 /* ---------- Requests inbox ---------- */
 async function loadInbox() {
@@ -374,7 +406,7 @@ window.bookedToTicket = async (bid) => {
   try {
     const d = await post('/api/tickets/from-request/' + bid, {});
     document.querySelector('[data-tab="tickets"]').click();
-    loadTickets(); loadInbox();
+    loadTickets(); loadInbox(); loadNotifications(false);
     window.scrollTo(0, 0);
   } catch (e) { alert(e.message); }
 };
