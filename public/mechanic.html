@@ -110,7 +110,7 @@
   <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600">Add your phone number so you get new requests by text. <a href="/security" style="color:#b91c1c">Add it now →</a></div>
   <div class="tabs noprint">
     <button data-tab="requests" class="active">Requests</button>
-    <button data-tab="notifications">Notifications <span id="notif-badge" hidden style="display:inline-block;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 7px;font-size:.75rem;font-weight:700;margin-left:4px"></span></button>
+    <button data-tab="notifications">Notifications <span id="notif-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700;margin-left:4px;vertical-align:middle"></span></button>
     <button data-tab="profile">Business profile</button>
     <button data-tab="promos">Promotions</button>
     <button data-tab="photos">Photos</button>
@@ -340,8 +340,8 @@ async function loadServices() {
 function updateNotifBadge(count) {
   const badge = $('notif-badge');
   if (!badge) return;
-  if (count > 0) { badge.hidden = false; badge.textContent = count; }
-  else badge.hidden = true;
+  if (count > 0) { badge.style.display = 'inline-block'; badge.textContent = count; }
+  else badge.style.display = 'none';
 }
 async function loadNotifications(markRead) {
   try {
