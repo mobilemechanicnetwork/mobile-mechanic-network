@@ -11,7 +11,7 @@
   .cover{width:100%;max-height:280px;object-fit:cover;display:block}
   .cover-ph{height:120px;background:linear-gradient(135deg,#dbeafe,#f2f5fa)}
   .body{padding:12px 24px 0;text-align:center}
-  .head{display:flex;flex-direction:column;gap:16px;align-items:center;margin:0 0 12px;position:relative;z-index:1}
+  .head{display:flex;flex-direction:row;gap:16px;align-items:center;justify-content:center;margin:0 0 12px;position:relative;z-index:1}
   .head img.logo{width:88px;height:88px;object-fit:cover;border-radius:14px;border:3px solid #f2f5fa;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.1);margin-top:-52px;flex:none}
   .head h1{margin:0;font-size:1.6rem;color:#0f172a}
   .muted{color:#64748b;font-size:.92rem}
@@ -87,7 +87,7 @@ async function reviewHtml(businessId) {
       <div class="body">
         <div class="head">
           ${b.logoUrl ? `<img class="logo" src="${esc(b.logoUrl)}" alt="">` : ''}
-          <div><h1>${esc(b.name)}</h1><div class="muted">${esc(b.city)}, ${esc(b.state)}${b.mechanicName ? ' · ' + esc(b.mechanicName) : ''}</div></div>
+          <div style="text-align:left"><h1>${esc(b.name)}</h1><div class="muted">${esc(b.city)}, ${esc(b.state)}${b.mechanicName ? ' · ' + esc(b.mechanicName) : ''}</div></div>
         </div>
         ${b.acceptUrgent ? `<div><span class="urgent">ACCEPTS URGENT REQUESTS</span></div>` : ''}
         ${badgeHtml(b)}
