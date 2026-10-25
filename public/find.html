@@ -172,12 +172,22 @@ $('find-form').onsubmit = async (e) => {
   };
   const params = new URLSearchParams({ city: q.city, state: q.state, service: q.service, type: window._findVeh ? window._findVeh.type : 'car' });
   // Save what the customer just entered so a profile → quote request
-  // opens with it already filled in (request.html reads 'mmn_find').
+  // can send it straight to that mechanic (shop.html reads 'mmn_find'),
+  // and so the request form can prefill from it as a fallback.
   try {
+    const svc = q.service;
+    let desc = '';
+    if (svc === 'Diagnostics') {
+      desc = q.symptoms.length ? 'Symptoms: ' + q.symptoms.join(', ') + '.' + (q.moreinfo ? '\n' + q.moreinfo : '') : q.moreinfo;
+    } else {
+      desc = $('f-desc').value.trim();
+    }
     sessionStorage.setItem('mmn_find', JSON.stringify({
       phone: q.phone, city: q.city, state: q.state, zip: q.zip, date: q.date,
-      vehicle: q.vehicle, symptoms: q.symptoms,
-      moreinfo: q.service === 'Diagnostics' ? q.moreinfo : $('f-desc').value.trim(),
+      vehicle: q.vehicle, symptoms: q.symptoms, moreinfo: q.moreinfo,
+      service: svc, vehicleType: window._findVeh ? window._findVeh.type : 'car',
+      urgent: new URLSearchParams(location.search).get('urgent') === '1',
+      description: desc,
     }));
   } catch (e) {}
   let d;

@@ -92,8 +92,9 @@ async function reviewHtml(businessId) {
         ${badgeHtml(b)}
         <div class="btnrow">
           ${b.phone ? `<a class="btn call" href="tel:${esc(b.phone.replace(/[^+\d]/g, ''))}">Call ${esc(b.phone)}</a>` : ''}
-          <a class="btn" href="/request?business=${esc(b.id)}">Request a quote from ${esc(b.name)}</a>
+          <a class="btn" id="req-btn" href="/request?business=${esc(b.id)}">Request a quote from ${esc(b.name)}</a>
         </div>
+        <div id="req-msg"></div>
         ${b.about ? `<div class="card"><h3>About</h3><p style="margin:0">${esc(b.about)}</p></div>` : ''}
         <div class="card"><h3>Services</h3><div>${(b.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('')}</div>${(b.vehicleTypes || ['car']).length > 1 || !(b.vehicleTypes || ['car']).includes('car') ? `<div class="muted" style="margin-top:8px">Services: ${(b.vehicleTypes || ['car']).map(t => t === 'car' ? 'Cars & trucks' : t === 'motorcycle' ? 'Motorcycles' : t === 'commercial' ? 'Bus / Commercial' : 'Small Engine').join(' · ')}</div>` : ''}</div>
         <div class="card"><h3>Service area</h3><p class="muted" style="margin:0">${esc([(b.city + ', ' + b.state), ...(b.serviceCities || [])].join('; '))}</p></div>
@@ -104,6 +105,35 @@ async function reviewHtml(businessId) {
         ${socLinks ? `<div class="card"><h3>Follow</h3><div class="soc">${socLinks}</div></div>` : ''}
       </div>`;
     document.getElementById('reviews').innerHTML = await reviewHtml(b.id);
+    // Direct send: if the customer just searched (find saved 'mmn_find'),
+    // send that request straight to this mechanic, then prompt for an
+    // account. Otherwise fall through to the request form.
+    const reqBtn = document.getElementById('req-btn');
+    if (reqBtn) reqBtn.addEventListener('click', async (e) => {
+      let pre = {};
+      try { pre = JSON.parse(sessionStorage.getItem('mmn_find') || '{}'); } catch (err) {}
+      const complete = pre.phone && pre.vehicle && pre.service && pre.city && pre.state && pre.date && pre.description;
+      if (!complete) return;
+      e.preventDefault();
+      const msg = document.getElementById('req-msg');
+      const origText = reqBtn.textContent;
+      reqBtn.style.pointerEvents = 'none';
+      reqBtn.textContent = 'Sending…';
+      try {
+        const body = { service: pre.service, vehicle: pre.vehicle, vehicleType: pre.vehicleType || 'car', vin: '', city: pre.city, state: pre.state, description: pre.description, phone: pre.phone, date: pre.date, urgent: pre.urgent === true, zip: pre.zip || '', businessId: b.id };
+        const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || 'Something went wrong.');
+        const me = await (await fetch('/api/me')).json().catch(() => ({}));
+        const isGuest = !me.user;
+        reqBtn.style.display = 'none';
+        msg.innerHTML = `<div class="card" style="border:1px solid #2563eb"><h3 style="margin-top:0">Request sent!</h3><p class="muted" style="margin-bottom:0">${isGuest ? 'Request sent directly to ' + esc(b.name) + ' — you\'ll get their quote by text.' : 'Request sent directly to ' + esc(b.name) + '. Watch your dashboard for their quote.'}</p></div>` + (isGuest ? `<div style="margin-top:14px;border:1px solid #2563eb;border-radius:10px;padding:14px;font-size:.95rem;background:#fff"><strong>Create a free account to get the most out of it:</strong><ul style="margin:8px 0;padding-left:20px;line-height:1.6"><li><strong>Your quotes in one place</strong> — compare them side by side and accept with one tap</li><li><strong>Your vehicles saved</strong> — no retyping year, make, and model every time</li><li><strong>Repair history</strong> — a running record of every job done on your vehicles</li><li><strong>This request follows you</strong> — it will be waiting in your dashboard the moment you sign up</li></ul><span class="muted">Free for vehicle owners, forever. Your phone number is already filled in.</span><br><br><a href="/account?phone=${encodeURIComponent(pre.phone)}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;padding:10px 18px;font-weight:700">Create my free account</a></div>` : '');
+      } catch (err) {
+        msg.innerHTML = `<p style="color:#b91c1c">${esc(err.message)}</p><p><a href="/request?business=${esc(b.id)}">Fill out the request form instead</a></p>`;
+        reqBtn.style.pointerEvents = '';
+        reqBtn.textContent = origText;
+      }
+    });
   } catch (e) { page.innerHTML = '<p class="body">' + esc(e.message) + ' <a href="/mechanics">Back to directory</a>.</p>'; }
 })();
 /* Swipeable gallery lightbox */
