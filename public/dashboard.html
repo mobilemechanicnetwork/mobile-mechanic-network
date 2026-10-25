@@ -34,11 +34,19 @@
     <p><a href="/request"><button type="button">Request quotes</button></a> <a href="/mechanics"><button type="button" class="ghost">Find a mobile mechanic</button></a></p>
     <h2>My info</h2>
     <div class="card">
-      <div class="muted" id="o-email"></div>
-      <label for="o-name">Name</label><input id="o-name">
-      <label for="o-phone">Phone number</label><input id="o-phone" type="tel" placeholder="(504) 555-0100">
-      <p><button type="button" onclick="saveProfile()">Save</button></p>
-      <div class="err" id="o-err"></div><div class="ok" id="o-ok"></div>
+      <div id="o-view">
+        <div id="o-name-view" style="font-size:1.3rem;font-weight:700"></div>
+        <div id="o-phone-view" style="font-size:1.15rem;font-weight:700;margin-top:4px"></div>
+        <div class="muted" id="o-email"></div>
+        <div class="ok" id="o-view-ok"></div>
+        <p style="margin:10px 0 0"><button type="button" class="ghost" id="o-edit-btn" style="font-size:.8rem;padding:5px 10px">Edit</button></p>
+      </div>
+      <div id="o-edit" hidden>
+        <label for="o-name">Name</label><input id="o-name">
+        <label for="o-phone">Phone number</label><input id="o-phone" type="tel" placeholder="(504) 555-0100">
+        <p><button type="button" onclick="saveProfile()">Save</button> <button type="button" class="ghost" onclick="cancelEditProfile()">Cancel</button></p>
+        <div class="err" id="o-err"></div><div class="ok" id="o-ok"></div>
+      </div>
     </div>
     <h2>My vehicles</h2>
     <div id="my-vehicles"></div>
@@ -120,16 +128,23 @@
     $('o-email').textContent = me.user.email;
     $('o-name').value = me.user.name || '';
     $('o-phone').value = me.user.phone || '';
+    window._myInfo = { name: me.user.name || '', phone: me.user.phone || '' };
+    $('o-name-view').textContent = me.user.name || 'No name yet';
+    $('o-phone-view').textContent = me.user.phone || 'No phone number yet';
+    $('o-view').hidden = false; $('o-edit').hidden = true;
     if (!me.user.phone) $('phone-banner').hidden = false;
     const v = await api('/api/vehicles/me');
     window._garageVehicles = v.vehicles || [];
-    $('my-vehicles').innerHTML = v.vehicles.length ? v.vehicles.map(x => `<div class="card" style="display:flex;gap:14px;align-items:center;justify-content:center">
-      ${x.photoUrl ? (x.photoPage ? `<a href="${x.photoPage}" target="_blank" rel="noopener"><img src="${x.photoUrl}" alt="" style="width:88px;height:88px;object-fit:cover;border-radius:12px;flex:none"></a>` : `<img src="${x.photoUrl}" alt="" style="width:88px;height:88px;object-fit:cover;border-radius:12px;flex:none">`) : ''}
+    $('my-vehicles').innerHTML = v.vehicles.length ? v.vehicles.map(x => {
+      const imgStyle = x.photoKind === 'logo' ? 'width:88px;height:88px;object-fit:contain;background:#ffffff;padding:8px;box-sizing:border-box;border-radius:12px;flex:none' : 'width:88px;height:88px;object-fit:cover;border-radius:12px;flex:none';
+      return `<div class="card" style="display:flex;gap:14px;align-items:center;justify-content:center">
+      ${x.photoUrl ? (x.photoPage ? `<a href="${x.photoPage}" target="_blank" rel="noopener"><img src="${x.photoUrl}" alt="" style="${imgStyle}"></a>` : `<img src="${x.photoUrl}" alt="" style="${imgStyle}">`) : ''}
       <div style="text-align:left">
       <strong>${x.year} ${x.make} ${x.model}</strong>${x.type && x.type !== 'car' ? ` <span class="muted">(${x.type === 'motorcycle' ? 'Motorcycle' : x.type === 'commercial' ? 'Bus / Commercial' : 'Small Engine'})</span>` : ''}
       <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap"><button class="ghost" onclick="document.getElementById('photo-${x.id}').click()">${x.photoSource === 'upload' ? 'Change photo' : x.photoSource === 'commons' ? 'Upload my own photo' : 'Add photo'}</button><input type="file" id="photo-${x.id}" accept="image/*" hidden onchange="uploadVehiclePhoto('${x.id}', this)">${x.photoSource === 'upload' ? `<button class="ghost" onclick="delVehiclePhoto('${x.id}')">Remove photo</button>` : ''}<button class="ghost" onclick="delVehicle('${x.id}')">Remove</button></div>
       </div>
-    </div>`).join('') : '<p class="muted">No vehicles saved yet.</p>';
+    </div>`;
+    }).join('') : '<p class="muted">No vehicles saved yet.</p>';
     const d = await api('/api/requests/mine');
     window._ownerRequests = d.requests || [];
     const seenMech = new Map();
@@ -153,15 +168,18 @@
       </div>
       ${jobs.length ? `<div style="margin-top:12px;text-align:left">
       <div class="muted" style="margin-bottom:4px">Repair history with ${esc(b.name)}:</div>
-      ${jobs.map(j => `<div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>${esc(j.service)}</strong> — ${esc(j.vehicle)}<div class="muted">${j.createdAt ? new Date(j.createdAt).toLocaleDateString() : ''} · ${j.status === 'accepted' ? 'Booked' : esc(j.status)}${j.paid ? ' · Paid' : ''} · $${Number(j.total || 0).toFixed(2)}</div></div>`).join('')}
+      ${jobs.map(j => {
+        const st = j.paid ? '<span style="color:#dc2626">Completed</span>' : j.status === 'accepted' ? '<span style="color:#16a34a">Booked</span>' : j.status === 'open' ? '<span style="color:#16a34a">Active</span>' : esc(j.status);
+        return `<div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>${esc(j.service)}</strong> — ${esc(j.vehicle)}<div class="muted">${j.createdAt ? new Date(j.createdAt).toLocaleDateString() : ''} · ${st} · $${Number(j.total || 0).toFixed(2)}</div></div>`;
+      }).join('')}
       </div>` : ''}
     </div>`;
     }).join('') : '<p class="muted">Mechanics you have worked with will show up here.</p>';
     const box = $('my-requests');
     if (!d.requests.length) { box.innerHTML = '<p class="muted">No repair history yet. Send your first request and mechanics in your area can quote it.</p>'; return; }
-    const pill = s => s === 'accepted' ? '<span style="color:#16a34a">Booked</span>' : s === 'open' ? '<span style="color:#2563eb">Open</span>' : `<span class="muted">${s}</span>`;
+    const pill = r => r.paid ? '<span style="color:#dc2626">Completed</span>' : r.status === 'accepted' ? '<span style="color:#16a34a">Booked</span>' : r.status === 'open' ? '<span style="color:#16a34a">Active</span>' : `<span class="muted">${r.status}</span>`;
     box.innerHTML = d.requests.map(r => `<div class="card">
-      <strong>${r.service}</strong> — ${r.vehicle}<div class="muted">${r.city}, ${r.state} · ${new Date(r.createdAt).toLocaleDateString()}${r.date ? ' · Needed by ' + r.date : ''} · ${pill(r.status)}</div>
+      <strong>${r.service}</strong> — ${r.vehicle}<div class="muted">${r.city}, ${r.state} · ${new Date(r.createdAt).toLocaleDateString()}${r.date ? ' · Needed by ' + r.date : ''} · ${pill(r)}</div>
       <p>${r.description}</p>
       ${r.quotes.length ? r.quotes.map(q => `<div class="card">
         <div>${q.businessLogo ? `<img src="${q.businessLogo}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}<strong>${q.businessName}</strong> <span class="muted">(${q.businessCity})</span>${q.businessPhone ? ` · <a href="tel:${q.businessPhone.replace(/[^+\d]/g, '')}">${q.businessPhone}</a>` : ''}</div>
@@ -183,9 +201,25 @@
   }
   window.saveProfile = async () => {
     $('o-err').textContent = ''; $('o-ok').textContent = '';
-    try { await post('/api/profile', { name: $('o-name').value, phone: $('o-phone').value }); $('o-ok').textContent = 'Saved.'; }
+    try {
+      const nm = $('o-name').value; const ph = $('o-phone').value;
+      await post('/api/profile', { name: nm, phone: ph });
+      window._myInfo = { name: nm, phone: ph };
+      $('o-name-view').textContent = nm || 'No name yet';
+      $('o-phone-view').textContent = ph || 'No phone number yet';
+      $('o-view-ok').textContent = 'Saved.';
+      $('o-view').hidden = false; $('o-edit').hidden = true;
+    }
     catch (e) { $('o-err').textContent = e.message; }
   };
+  window.cancelEditProfile = () => {
+    const m = window._myInfo || {};
+    $('o-name').value = m.name || '';
+    $('o-phone').value = m.phone || '';
+    $('o-err').textContent = ''; $('o-ok').textContent = '';
+    $('o-edit').hidden = true; $('o-view').hidden = false;
+  };
+  $('o-edit-btn').onclick = () => { $('o-view-ok').textContent = ''; $('o-view').hidden = true; $('o-edit').hidden = false; };
   window.addVehicle = async () => {
     $('v-err').textContent = '';
     const v = window._vehPicker ? window._vehPicker.get() : null;

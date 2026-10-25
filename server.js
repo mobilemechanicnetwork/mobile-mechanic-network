@@ -665,13 +665,16 @@ const server = http.createServer(async (req, res) => {
 
     // ---------- Owner vehicles ----------
     // Wikimedia Commons photo for a vehicle: real, freely licensed photos of
-    // the actual model. Prefers exterior shots; returns { url, page } or null.
+    // the actual model. FRONT views only: rear/trunk/back shots are rejected,
+    // front-titled shots rank first, side shots rank last.
     async function commonsVehiclePhoto(year, make, model) {
-      const skip = /badge|interior|engine|wheel|detail|dashboard|headlight|taillight|tail light|charging|emblem|grille|logo|key|seat/i;
+      const skip = /badge|interior|engine|wheel|detail|dashboard|headlight|taillight|tail light|charging|emblem|grille|logo|key|seat|bumper|\brear\b|\btrunk\b|tailgate|back view|rear view|rear end|from behind/i;
       const queries = [];
-      if (year) queries.push(year + ' ' + make + ' ' + model);
-      queries.push(make + ' ' + model);
-      for (const q of queries) {
+      if (year) queries.push({ q: year + ' ' + make + ' ' + model + ' front', requireYear: true });
+      queries.push({ q: make + ' ' + model + ' front', requireYear: false });
+      if (year) queries.push({ q: year + ' ' + make + ' ' + model, requireYear: false });
+      queries.push({ q: make + ' ' + model, requireYear: false });
+      for (const { q, requireYear } of queries) {
         try {
           const api = 'https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=' + encodeURIComponent(q) + '&gsrnamespace=6&gsrlimit=10&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json';
           const r = await fetch(api, { headers: { 'User-Agent': 'MobileMechanicNetwork/1.0 (contact: legal@mobilemechanicsinmyarea.com)' }, signal: AbortSignal.timeout(8000) });
@@ -681,19 +684,59 @@ const server = http.createServer(async (req, res) => {
           const good = pages.filter(pg => {
             const t = String(pg.title || '').replace(/^File:/i, '');
             if (skip.test(t)) return false;
+            if (requireYear && !t.includes(String(year))) return false;
+            if (!/\.(jpg|jpeg|png|webp|gif|svg)$/i.test(t)) return false;
+            const low = t.toLowerCase();
+            if (!low.includes(make.toLowerCase()) || !low.includes(model.toLowerCase())) return false;
             const ii = (pg.imageinfo || [])[0];
             return ii && ii.thumburl && ii.descriptionurl;
           });
           if (!good.length) continue;
-          good.sort((a, b) => {
-            const ay = year && String(a.title).replace(/^File:/i, '').toLowerCase().startsWith(String(year).toLowerCase()) ? 0 : 1;
-            const by = year && String(b.title).replace(/^File:/i, '').toLowerCase().startsWith(String(year).toLowerCase()) ? 0 : 1;
-            return ay - by;
-          });
+          const score = (t) => {
+            let s = 0;
+            const low = t.toLowerCase();
+            if (low.includes(make.toLowerCase()) && low.includes(model.toLowerCase())) s += 20;
+            if (/\bfront\b/i.test(t)) s += 10;
+            if (/three-quarter|three quarter/i.test(t)) s += 5;
+            if (year && t.toLowerCase().startsWith(String(year).toLowerCase())) s += 5;
+            if (/\bside\b/i.test(t)) s -= 3;
+            return s;
+          };
+          good.sort((a, b) => score(String(b.title).replace(/^File:/i, '')) - score(String(a.title).replace(/^File:/i, '')));
           const ii = good[0].imageinfo[0];
-          return { url: ii.thumburl, page: ii.descriptionurl };
+          return { url: ii.thumburl, page: ii.descriptionurl, kind: 'vehicle' };
         } catch (e) { /* try the next query */ }
       }
+      // Fallback: the make's logo when no photo of the vehicle itself exists.
+      try {
+        const api = 'https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=' + encodeURIComponent(make + ' logo') + '&gsrnamespace=6&gsrlimit=10&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json';
+        const r = await fetch(api, { headers: { 'User-Agent': 'MobileMechanicNetwork/1.0 (contact: legal@mobilemechanicsinmyarea.com)' }, signal: AbortSignal.timeout(8000) });
+        if (r.ok) {
+          const d = await r.json();
+          const pages = Object.values((d.query && d.query.pages) || {});
+          const logoSkip = /dealership|dealer|sign|store|building|factory|racing|motorsport|history|vintage|old logo/i;
+          const good = pages.filter(pg => {
+            const t = String(pg.title || '').replace(/^File:/i, '');
+            if (logoSkip.test(t)) return false;
+            if (!/\.(jpg|jpeg|png|webp|gif|svg)$/i.test(t)) return false;
+            const ii = (pg.imageinfo || [])[0];
+            return ii && ii.thumburl && ii.descriptionurl;
+          });
+          if (good.length) {
+            const lscore = (t) => {
+              const base = t.replace(/\.(svg|png|jpg|jpeg|webp|gif)$/i, '').toLowerCase();
+              let s = 0;
+              if (base === make.toLowerCase() + ' logo') s += 20;
+              else if (base.startsWith(make.toLowerCase() + ' logo')) s += 10;
+              if (/\.svg$/i.test(t)) s += 5;
+              return s;
+            };
+            good.sort((a, b) => lscore(String(b.title).replace(/^File:/i, '')) - lscore(String(a.title).replace(/^File:/i, '')));
+            const ii = good[0].imageinfo[0];
+            return { url: ii.thumburl, page: ii.descriptionurl, kind: 'logo' };
+          }
+        }
+      } catch (e) {}
       return null;
     }
     if (p === '/api/vehicles/me' && req.method === 'GET') {
@@ -721,10 +764,12 @@ const server = http.createServer(async (req, res) => {
           }
         } catch (e) {}
       }
-      // Lazy Commons photos: one lookup per photo-less vehicle, remembered
-      // via photoChecked so a miss is not retried on every view.
+      // Lazy Commons photos, rule v2 (front views only): one lookup per
+      // photo-less vehicle, remembered via photoRule so a miss is not
+      // retried on every view. Vehicles picked under the old rule are
+      // re-picked once so rear shots get replaced.
       let mine = vehiclesStore.read().filter(v => v.ownerId === user.id);
-      const unchecked = mine.filter(v => !v.photoUrl && !v.photoChecked);
+      const unchecked = mine.filter(v => !v.photoUrl && v.photoRule !== 2);
       if (unchecked.length) {
         const results = await Promise.all(unchecked.map(async (v) => ({ v, found: await commonsVehiclePhoto(v.year, v.make, v.model) })));
         const all = vehiclesStore.read();
@@ -733,13 +778,15 @@ const server = http.createServer(async (req, res) => {
           const row = all.find(x => x.id === v.id);
           if (!row) continue;
           row.photoChecked = true;
-          if (found) { row.autoPhotoUrl = found.url; row.autoPhotoPage = found.page; }
+          row.photoRule = 2;
+          if (found) { row.autoPhotoUrl = found.url; row.autoPhotoPage = found.page; row.photoKind = found.kind || 'vehicle'; }
+          else { row.autoPhotoUrl = null; row.autoPhotoPage = null; row.photoKind = null; }
           changed = true;
         }
         if (changed) vehiclesStore.write(all);
         mine = all.filter(v => v.ownerId === user.id);
       }
-      return sendJson(res, 200, { vehicles: mine.map(v => ({ ...v, photoUrl: v.photoUrl || v.autoPhotoUrl || null, photoSource: v.photoUrl ? 'upload' : (v.autoPhotoUrl ? 'commons' : null), photoPage: v.photoUrl ? null : (v.autoPhotoPage || null) })) });
+      return sendJson(res, 200, { vehicles: mine.map(v => ({ ...v, photoUrl: v.photoUrl || v.autoPhotoUrl || null, photoSource: v.photoUrl ? 'upload' : (v.autoPhotoUrl ? 'commons' : null), photoPage: v.photoUrl ? null : (v.autoPhotoPage || null), photoKind: v.photoUrl ? 'upload' : (v.autoPhotoUrl ? (v.photoKind || 'vehicle') : null) })) });
     }
     if (p === '/api/vehicles' && req.method === 'POST') {
       const user = getSessionUser(req);
