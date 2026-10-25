@@ -668,6 +668,27 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'owner') return sendJson(res, 403, { error: 'Vehicle owners only.' });
+      // Retroactive garage fill: vehicles from requests sent before the
+      // account existed (claimed at signup) are added on first view, so
+      // accounts created before the garage save existed get them too.
+      if (user.createdAt) {
+        try {
+          const pre = requestsStore.read().filter(r => r.ownerId === user.id && r.createdAt && r.createdAt < user.createdAt);
+          if (pre.length) {
+            const mine = vehiclesStore.read();
+            let added = false;
+            for (const r of pre) {
+              const gv = vehicleFromRequest(r);
+              if (!gv) continue;
+              const dup = mine.some(v => v.ownerId === user.id && v.year === gv.year && v.make.toLowerCase() === gv.make.toLowerCase() && v.model.toLowerCase() === gv.model.toLowerCase() && v.type === gv.type);
+              if (dup) continue;
+              mine.push({ id: crypto.randomUUID(), ownerId: user.id, ...gv, createdAt: new Date().toISOString() });
+              added = true;
+            }
+            if (added) vehiclesStore.write(mine);
+          }
+        } catch (e) {}
+      }
       return sendJson(res, 200, { vehicles: vehiclesStore.read().filter(v => v.ownerId === user.id) });
     }
     if (p === '/api/vehicles' && req.method === 'POST') {

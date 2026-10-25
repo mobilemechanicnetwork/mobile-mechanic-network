@@ -6,14 +6,15 @@
 <title>My dashboard — Mobile Mechanic Network</title>
 <style>
   body{font-family:system-ui,sans-serif;margin:0;background:#f2f5fa;color:#0f172a}
-  main{max-width:760px;margin:4vh auto;padding:24px}
+  main{max-width:760px;margin:4vh auto;padding:24px;text-align:center}
+  #v-type .vp-type{justify-content:center}
   h1{font-size:1.5rem} h2{font-size:1.15rem;margin-top:32px} a{color:#2563eb}
   .muted{color:#64748b;font-size:.9rem}
   .card{border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin:12px 0;background:#ffffff;box-shadow:0 1px 3px rgba(15,23,42,.08)}
   .stars{font-size:1.8rem;cursor:pointer;color:#f59e0b;letter-spacing:2px;margin-top:6px}
   .stars span{cursor:pointer}
   label{display:block;margin:12px 0 6px;font-size:.9rem;color:#475569}
-  input,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;color:#0f172a;box-sizing:border-box}
+  input,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;color:#0f172a;box-sizing:border-box;text-align:left}
   button{background:#2563eb;color:#fff;border:0;border-radius:10px;padding:9px 16px;cursor:pointer;box-shadow:0 2px 6px rgba(37,99,235,.25)}
   button.ghost{background:#ffffff;border:1px solid #cbd5e1;color:#334155;box-shadow:none}
   button.decline{background:#ffffff;border:1px solid #fca5a5;color:#dc2626;box-shadow:none}
@@ -27,7 +28,7 @@
   <h1 id="hello">My dashboard</h1>
   <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600">Add your phone number below so mechanics can reach you with quotes. <a href="#owner" id="phone-banner-link" style="color:#b91c1c">Add it in My info ↓</a></div>
   <p class="muted" id="who"></p>
-  <p><a href="/">Home</a> · <a href="/mechanics">Find a mobile mechanic</a> · <a href="/security">Security</a> · <span id="adminLink"></span><a href="#" id="logout">Log out</a></p>
+  <p><a href="/mechanics">Find a mobile mechanic</a> · <a href="/security">Security</a> · <span id="adminLink"></span><button type="button" class="ghost" id="logout">Log out</button></p>
 
   <section id="owner" hidden>
     <p><a href="/request"><button type="button">Request quotes</button></a> <a href="/mechanics"><button type="button" class="ghost">Find a mobile mechanic</button></a></p>
