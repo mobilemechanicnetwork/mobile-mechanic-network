@@ -20,6 +20,8 @@
   td.num,th.num{text-align:right}
   .total{text-align:right;font-size:1.3rem;font-weight:700;margin:8px 0}
   .notes{background:#f8fafc;border-radius:8px;padding:12px;font-size:.95rem;margin-top:12px}
+  .disc{background:#f8fafc;border-radius:8px;padding:12px;font-size:.9rem;color:#475569;margin-top:12px}
+  .paid{text-align:center;font-weight:700;color:#15803d;font-size:1.1rem;margin:14px 0 4px}
   .foot{margin-top:28px;padding-top:12px;border-top:1px solid #e2e8f0;color:#64748b;font-size:.85rem;text-align:center}
   .actions{text-align:center;margin:16px 0}
   .actions button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:11px 24px;font-size:1rem;cursor:pointer}
@@ -65,11 +67,12 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;
         ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}${t.paymentMethod ? ' via ' + esc(t.paymentMethod) : ''}</div>` : ''}
       </div>
       <table>${headRow}${itemRows}${subRow}${laborRow}${taxRow}</table>
-      <div class="total">Total: ${money(t.total)}</div>
-      ${t.type === 'receipt' && t.paidAt ? `<div class="total">Balance due: $0.00</div>` : ''}
+      <div class="total">${t.type === 'estimate' ? 'Estimated total' : 'Total'}: ${money(t.total)}</div>
+      ${t.type === 'receipt' && t.paidAt ? `<div class="total">Balance due: $0.00</div><div class="paid">Paid in full. Thank you for your business.</div>` : ''}
       ${t.notes ? `<div class="notes"><strong>Notes:</strong> ${esc(t.notes)}</div>` : ''}
       ${t.warranty ? `<div class="notes"><strong>Warranty:</strong> ${esc(t.warranty)}</div>` : ''}
-      <div class="foot">Prepared by ${esc(b ? b.name : '')}${b && b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network</div>`;
+      ${t.type === 'estimate' ? `<div class="disc">This is an estimate only and is not a final invoice. The final amount may differ based on the actual work performed, parts needed, and any additional issues found during service. No payment is due until the work is complete and a final invoice is issued.</div>` : ''}
+      <div class="foot">Prepared by ${esc(b ? b.name : '')}${b && b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network${t.type === 'receipt' ? '<br>This receipt confirms payment received in full for the services listed above.' : ''}</div>`;
     document.title = t.type.charAt(0).toUpperCase() + t.type.slice(1) + ' — ' + (b ? b.name : '');
   } catch (e) { box.innerHTML = '<p>' + esc(e.message) + '</p>'; }
 })();
