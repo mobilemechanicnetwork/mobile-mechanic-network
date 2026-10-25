@@ -39,7 +39,7 @@
     <div id="urgent-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-weight:700">Urgent request — this goes straight to mechanics who accept urgent jobs.</div>
     <h1>Find a mobile mechanic</h1>
     <p class="muted">Tell us what you need. We'll show you independent mobile mechanics in your area.</p>
-    <form id="find-form">
+    <form id="find-form" novalidate>
       <label for="f-name">Your name</label>
       <input id="f-name" autocomplete="name" required>
       <label for="f-phone">Phone number <span class="muted">(mechanics reach you here)</span></label>
@@ -131,8 +131,32 @@ const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABE
 $('find-form').onsubmit = async (e) => {
   e.preventDefault();
   $('f-err').textContent = '';
+  // Visible checks (replacing the browser's own popup, which is easy to
+  // miss on a tablet): every missing field gets a message under the button.
+  const missing = [];
+  const focusFor = {};
+  const need = (el, label) => { if (!$(el).value.trim()) { missing.push(label); focusFor[label] = el; } };
+  need('f-name', 'your name');
+  need('f-phone', 'phone number');
+  need('f-city', 'city');
+  need('f-state', 'state');
+  if (!$('f-service').value) { missing.push('service'); focusFor['service'] = 'f-service'; }
+  if (!$('f-date').value) { missing.push('date'); focusFor['date'] = 'f-date'; }
+  if (missing.length) {
+    $('f-err').textContent = 'Please fill in: ' + missing.join(', ') + '.';
+    const first = $(focusFor[missing[0]]);
+    if (first) first.focus();
+    return;
+  }
   const veh = window._findVeh ? window._findVeh.vehicleString() : '';
   if (!veh) { $('f-err').textContent = 'Please pick your vehicle year, make, and model.'; return; }
+  const svc0 = $('f-service').value;
+  if (svc0 === 'Diagnostics') {
+    const picked = Array.from(document.querySelectorAll('#f-symptom-chips input:checked')).map(i => i.value);
+    if (!picked.length && !$('f-moreinfo').value.trim()) { $('f-err').textContent = 'Please pick a symptom or describe what is going on.'; return; }
+  } else if (!$('f-desc').value.trim()) {
+    $('f-err').textContent = 'Please describe what is going on with the vehicle.'; return;
+  }
   const symptoms = Array.from(document.querySelectorAll('#f-symptom-chips input:checked')).map(i => i.value);
   const q = {
     name: $('f-name').value.trim(),
@@ -147,7 +171,13 @@ $('find-form').onsubmit = async (e) => {
     moreinfo: $('f-moreinfo').value.trim(),
   };
   const params = new URLSearchParams({ city: q.city, state: q.state, service: q.service, type: window._findVeh ? window._findVeh.type : 'car' });
-  const d = await (await fetch('/api/mechanics?' + params)).json();
+  let d;
+  try {
+    d = await (await fetch('/api/mechanics?' + params)).json();
+  } catch (err) {
+    $('f-err').textContent = 'Something went wrong reaching the server. Please try again.';
+    return;
+  }
   $('form-view').hidden = true;
   $('results-view').hidden = false;
   $('r-head').textContent = (new URLSearchParams(location.search).get('urgent') === '1' ? 'Urgent — mechanics near ' : 'Mechanics near ') + `${q.city}, ${q.state.toUpperCase()}`;
