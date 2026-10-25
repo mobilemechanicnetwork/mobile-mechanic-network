@@ -171,6 +171,15 @@ $('find-form').onsubmit = async (e) => {
     moreinfo: $('f-moreinfo').value.trim(),
   };
   const params = new URLSearchParams({ city: q.city, state: q.state, service: q.service, type: window._findVeh ? window._findVeh.type : 'car' });
+  // Save what the customer just entered so a profile → quote request
+  // opens with it already filled in (request.html reads 'mmn_find').
+  try {
+    sessionStorage.setItem('mmn_find', JSON.stringify({
+      phone: q.phone, city: q.city, state: q.state, zip: q.zip, date: q.date,
+      vehicle: q.vehicle, symptoms: q.symptoms,
+      moreinfo: q.service === 'Diagnostics' ? q.moreinfo : $('f-desc').value.trim(),
+    }));
+  } catch (e) {}
   let d;
   try {
     d = await (await fetch('/api/mechanics?' + params)).json();
