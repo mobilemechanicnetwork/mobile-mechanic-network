@@ -1083,7 +1083,24 @@ const server = http.createServer(async (req, res) => {
         const built = ticketFromAcceptedQuote(quote, row);
         if (built) { const tickets = ticketsStore.read(); tickets.push(built); ticketsStore.write(tickets); autoTicket = built; }
         quotesStore.write(quotes); requestsStore.write(rows);
-        return sendJson(res, 200, { quote, requestStatus: row.status, ticket: autoTicket });
+        // Notify the mechanic: an acceptance is only useful if the
+        // mechanic hears about it. SMS when Twilio is configured; the
+        // accept itself never fails because of a text.
+        let mechanicNotified = false;
+        try {
+          const mechUser = usersStore.read().find(u => u.id === quote.mechanicId);
+          const biz = businessesStore.read().find(b => b.id === quote.businessId);
+          const to = (mechUser && mechUser.phone) || (biz && biz.phone) || '';
+          if (to) {
+            const d = String(row.phone || '').replace(/\D/g, '');
+            const c = d.length === 11 && d[0] === '1' ? d.slice(1) : d;
+            const custPhone = c.length === 10 ? `(${c.slice(0, 3)}) ${c.slice(3, 6)}-${c.slice(6)}` : (row.phone || '');
+            const total = quote.total != null ? quote.total : quote.price;
+            const sms = await sendSms(to, `Mobile Mechanic Network: ${row.ownerName || 'A customer'} accepted your quote for ${row.service} (${row.vehicle}) — $${Number(total).toFixed(2)}. Customer phone: ${custPhone}. See it here: https://mobilemechanicsinmyarea.com/mechanic`);
+            mechanicNotified = sms.sent === true;
+          }
+        } catch (e) {}
+        return sendJson(res, 200, { quote, requestStatus: row.status, ticket: autoTicket, mechanicNotified });
       } else quote.status = 'declined';
       quotesStore.write(quotes); requestsStore.write(rows);
       return sendJson(res, 200, { quote, requestStatus: row.status });
