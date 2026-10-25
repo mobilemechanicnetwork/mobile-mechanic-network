@@ -14,7 +14,7 @@
   .stars{font-size:1.8rem;cursor:pointer;color:#f59e0b;letter-spacing:2px;margin-top:6px}
   .stars span{cursor:pointer}
   label{display:block;margin:12px 0 6px;font-size:.9rem;color:#475569}
-  input,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;color:#0f172a;box-sizing:border-box;text-align:left}
+  input,select,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;color:#0f172a;box-sizing:border-box;text-align:left}
   button{background:#2563eb;color:#fff;border:0;border-radius:10px;padding:9px 16px;cursor:pointer;box-shadow:0 2px 6px rgba(37,99,235,.25)}
   button.ghost{background:#ffffff;border:1px solid #cbd5e1;color:#334155;box-shadow:none}
   button.decline{background:#ffffff;border:1px solid #fca5a5;color:#dc2626;box-shadow:none}
@@ -50,6 +50,19 @@
       <label for="v-model">Model</label><select id="v-model"></select>
       <p><button type="button" onclick="addVehicle()">Add vehicle</button></p>
       <div class="err" id="v-err"></div>
+    </div>
+    <h2>Recent mechanics</h2>
+    <div id="recent-mechanics"></div>
+    <div id="recent-req" hidden class="card">
+      <div><strong id="recent-req-name"></strong></div>
+      <label for="rq-vehicle">Vehicle</label><select id="rq-vehicle"></select>
+      <label for="rq-service">Service needed</label><select id="rq-service"></select>
+      <label for="rq-desc">What is going on with the vehicle?</label><textarea id="rq-desc" rows="3"></textarea>
+      <label for="rq-city">City</label><input id="rq-city">
+      <label for="rq-state">State</label><input id="rq-state" maxlength="2">
+      <label for="rq-date">When do you need it?</label><input id="rq-date" type="date">
+      <p><button type="button" onclick="sendRecentRequest()">Send quote request</button></p>
+      <div class="err" id="rq-err"></div><div class="ok" id="rq-ok"></div>
     </div>
     <h2>Repair history</h2>
     <div id="my-requests"></div>
@@ -95,6 +108,7 @@
   let SERVICES = [];
   async function api(url, opts) { const r = await fetch(url, opts); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Something went wrong.'); return d; }
   async function post(url, body) { return api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
   $('logout').onclick = async (e) => { e.preventDefault(); await fetch('/api/logout', { method: 'POST' }); location.href = '/'; };
 
@@ -108,6 +122,7 @@
     $('o-phone').value = me.user.phone || '';
     if (!me.user.phone) $('phone-banner').hidden = false;
     const v = await api('/api/vehicles/me');
+    window._garageVehicles = v.vehicles || [];
     $('my-vehicles').innerHTML = v.vehicles.length ? v.vehicles.map(x => `<div class="card" style="display:flex;gap:14px;align-items:center;justify-content:center">
       ${x.photoUrl ? (x.photoPage ? `<a href="${x.photoPage}" target="_blank" rel="noopener"><img src="${x.photoUrl}" alt="" style="width:88px;height:88px;object-fit:cover;border-radius:12px;flex:none"></a>` : `<img src="${x.photoUrl}" alt="" style="width:88px;height:88px;object-fit:cover;border-radius:12px;flex:none">`) : ''}
       <div style="text-align:left">
@@ -116,6 +131,18 @@
       </div>
     </div>`).join('') : '<p class="muted">No vehicles saved yet.</p>';
     const d = await api('/api/requests/mine');
+    window._ownerRequests = d.requests || [];
+    const seenMech = new Map();
+    (d.requests || []).forEach(r => (r.quotes || []).forEach(q => {
+      if (q.status === 'accepted' && q.businessId && !seenMech.has(q.businessId)) seenMech.set(q.businessId, { id: q.businessId, name: q.businessName || 'Mobile mechanic', city: q.businessCity || '', logo: q.businessLogo || '', when: r.createdAt || '' });
+    }));
+    const recent = [...seenMech.values()].sort((a, b) => (b.when || '').localeCompare(a.when || ''));
+    window._recentMechs = recent;
+    $('recent-mechanics').innerHTML = recent.length ? recent.map(b => `<div class="card" style="display:flex;gap:12px;align-items:center;justify-content:center">
+      ${b.logo ? `<img src="${esc(b.logo)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:10px;flex:none">` : ''}
+      <div style="text-align:left;flex:1"><strong>${esc(b.name)}</strong><div class="muted">${esc(b.city)}</div></div>
+      <button type="button" class="ghost" onclick="openRecentRequest('${b.id}')">Request a quote</button>
+    </div>`).join('') : '<p class="muted">Mechanics you have worked with will show up here.</p>';
     const box = $('my-requests');
     if (!d.requests.length) { box.innerHTML = '<p class="muted">No repair history yet. Send your first request and mechanics in your area can quote it.</p>'; return; }
     const pill = s => s === 'accepted' ? '<span style="color:#16a34a">Booked</span>' : s === 'open' ? '<span style="color:#2563eb">Open</span>' : `<span class="muted">${s}</span>`;
@@ -164,6 +191,55 @@
     loadOwner();
   };
   window.delVehiclePhoto = async (id) => { if (!confirm('Remove your photo? The automatic photo will show again if one was found.')) return; await api('/api/vehicles/' + id + '/photo/remove', { method: 'POST' }); loadOwner(); };
+  window.openRecentRequest = async (id) => {
+    const b = (window._recentMechs || []).find(x => x.id === id);
+    if (!b) return;
+    window._recentBiz = id;
+    $('recent-req-name').textContent = 'Request a quote from ' + b.name;
+    const vsel = $('rq-vehicle');
+    vsel.innerHTML = '';
+    const mine = window._garageVehicles || [];
+    if (!mine.length) {
+      const o = document.createElement('option'); o.value = ''; o.textContent = 'No vehicles saved — add one in My vehicles above'; o.disabled = true; o.selected = true; vsel.appendChild(o);
+    } else {
+      const ph = document.createElement('option'); ph.value = ''; ph.textContent = 'Choose a vehicle'; ph.disabled = true; ph.selected = true; vsel.appendChild(ph);
+      mine.forEach(x => { const o = document.createElement('option'); o.value = x.id; o.textContent = `${x.year} ${x.make} ${x.model}`; vsel.appendChild(o); });
+    }
+    if (!$('rq-service').options.length) {
+      try {
+        const s = await api('/api/services');
+        const ph = document.createElement('option'); ph.value = ''; ph.textContent = 'Select a service'; ph.disabled = true; ph.selected = true; $('rq-service').appendChild(ph);
+        (s.services || []).forEach(sv => { const o = document.createElement('option'); o.value = sv; o.textContent = sv; $('rq-service').appendChild(o); });
+      } catch (e) {}
+    }
+    const reqs = window._ownerRequests || [];
+    const latest = reqs.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
+    if (latest) { $('rq-city').value = latest.city || ''; $('rq-state').value = latest.state || ''; }
+    $('rq-date').value = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    $('rq-desc').value = ''; $('rq-err').textContent = ''; $('rq-ok').textContent = '';
+    $('recent-req').hidden = false;
+    $('recent-req').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  window.sendRecentRequest = async () => {
+    const errEl = $('rq-err'); const okEl = $('rq-ok');
+    errEl.textContent = ''; okEl.textContent = '';
+    const veh = (window._garageVehicles || []).find(x => x.id === $('rq-vehicle').value);
+    if (!veh) { errEl.textContent = 'Pick a vehicle from your garage, or add one in My vehicles above.'; return; }
+    const svc = $('rq-service').value;
+    if (!svc) { errEl.textContent = 'Pick a service.'; return; }
+    const desc = $('rq-desc').value.trim();
+    if (!desc) { errEl.textContent = 'Describe what is going on with the vehicle.'; return; }
+    const city = $('rq-city').value.trim(); const state = $('rq-state').value.trim(); const date = $('rq-date').value;
+    if (!city || !state) { errEl.textContent = 'Add your city and state.'; return; }
+    if (!date) { errEl.textContent = 'Pick a date.'; return; }
+    try {
+      const me = await api('/api/me');
+      await post('/api/requests', { businessId: window._recentBiz, name: me.user.name, phone: me.user.phone, city, state, vehicle: veh.type === 'smallengine' ? (veh.make + ' ' + veh.model) : (veh.year + ' ' + veh.make + ' ' + veh.model), vehicleType: veh.type || 'car', vehicleYear: veh.year || '', vehicleMake: veh.make, vehicleModel: veh.model, service: svc, description: desc, date });
+      okEl.textContent = 'Request sent! The mechanic can now send you a quote.';
+      $('rq-desc').value = '';
+      loadOwner();
+    } catch (e) { errEl.textContent = e.message || 'Could not send the request.'; }
+  };
 
   document.getElementById('help-form').onsubmit = async (e) => {
     e.preventDefault(); $('h-err').textContent = ''; $('h-ok').textContent = '';

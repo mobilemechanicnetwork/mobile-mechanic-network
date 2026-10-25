@@ -50,9 +50,12 @@
         <div><label for="f-state">State</label><input id="f-state" required maxlength="2"></div>
         <div><label for="f-zip">ZIP <span class="muted">(optional)</span></label><input id="f-zip" inputmode="numeric" maxlength="10" placeholder="e.g. 70460"></div>
       </div>
+      <div id="f-garage-row" hidden><label for="f-garage">Your garage</label><select id="f-garage"><option value="">Choose from my garage…</option></select></div>
       <label>Vehicle (year, make, model)</label>
+      <div id="f-vehicle-manual">
       <div id="f-type"></div>
       <div class="row"><div><label for="f-year">Year</label><select id="f-year"></select></div><div><label for="f-make">Make</label><select id="f-make"></select></div><div><label for="f-model">Model</label><select id="f-model"></select></div></div>
+      </div>
       <label for="f-service">Service needed</label>
       <select id="f-service" required></select>
       <div id="f-diag-symptoms" hidden>
@@ -143,6 +146,26 @@ const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABE
   } catch (e) {
     $('f-nav-btn').onclick = () => { location.href = '/'; };
   }
+  // Signed-in owners: pick a vehicle from the garage, or add a new one.
+  try {
+    const me2 = await (await fetch('/api/me')).json();
+    if (me2.user) {
+      const v = await (await fetch('/api/vehicles/me')).json().catch(() => ({}));
+      if (v.vehicles && v.vehicles.length) {
+        const vsel = $('f-garage');
+        v.vehicles.forEach((x, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = `${x.year} ${x.make} ${x.model}`; vsel.appendChild(o); });
+        const addOpt = document.createElement('option'); addOpt.value = 'new'; addOpt.textContent = 'Add a new vehicle'; vsel.appendChild(addOpt);
+        $('f-garage-row').hidden = false;
+        vsel.onchange = () => {
+          const val = vsel.value;
+          if (val === 'new') { if (window._findVeh) window._findVeh.reset(); $('f-vehicle-manual').hidden = false; return; }
+          if (val === '') { $('f-vehicle-manual').hidden = false; return; }
+          const x = v.vehicles[Number(val)];
+          if (x && window._findVeh) { window._findVeh.setType(x.type || 'car'); window._findVeh.set(x.year, x.make, x.model); $('f-vehicle-manual').hidden = true; }
+        };
+      }
+    }
+  } catch (e) {}
 })();
 $('find-form').onsubmit = async (e) => {
   e.preventDefault();
