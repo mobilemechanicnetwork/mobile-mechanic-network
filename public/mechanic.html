@@ -69,7 +69,7 @@
   #pv-content .cover-ph{height:120px;background:linear-gradient(135deg,#dbeafe,#f2f5fa);border-radius:14px 14px 0 0}
   #pv-content .pvc{border:1px solid #e2e8f0;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.05);overflow:hidden}
   #pv-content .body{padding:12px 24px 20px;text-align:center}
-  #pv-content .head{display:flex;flex-direction:row;gap:16px;align-items:center;justify-content:center;margin:0 0 12px;position:relative;z-index:1}
+  #pv-content .head{display:flex;flex-direction:column;gap:16px;align-items:center;margin:0 0 12px;position:relative;z-index:1}
   #pv-content .head img.logo{width:88px;height:88px;object-fit:cover;border-radius:14px;border:3px solid #fff;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.1);margin-top:-52px;flex:none}
   #pv-content .head h1{margin:0;font-size:1.6rem;color:#0f172a}
   #pv-content .muted{color:#64748b;font-size:.92rem}
@@ -105,7 +105,10 @@
 <body>
 <main>
   <div class="top">
+    <div style="display:flex;gap:12px;align-items:center">
+    <img id="hello-logo" hidden alt="" style="width:56px;height:56px;object-fit:cover;border-radius:12px;flex:none">
     <div><h1 id="hello">My shop</h1><div class="muted"><a href="#" id="portal-home">Home</a> · <a href="/security">Security</a> · <span id="adminLink"></span><a href="#" id="logout">Sign out</a></div></div>
+    </div>
   </div>
   <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600">Add your phone number so you get new requests by text. <a href="/security" style="color:#b91c1c">Add it now →</a></div>
   <div class="tabs noprint">
@@ -443,6 +446,8 @@ async function loadProfile() {
     const b = d.business;
     window._bizName = b.name;
     window._bizId = b.id;
+    if (b.logoUrl) { const lg = $('hello-logo'); lg.src = b.logoUrl; lg.hidden = false; }
+    $('hello').textContent = 'My shop — ' + b.name;
     $('b-name').value = b.name; $('b-city').value = b.city; $('b-state').value = b.state;
     window.cityChips.set(b.serviceCities || []); $('b-about').value = b.about || ''; $('b-warranty').value = b.warranty || '';
     $('b-certs').value = (b.certifications || []).join('\n');
@@ -492,7 +497,7 @@ async function renderPvView() {
       <div class="body">
         <div class="head">
           ${b.logoUrl ? `<img class="logo" src="${esc(b.logoUrl)}" alt="">` : ''}
-          <div style="text-align:left"><h1>${esc(b.name)}</h1><div class="muted">${esc(b.city)}, ${esc(b.state)}${b.mechanicName ? ' · ' + esc(b.mechanicName) : ''}</div></div>
+          <div><h1>${esc(b.name)}</h1><div class="muted">${esc(b.city)}, ${esc(b.state)}${b.mechanicName ? ' · ' + esc(b.mechanicName) : ''}</div></div>
         </div>
         ${b.acceptUrgent ? `<div><span class="urgent">ACCEPTS URGENT REQUESTS</span></div>` : ''}
         ${pvBadgeHtml(b)}
