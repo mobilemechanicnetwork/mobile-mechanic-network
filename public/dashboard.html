@@ -134,15 +134,29 @@
     window._ownerRequests = d.requests || [];
     const seenMech = new Map();
     (d.requests || []).forEach(r => (r.quotes || []).forEach(q => {
-      if (q.status === 'accepted' && q.businessId && !seenMech.has(q.businessId)) seenMech.set(q.businessId, { id: q.businessId, name: q.businessName || 'Mobile mechanic', city: q.businessCity || '', logo: q.businessLogo || '', when: r.createdAt || '' });
+      if (q.status === 'accepted' && q.businessId) {
+        if (!seenMech.has(q.businessId)) seenMech.set(q.businessId, { id: q.businessId, name: q.businessName || 'Mobile mechanic', city: q.businessCity || '', logo: q.businessLogo || '', when: r.createdAt || '', jobs: [] });
+        const m = seenMech.get(q.businessId);
+        m.jobs.push({ service: r.service, vehicle: r.vehicle, createdAt: r.createdAt || '', status: r.status, paid: !!r.paid, total: q.total != null ? q.total : q.price });
+        if ((r.createdAt || '') > (m.when || '')) m.when = r.createdAt;
+      }
     }));
     const recent = [...seenMech.values()].sort((a, b) => (b.when || '').localeCompare(a.when || ''));
     window._recentMechs = recent;
-    $('recent-mechanics').innerHTML = recent.length ? recent.map(b => `<div class="card" style="display:flex;gap:12px;align-items:center;justify-content:center">
+    $('recent-mechanics').innerHTML = recent.length ? recent.map(b => {
+      const jobs = b.jobs.slice().sort((a, c) => (c.createdAt || '').localeCompare(a.createdAt || ''));
+      return `<div class="card">
+      <div style="display:flex;gap:12px;align-items:center;justify-content:center">
       ${b.logo ? `<img src="${esc(b.logo)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:10px;flex:none">` : ''}
       <div style="text-align:left;flex:1"><strong>${esc(b.name)}</strong><div class="muted">${esc(b.city)}</div></div>
       <button type="button" class="ghost" onclick="openRecentRequest('${b.id}')">Request a quote</button>
-    </div>`).join('') : '<p class="muted">Mechanics you have worked with will show up here.</p>';
+      </div>
+      ${jobs.length ? `<div style="margin-top:12px;text-align:left">
+      <div class="muted" style="margin-bottom:4px">Repair history with ${esc(b.name)}:</div>
+      ${jobs.map(j => `<div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>${esc(j.service)}</strong> — ${esc(j.vehicle)}<div class="muted">${j.createdAt ? new Date(j.createdAt).toLocaleDateString() : ''} · ${j.status === 'accepted' ? 'Booked' : esc(j.status)}${j.paid ? ' · Paid' : ''} · $${Number(j.total || 0).toFixed(2)}</div></div>`).join('')}
+      </div>` : ''}
+    </div>`;
+    }).join('') : '<p class="muted">Mechanics you have worked with will show up here.</p>';
     const box = $('my-requests');
     if (!d.requests.length) { box.innerHTML = '<p class="muted">No repair history yet. Send your first request and mechanics in your area can quote it.</p>'; return; }
     const pill = s => s === 'accepted' ? '<span style="color:#16a34a">Booked</span>' : s === 'open' ? '<span style="color:#2563eb">Open</span>' : `<span class="muted">${s}</span>`;
