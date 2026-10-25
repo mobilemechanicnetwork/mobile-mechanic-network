@@ -138,7 +138,7 @@
     $('my-vehicles').innerHTML = v.vehicles.length ? v.vehicles.map(x => {
       const imgStyle = x.photoKind === 'logo' ? 'width:88px;height:88px;object-fit:contain;background:#ffffff;padding:8px;box-sizing:border-box;border-radius:12px;flex:none' : 'width:88px;height:88px;object-fit:cover;border-radius:12px;flex:none';
       return `<div class="card" style="display:flex;gap:14px;align-items:center;justify-content:center">
-      ${x.photoUrl ? (x.photoPage ? `<a href="${x.photoPage}" target="_blank" rel="noopener"><img src="${x.photoUrl}" alt="" style="${imgStyle}"></a>` : `<img src="${x.photoUrl}" alt="" style="${imgStyle}">`) : ''}
+      ${x.photoUrl ? `<img src="${x.photoUrl}" alt="" style="${imgStyle}">` : ''}
       <div style="text-align:left">
       <strong>${x.year} ${x.make} ${x.model}</strong>${x.type && x.type !== 'car' ? ` <span class="muted">(${x.type === 'motorcycle' ? 'Motorcycle' : x.type === 'commercial' ? 'Bus / Commercial' : 'Small Engine'})</span>` : ''}
       <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap"><button class="ghost" onclick="document.getElementById('photo-${x.id}').click()">${x.photoSource === 'upload' ? 'Change photo' : x.photoSource === 'commons' ? 'Upload my own photo' : 'Add photo'}</button><input type="file" id="photo-${x.id}" accept="image/*" hidden onchange="uploadVehiclePhoto('${x.id}', this)">${x.photoSource === 'upload' ? `<button class="ghost" onclick="delVehiclePhoto('${x.id}')">Remove photo</button>` : ''}<button class="ghost" onclick="delVehicle('${x.id}')">Remove</button></div>
