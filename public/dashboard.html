@@ -63,7 +63,13 @@
     <div id="recent-mechanics"></div>
     <div id="recent-req" hidden class="card">
       <div><strong id="recent-req-name"></strong></div>
-      <label for="rq-vehicle">Vehicle</label><select id="rq-vehicle"></select>
+      <label>Vehicle</label>
+      <div id="rq-garage-list"></div>
+      <button type="button" class="ghost" id="rq-garage-add" style="margin-top:8px" hidden>+ Add another vehicle</button>
+      <div id="rq-vehicle-manual" hidden>
+      <div id="rq-type"></div>
+      <div class="row"><div><label for="rq-year">Year</label><select id="rq-year"></select></div><div><label for="rq-make">Make</label><select id="rq-make"></select></div><div><label for="rq-model">Model</label><select id="rq-model"></select></div></div>
+      </div>
       <label for="rq-service">Service needed</label><select id="rq-service"></select>
       <label for="rq-desc">What is going on with the vehicle?</label><textarea id="rq-desc" rows="3"></textarea>
       <label for="rq-city">City</label><input id="rq-city">
@@ -262,15 +268,29 @@
     if (!b) return;
     window._recentBiz = id;
     $('recent-req-name').textContent = 'Request a quote from ' + b.name;
-    const vsel = $('rq-vehicle');
-    vsel.innerHTML = '';
+    const list = $('rq-garage-list');
+    list.innerHTML = '';
+    window._recentVeh = null;
     const mine = window._garageVehicles || [];
     if (!mine.length) {
-      const o = document.createElement('option'); o.value = ''; o.textContent = 'No vehicles saved — add one in My vehicles above'; o.disabled = true; o.selected = true; vsel.appendChild(o);
+      $('rq-vehicle-manual').hidden = false;
+      $('rq-garage-add').hidden = true;
     } else {
-      const ph = document.createElement('option'); ph.value = ''; ph.textContent = 'Choose a vehicle'; ph.disabled = true; ph.selected = true; vsel.appendChild(ph);
-      mine.forEach(x => { const o = document.createElement('option'); o.value = x.id; o.textContent = `${x.year} ${x.make} ${x.model}`; vsel.appendChild(o); });
+      let selected = -1;
+      const paint = () => { Array.from(list.children).forEach((b, i) => { b.style.borderColor = i === selected ? '#2563eb' : '#e2e8f0'; b.style.background = i === selected ? '#eff6ff' : '#ffffff'; b.style.fontWeight = i === selected ? '700' : '400'; }); };
+      mine.forEach((x, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.style.cssText = 'display:block;width:100%;text-align:left;padding:10px 12px;margin:4px 0;border:1px solid #e2e8f0;border-radius:10px;background:#ffffff;cursor:pointer';
+        b.textContent = (x.type === 'smallengine' ? `${x.make} ${x.model}` : `${x.year} ${x.make} ${x.model}`) + (x.type && x.type !== 'car' ? ` (${x.type === 'motorcycle' ? 'Motorcycle' : x.type === 'commercial' ? 'Bus / Commercial' : 'Small Engine'})` : '');
+        b.onclick = () => { selected = i; paint(); window._recentVeh = x; $('rq-vehicle-manual').hidden = true; };
+        list.appendChild(b);
+      });
+      $('rq-garage-add').hidden = false;
+      $('rq-garage-add').onclick = () => { selected = -1; paint(); window._recentVeh = null; if (window._rqVeh) window._rqVeh.reset(); $('rq-vehicle-manual').hidden = false; };
+      $('rq-vehicle-manual').hidden = true;
     }
+    if (!window._rqVeh && window.VehiclePicker) window._rqVeh = VehiclePicker.attach({ year: 'rq-year', make: 'rq-make', model: 'rq-model', type: 'rq-type' });
     if (!$('rq-service').options.length) {
       try {
         const s = await api('/api/services');
@@ -289,8 +309,15 @@
   window.sendRecentRequest = async () => {
     const errEl = $('rq-err'); const okEl = $('rq-ok');
     errEl.textContent = ''; okEl.textContent = '';
-    const veh = (window._garageVehicles || []).find(x => x.id === $('rq-vehicle').value);
-    if (!veh) { errEl.textContent = 'Pick a vehicle from your garage, or add one in My vehicles above.'; return; }
+    let veh = window._recentVeh || null;
+    let vehStr = veh ? (veh.type === 'smallengine' ? (veh.make + ' ' + veh.model) : (veh.year + ' ' + veh.make + ' ' + veh.model)) : '';
+    let vehType = veh ? (veh.type || 'car') : 'car';
+    let vehYear = veh ? (veh.year || '') : '', vehMake = veh ? veh.make : '', vehModel = veh ? veh.model : '';
+    if (!veh && window._rqVeh) {
+      const g = window._rqVeh.get();
+      if (g) { vehStr = window._rqVeh.vehicleString(); vehType = g.type; vehYear = g.year; vehMake = g.make; vehModel = g.model; veh = true; }
+    }
+    if (!veh) { errEl.textContent = 'Pick a vehicle from your garage, or tap "+ Add another vehicle" below.'; return; }
     const svc = $('rq-service').value;
     if (!svc) { errEl.textContent = 'Pick a service.'; return; }
     const desc = $('rq-desc').value.trim();
@@ -300,7 +327,7 @@
     if (!date) { errEl.textContent = 'Pick a date.'; return; }
     try {
       const me = await api('/api/me');
-      await post('/api/requests', { businessId: window._recentBiz, name: me.user.name, phone: me.user.phone, city, state, vehicle: veh.type === 'smallengine' ? (veh.make + ' ' + veh.model) : (veh.year + ' ' + veh.make + ' ' + veh.model), vehicleType: veh.type || 'car', vehicleYear: veh.year || '', vehicleMake: veh.make, vehicleModel: veh.model, service: svc, description: desc, date });
+      await post('/api/requests', { businessId: window._recentBiz, name: me.user.name, phone: me.user.phone, city, state, vehicle: vehStr, vehicleType: vehType, vehicleYear: vehYear, vehicleMake: vehMake, vehicleModel: vehModel, service: svc, description: desc, date });
       okEl.textContent = 'Request sent! The mechanic can now send you a quote.';
       $('rq-desc').value = '';
       loadOwner();
