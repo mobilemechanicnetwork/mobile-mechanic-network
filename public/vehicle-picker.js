@@ -45,10 +45,10 @@
     }
     return cache.makes[k];
   }
-  async function getModels(year, make) {
-    const k = year + '|' + make;
+  async function getModels(year, make, type) {
+    const k = year + '|' + make + '|' + type;
     if (!cache.models[k]) {
-      const d = await (await fetch('/api/vehicles/models?year=' + encodeURIComponent(year) + '&make=' + encodeURIComponent(make))).json().catch(() => ({}));
+      const d = await (await fetch('/api/vehicles/models?year=' + encodeURIComponent(year) + '&make=' + encodeURIComponent(make) + '&type=' + encodeURIComponent(type))).json().catch(() => ({}));
       cache.models[k] = Array.isArray(d.models) ? d.models : [];
     }
     return cache.models[k];
@@ -192,7 +192,7 @@
       modelSel.disabled = true;
       syncOther(); fire();
       if (!y || !m || m === OTHER) { syncOther(); return; }
-      const models = await getModels(y, m);
+      const models = await getModels(y, m, curType);
       if (yearSel.value !== y || makeSel.value !== m) return;
       fillSelect(modelSel, models, 'Select model');
       modelSel.disabled = false;
@@ -268,7 +268,7 @@
           if (makes.includes(m)) {
             makeSel.value = m;
             makeSel.dispatchEvent(new Event('change'));
-            const models = await getModels(y, m);
+            const models = await getModels(y, m, curType);
             if (models.includes(mo)) { modelSel.value = mo; }
             else if (mo) { modelSel.value = OTHER; }
           } else if (m) {

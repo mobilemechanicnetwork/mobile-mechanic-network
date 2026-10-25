@@ -56,8 +56,10 @@ const VTYPES = ['car', 'motorcycle', 'commercial', 'smallengine'];
 const VTYPE_LABELS = { car: 'cars and trucks', motorcycle: 'motorcycles', commercial: 'buses and commercial vehicles', smallengine: 'small engines' };
 function vehicleYears() { return (VEHICLES && VEHICLES.years) || []; }
 function vehicleTypeOf(make) {
-  if (!VEHICLES || !VEHICLES.types) return 'car';
-  return VEHICLES.types[String(make || '')] || 'car';
+  if (!VEHICLES || !VEHICLES.types) return ['car'];
+  const t = VEHICLES.types[String(make || '')];
+  if (Array.isArray(t)) return t;
+  return t ? [t] : ['car'];
 }
 function vehicleMakes(year, type) {
   if (!VEHICLES) return [];
@@ -66,14 +68,18 @@ function vehicleMakes(year, type) {
   for (const k of Object.keys(VEHICLES.models)) {
     if (k.indexOf(y + '|') !== 0) continue;
     const mk = k.slice(y.length + 1);
-    if (vehicleTypeOf(mk) !== t) continue;
+    if (!vehicleTypeOf(mk).includes(t)) continue;
     set[mk] = true;
   }
   return Object.keys(set).sort((a, b) => a.localeCompare(b));
 }
-function vehicleModels(year, make) {
+function vehicleModels(year, make, type) {
   if (!VEHICLES) return [];
-  return VEHICLES.models[String(year || '') + '|' + String(make || '')] || [];
+  const v = VEHICLES.models[String(year || '') + '|' + String(make || '')];
+  if (!v) return [];
+  // spanning makes (Honda, BMW, Suzuki, Triumph) store {car: [...], motorcycle: [...]}
+  if (!Array.isArray(v)) return v[String(type || 'car')] || [];
+  return v;
 }
 function searchCities(q, state, limit) {
   q = String(q || '').trim().toLowerCase();
@@ -748,7 +754,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { makes: vehicleMakes(url.searchParams.get('year'), url.searchParams.get('type')) });
     }
     if (p === '/api/vehicles/models' && req.method === 'GET') {
-      return sendJson(res, 200, { models: vehicleModels(url.searchParams.get('year'), url.searchParams.get('make')) });
+      return sendJson(res, 200, { models: vehicleModels(url.searchParams.get('year'), url.searchParams.get('make'), url.searchParams.get('type')) });
     }
 
     // ---------- Quote requests ----------
