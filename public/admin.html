@@ -66,6 +66,7 @@
     <div id="help"></div>
   </div>
 </div>
+<script src="/phone-format.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -92,7 +93,7 @@ async function load() {
     : `<div class="empty">No accounts yet.</div>`;
 
   $('requests').innerHTML = data.requests.length ? `<table><tr><th>Owner</th><th>Job</th><th>Area</th><th>Status</th><th>Created</th></tr>` +
-    data.requests.map(r => `<tr><td>${esc(r.ownerName)}<br><span style="color:#64748b">${esc(r.phone)}</span></td><td>${esc(r.service)} — ${esc(r.vehicle)}</td><td>${esc(r.city)}, ${esc(r.state)}</td><td>${esc(r.status)}</td><td>${d(r.createdAt)}</td></tr>`).join('') + `</table>`
+    data.requests.map(r => `<tr><td>${esc(r.ownerName)}<br><span style="color:#64748b">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</span></td><td>${esc(r.service)} — ${esc(r.vehicle)}</td><td>${esc(r.city)}, ${esc(r.state)}</td><td>${esc(r.status)}</td><td>${d(r.createdAt)}</td></tr>`).join('') + `</table>`
     : `<div class="empty">No quote requests yet.</div>`;
 
   $('quotes').innerHTML = data.quotes.length ? `<table><tr><th>Price</th><th>Status</th><th>Created</th></tr>` +

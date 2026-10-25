@@ -93,7 +93,7 @@
     <label for="rg-password">Password (8+ characters)</label>
     <input id="rg-password" type="password" required minlength="8" autocomplete="new-password">
     <label for="rg-phone">Phone number (required — this is how you get quotes and requests)</label>
-    <input id="rg-phone" type="tel" required autocomplete="tel" placeholder="e.g. 504-555-0123">
+    <input id="rg-phone" type="tel" required autocomplete="tel" placeholder="e.g. (504) 555-0123">
     <button class="submit" type="submit">Create account</button>
     <div class="err" id="err-register"></div>
   </form>
@@ -101,6 +101,7 @@
   <p class="back"><a href="/">Back to the home page</a></p>
  </div>
 </main>
+<script src="/phone-format.js"></script>
 <script>
   const tabLogin = document.getElementById('tab-login');
   const tabRegister = document.getElementById('tab-register');
@@ -132,10 +133,11 @@
     const qp = new URLSearchParams(location.search);
     const prePhone = qp.get('phone');
     if (prePhone) {
-      document.getElementById('rg-phone').value = prePhone;
+      document.getElementById('rg-phone').value = window.PhoneFmt ? window.PhoneFmt.display(prePhone) : prePhone;
       show('register');
     }
   } catch (e) {}
+  if (window.PhoneFmt) window.PhoneFmt.attach(document.getElementById('rg-phone'));
   document.getElementById('forgot-link').onclick = (e) => { e.preventDefault(); show('forgot'); };
   document.getElementById('forgot-back').onclick = (e) => { e.preventDefault(); show('login'); };
   async function post(url, body) {

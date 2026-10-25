@@ -994,15 +994,22 @@ const server = http.createServer(async (req, res) => {
       const quotes = quotesStore.read();
       const reviews = reviewsStore.read();
       const tickets = ticketsStore.read();
-      const mine = requestsStore.read().filter(r => r.ownerId === user.id).map(r => ({
-        ...r,
-        reviewed: reviews.some(x => x.requestId === r.id),
-        paid: tickets.some(t => t.requestId === r.id && t.type === 'receipt'),
-        quotes: quotes.filter(q => q.requestId === r.id).map(q => {
-          const biz = businessesStore.read().find(b => b.id === q.businessId);
-          return { ...q, businessName: biz ? biz.name : 'Mobile mechanic', businessCity: biz ? `${biz.city}, ${biz.state}` : '', businessLogo: biz && biz.logoUrl ? biz.logoUrl : '', businessPhone: biz ? (biz.phone || '') : '', businessWarranty: biz && biz.warranty ? biz.warranty : '' };
-        }),
-      }));
+      const mine = requestsStore.read().filter(r => r.ownerId === user.id).map(r => {
+        const reqBiz = r.businessId ? businessesStore.read().find(b => b.id === r.businessId) : null;
+        return {
+          ...r,
+          reviewed: reviews.some(x => x.requestId === r.id),
+          paid: tickets.some(t => t.requestId === r.id && t.type === 'receipt'),
+          businessName: reqBiz ? reqBiz.name : '',
+          businessCity: reqBiz ? `${reqBiz.city}, ${reqBiz.state}` : '',
+          businessLogo: reqBiz && reqBiz.logoUrl ? reqBiz.logoUrl : '',
+          businessPhone: reqBiz ? (reqBiz.phone || '') : '',
+          quotes: quotes.filter(q => q.requestId === r.id).map(q => {
+            const biz = businessesStore.read().find(b => b.id === q.businessId);
+            return { ...q, businessName: biz ? biz.name : 'Mobile mechanic', businessCity: biz ? `${biz.city}, ${biz.state}` : '', businessLogo: biz && biz.logoUrl ? biz.logoUrl : '', businessPhone: biz ? (biz.phone || '') : '', businessWarranty: biz && biz.warranty ? biz.warranty : '' };
+          }),
+        };
+      });
       return sendJson(res, 200, { requests: mine });
     }
     if (p === '/api/requests/inbox' && req.method === 'GET') {

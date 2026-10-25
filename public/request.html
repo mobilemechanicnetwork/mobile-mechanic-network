@@ -71,6 +71,7 @@
 </main>
 <script src="/city-autocomplete.js"></script>
 <script src="/vehicle-picker.js"></script>
+<script src="/phone-format.js"></script>
 <script>
   const err = document.getElementById('err'), ok = document.getElementById('ok');
   (async () => {
@@ -90,7 +91,7 @@
     prompt.selected = true;
     sel.appendChild(prompt);
     d.services.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
-    if (me.user.phone) document.getElementById('phone').value = me.user.phone;
+    if (me.user.phone) document.getElementById('phone').value = window.PhoneFmt ? window.PhoneFmt.display(me.user.phone) : me.user.phone;
     const qp = new URLSearchParams(location.search);
     let pre = {};
     try { pre = JSON.parse(sessionStorage.getItem('mmn_find') || '{}'); } catch (e) {}
@@ -134,7 +135,8 @@
     if (moreParam && !descInput.value) descInput.value = moreParam;
     const phoneParam = qp.get('phone') || pre.phone || '';
     const phoneInput = document.getElementById('phone');
-    if (phoneParam && !phoneInput.value) phoneInput.value = phoneParam;
+    if (phoneParam && !phoneInput.value) phoneInput.value = window.PhoneFmt ? window.PhoneFmt.display(phoneParam) : phoneParam;
+    if (window.PhoneFmt) window.PhoneFmt.attach(phoneInput);
     window._refreshDiag();
     if (get('vehicle') && window._reqVeh) window._reqVeh.setFromString(get('vehicle'));
     if (get('city')) document.getElementById('city').value = get('city');

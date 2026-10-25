@@ -285,6 +285,7 @@
 </main>
 <script src="/city-autocomplete.js"></script>
 <script src="/vehicle-picker.js"></script>
+<script src="/phone-format.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -337,7 +338,7 @@ async function loadInbox() {
   if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
   inbox.requests.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
   box.innerHTML = inbox.requests.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
-    ${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(r.phone)}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
+    ${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)} · ${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
     <p>${esc(r.description)}</p>
     ${r.myQuote ? `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p>${r.myQuote.status === 'pending' ? `<p><button type="button" class="ghost" onclick="textQuote('${r.id}')">Text quote from my phone</button></p>` : ''}` : `
     <div id="qb-${r.id}">
@@ -352,7 +353,7 @@ async function loadInbox() {
   inbox.requests.forEach(r => { if (!r.myQuote) addQuoteRow(r.id); });
   const bk = $('booked');
   bk.innerHTML = (inbox.booked && inbox.booked.length) ? inbox.booked.map(b => `<div class="card">
-    <strong>${esc(b.service)}</strong> — ${esc(b.vehicle)}${b.vin ? ' · VIN ' + esc(b.vin) : ''} <span class="ok">Booked</span><div class="muted">${esc(b.city)}, ${esc(b.state)} · ${esc(b.ownerName)} · <a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(b.phone)}</a>${b.date ? ' · Needed by ' + esc(b.date) : ''}</div>
+    <strong>${esc(b.service)}</strong> — ${esc(b.vehicle)}${b.vin ? ' · VIN ' + esc(b.vin) : ''} <span class="ok">Booked</span><div class="muted">${esc(b.city)}, ${esc(b.state)} · ${esc(b.ownerName)} · <a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(b.phone) : b.phone)}</a>${b.date ? ' · Needed by ' + esc(b.date) : ''}</div>
     <p>${esc(b.description)}</p>
     <p><strong>Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}</strong></p>
     <p>${b.hasTicket ? '<span class="ok">Ticket created</span>' : `<button type="button" class="primary" onclick="bookedToTicket('${b.id}')">Create ticket from quote</button>`}</p>
@@ -415,7 +416,7 @@ async function loadProfile() {
     $('b-certs').value = (b.certifications || []).join('\n');
     $('b-earned').innerHTML = earnedBadgesHtml(b) || '<span class="muted">Earn badges: respond to quote requests quickly and collect 5-star reviews.</span>';
     if ($('t-warranty')) $('t-warranty').placeholder = b.warranty ? 'Leave blank to use profile default: ' + b.warranty.slice(0, 80) : 'e.g. 12 months / 12,000 miles on parts and labor';
-    $('b-phone').value = b.phone || '';
+    $('b-phone').value = window.PhoneFmt ? window.PhoneFmt.display(b.phone) : (b.phone || '');
     for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website', 'google']) $('b-soc-' + k).value = (b.socials && b.socials[k]) || '';
     document.querySelectorAll('#b-services input').forEach(c => { c.checked = (b.services || []).includes(c.value); });
     document.querySelectorAll('#b-vtypes input').forEach(c => { c.checked = (b.vehicleTypes || ['car']).includes(c.value); });
@@ -948,7 +949,7 @@ window.ppiEdit = async (id) => {
       }
     });
     $('ppi-form-title').textContent = 'Edit pre-purchase inspection';
-    $('ppi-customer').value = r.customerName || ''; $('ppi-phone').value = r.customerPhone || '';
+    $('ppi-customer').value = r.customerName || ''; $('ppi-phone').value = window.PhoneFmt ? window.PhoneFmt.display(r.customerPhone) : (r.customerPhone || '');
     if (window._ppiVeh) window._ppiVeh.setFromString(r.vehicle || ''); $('ppi-vin').value = r.vin || ''; $('ppi-mileage').value = r.mileage || '';
     $('ppi-notes').value = r.generalNotes || '';
     renderPpiCats(r.categories);
@@ -1054,6 +1055,7 @@ async function loadStats() {
   await loadBilling();
   await loadCustomerCache();
   addItemRow('', '');
+  if (window.PhoneFmt) { window.PhoneFmt.attach($('b-phone')); window.PhoneFmt.attach($('ppi-phone')); }
 })();
 </script>
 </body>

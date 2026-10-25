@@ -48,6 +48,7 @@
 <body>
 <main id="page"><p class="body">Loading…</p></main>
 <div id="lightbox"><button class="lb-btn" id="lb-x" aria-label="Close">×</button><button class="lb-btn" id="lb-prev" aria-label="Previous photo">‹</button><img id="lightbox-img" alt=""><button class="lb-btn" id="lb-next" aria-label="Next photo">›</button><div id="lb-count"></div></div>
+<script src="/phone-format.js"></script>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', website: 'Website', google: 'Google reviews' };
@@ -91,7 +92,7 @@ async function reviewHtml(businessId) {
         ${b.acceptUrgent ? `<div><span class="urgent">ACCEPTS URGENT REQUESTS</span></div>` : ''}
         ${badgeHtml(b)}
         <div class="btnrow">
-          ${b.phone ? `<a class="btn call" href="tel:${esc(b.phone.replace(/[^+\d]/g, ''))}">Call ${esc(b.phone)}</a>` : ''}
+          ${b.phone ? `<a class="btn call" href="tel:${esc(b.phone.replace(/[^+\d]/g, ''))}">Call ${esc(window.PhoneFmt ? window.PhoneFmt.display(b.phone) : b.phone)}</a>` : ''}
           <a class="btn" id="req-btn" href="/request?business=${esc(b.id)}">Request a quote from ${esc(b.name)}</a>
         </div>
         <div id="req-msg"></div>

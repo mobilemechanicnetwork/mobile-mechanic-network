@@ -67,6 +67,7 @@
   </div>
   <p><a href="#" id="back-link">← Back</a></p>
 </main>
+<script src="/phone-format.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 async function post(url, body) {
@@ -79,7 +80,7 @@ async function post(url, body) {
   const me = await (await fetch('/api/me')).json().catch(() => ({}));
   if (!me.user) { location.href = '/account'; return; }
   $('back-link').href = me.user.role === 'mechanic' ? '/mechanic' : '/dashboard';
-  if (me.user.phone) $('sec-phone').value = me.user.phone;
+  if (me.user.phone) $('sec-phone').value = window.PhoneFmt ? window.PhoneFmt.display(me.user.phone) : me.user.phone;
   const on = !!me.user.twoFactorEnabled;
   const pill = $('tfa-pill');
   pill.textContent = on ? 'ON' : 'OFF';
@@ -90,9 +91,10 @@ async function post(url, body) {
     if (!me.user.phone) {
       $('enroll-box').innerHTML = '<p class="muted">Add a phone number to your account first, then come back here.</p>';
     } else {
-      $('enroll-phone').textContent = me.user.phone;
+      $('enroll-phone').textContent = window.PhoneFmt ? window.PhoneFmt.display(me.user.phone) : me.user.phone;
     }
   }
+  if (window.PhoneFmt) window.PhoneFmt.attach($('sec-phone'));
 })();
 async function doEnroll() {
   const errEl = document.getElementById('err-enroll');
@@ -105,7 +107,7 @@ async function doEnroll() {
 }
 function refreshEnroll(phone) {
   $('enroll-box').innerHTML = '<p class="muted">We will text a verification code to <strong></strong>.</p><button class="primary" id="enroll-btn" type="button">Text me a verification code</button><div class="err" id="err-enroll"></div>';
-  $('enroll-box').querySelector('strong').textContent = phone;
+  $('enroll-box').querySelector('strong').textContent = window.PhoneFmt ? window.PhoneFmt.display(phone) : phone;
   $('enroll-box').hidden = false;
   $('enroll-btn').onclick = doEnroll;
 }

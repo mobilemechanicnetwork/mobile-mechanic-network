@@ -111,6 +111,7 @@
 </main>
 <script src="/city-autocomplete.js"></script>
 <script src="/vehicle-picker.js"></script>
+<script src="/phone-format.js"></script>
 <script>
   const $ = id => document.getElementById(id);
   let SERVICES = [];
@@ -119,6 +120,7 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
   $('logout').onclick = async (e) => { e.preventDefault(); await fetch('/api/logout', { method: 'POST' }); location.href = '/'; };
+  if (window.PhoneFmt) { window.PhoneFmt.attach($('o-phone')); window.PhoneFmt.attach($('b-phone')); }
 
   window._vehPicker = VehiclePicker.attach({ year: 'v-year', make: 'v-make', model: 'v-model', type: 'v-type' });
 
@@ -127,10 +129,10 @@
     if (me.user.isAdmin) $('adminLink').innerHTML = '<a href="/admin">Admin</a> · ';
     $('o-email').textContent = me.user.email;
     $('o-name').value = me.user.name || '';
-    $('o-phone').value = me.user.phone || '';
+    $('o-phone').value = window.PhoneFmt ? window.PhoneFmt.display(me.user.phone) : (me.user.phone || '');
     window._myInfo = { name: me.user.name || '', phone: me.user.phone || '' };
     $('o-name-view').textContent = me.user.name || 'No name yet';
-    $('o-phone-view').textContent = me.user.phone || 'No phone number yet';
+    $('o-phone-view').textContent = (window.PhoneFmt ? window.PhoneFmt.display(me.user.phone) : me.user.phone) || 'No phone number yet';
     $('o-view').hidden = false; $('o-edit').hidden = true;
     if (!me.user.phone) $('phone-banner').hidden = false;
     const v = await api('/api/vehicles/me');
@@ -176,13 +178,29 @@
     </div>`;
     }).join('') : '<p class="muted">Mechanics you have worked with will show up here.</p>';
     const box = $('my-requests');
+    const histExtra = {};
+    d.requests.forEach(r => {
+      const aq = (r.quotes || []).find(q => q.status === 'accepted');
+      const mech = aq ? { label: 'Mechanic:', name: aq.businessName, city: aq.businessCity, logo: aq.businessLogo, phone: aq.businessPhone } : (r.businessId && r.businessName ? { label: 'Sent to:', name: r.businessName, city: r.businessCity, logo: r.businessLogo, phone: r.businessPhone } : null);
+      const gv = (window._garageVehicles || []).find(g => {
+        const gs = g.type === 'smallengine' ? (g.make + ' ' + g.model) : (g.year + ' ' + g.make + ' ' + g.model);
+        return gs.toLowerCase() === String(r.vehicle || '').toLowerCase();
+      });
+      histExtra[r.id] = { mech, gv };
+    });
     if (!d.requests.length) { box.innerHTML = '<p class="muted">No repair history yet. Send your first request and mechanics in your area can quote it.</p>'; return; }
     const pill = r => r.paid ? '<span style="color:#dc2626">Completed</span>' : r.status === 'accepted' ? '<span style="color:#16a34a">Booked</span>' : r.status === 'open' ? '<span style="color:#16a34a">Active</span>' : `<span class="muted">${r.status}</span>`;
     box.innerHTML = d.requests.map(r => `<div class="card">
+      <div style="display:flex;gap:12px;align-items:center">
+      ${(() => { const e = histExtra[r.id]; if (!e || !e.gv || !e.gv.photoUrl) return ''; const st = e.gv.photoKind === 'logo' ? 'width:72px;height:72px;object-fit:contain;background:#ffffff;padding:6px;box-sizing:border-box;border-radius:10px;flex:none' : 'width:72px;height:72px;object-fit:cover;border-radius:10px;flex:none'; return `<img src="${esc(e.gv.photoUrl)}" alt="" style="${st}">`; })()}
+      <div style="text-align:left;flex:1">
       <strong>${r.service}</strong> — ${r.vehicle}<div class="muted">${r.city}, ${r.state} · ${new Date(r.createdAt).toLocaleDateString()}${r.date ? ' · Needed by ' + r.date : ''} · ${pill(r)}</div>
+      ${(() => { const e = histExtra[r.id]; const m = e && e.mech; if (!m || !m.name) return ''; return `<div style="margin-top:6px">${m.logo ? `<img src="${esc(m.logo)}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:6px">` : ''}<span class="muted">${m.label}</span> <strong>${esc(m.name)}</strong>${m.city ? ` <span class="muted">(${esc(m.city)})</span>` : ''}${m.phone ? ` · <a href="tel:${esc(m.phone.replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(m.phone) : m.phone)}</a>` : ''}</div>`; })()}
+      </div>
+      </div>
       <p>${r.description}</p>
       ${r.quotes.length ? r.quotes.map(q => `<div class="card">
-        <div>${q.businessLogo ? `<img src="${q.businessLogo}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}<strong>${q.businessName}</strong> <span class="muted">(${q.businessCity})</span>${q.businessPhone ? ` · <a href="tel:${q.businessPhone.replace(/[^+\d]/g, '')}">${q.businessPhone}</a>` : ''}</div>
+        <div>${q.businessLogo ? `<img src="${q.businessLogo}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}<strong>${q.businessName}</strong> <span class="muted">(${q.businessCity})</span>${q.businessPhone ? ` · <a href="tel:${q.businessPhone.replace(/[^+\d]/g, '')}">${window.PhoneFmt ? window.PhoneFmt.display(q.businessPhone) : q.businessPhone}</a>` : ''}</div>
         ${(q.items && q.items.length) ? `<div style="margin:10px 0">${q.items.map(i => `<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid #e2e8f0"><span>${i.desc}</span><span>$${Number(i.amount).toFixed(2)}</span></div>`).join('')}<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;font-weight:700"><span>Total</span><span>$${Number(q.total != null ? q.total : q.price).toFixed(2)}</span></div></div>` : `<div style="margin:10px 0"><span class="price">$${q.price}</span></div>`}
         ${q.notes ? `<p>${q.notes}</p>` : ''}${q.message ? `<p>${q.message}</p>` : ''}
         ${q.businessWarranty ? `<p class="muted"><strong>Warranty:</strong> ${q.businessWarranty}</p>` : ''}
@@ -215,7 +233,7 @@
   window.cancelEditProfile = () => {
     const m = window._myInfo || {};
     $('o-name').value = m.name || '';
-    $('o-phone').value = m.phone || '';
+    $('o-phone').value = window.PhoneFmt ? window.PhoneFmt.display(m.phone) : (m.phone || '');
     $('o-err').textContent = ''; $('o-ok').textContent = '';
     $('o-edit').hidden = true; $('o-view').hidden = false;
   };
@@ -312,7 +330,7 @@
     checks.innerHTML = SERVICES.map(s => `<label><input type="checkbox" value="${s}" style="width:auto"> ${s}</label>`).join('');
     const d = await api('/api/business/me');
     if (d.business) {
-      $('b-name').value = d.business.name; $('b-city').value = d.business.city; $('b-state').value = d.business.state; if (window.cityChips) window.cityChips.set(d.business.serviceCities || []); $('b-about').value = d.business.about || ''; $('b-phone').value = d.business.phone || '';
+      $('b-name').value = d.business.name; $('b-city').value = d.business.city; $('b-state').value = d.business.state; if (window.cityChips) window.cityChips.set(d.business.serviceCities || []); $('b-about').value = d.business.about || ''; $('b-phone').value = window.PhoneFmt ? window.PhoneFmt.display(d.business.phone) : (d.business.phone || '');
       checks.querySelectorAll('input').forEach(c => { c.checked = d.business.services.includes(c.value); });
       if (d.business.logoUrl) { $('b-logo-preview').src = d.business.logoUrl; $('b-logo-preview').style.display = 'block'; }
       if (d.business.coverUrl) { $('b-cover-preview').src = d.business.coverUrl; $('b-cover-preview').style.display = 'block'; }
