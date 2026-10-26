@@ -224,7 +224,7 @@
     <form id="ticket-form" hidden>
       <div class="row">
         <div><label for="t-type">Type</label><select id="t-type"><option value="estimate">Estimate</option><option value="invoice">Invoice</option><option value="receipt">Receipt</option></select></div>
-        <div><label for="t-customer">Customer name</label><input id="t-customer" list="t-customer-list" required autocomplete="off"><datalist id="t-customer-list"></datalist></div>
+        <div><label for="t-customer">Customer name</label><input id="t-customer" required autocomplete="off"><div id="t-customer-suggest" hidden style="border:1px solid #e2e8f0;border-radius:8px;margin-top:4px;max-height:220px;overflow:auto;background:#fff"></div></div>
       </div>
       <label>Vehicle</label>
       <div id="t-type"></div>
@@ -723,12 +723,53 @@ $('g-upload').onclick = async () => {
 /* ---------- Tickets ---------- */
 let KNOWN_CUSTOMERS = [];
 async function loadCustomerCache() {
+  // Suggestions come from the full customer history: the Customers tab
+  // (accepted jobs) plus ticket records (which carry VINs). Merged by
+  // name, vehicles deduped, VIN kept when a ticket record has one.
   try {
-    const d = await api('/api/tickets/customers');
-    KNOWN_CUSTOMERS = d.customers || [];
-    $('t-customer-list').innerHTML = KNOWN_CUSTOMERS.map(c => `<option value="${esc(c.name)}">`).join('');
+    const [a, b] = await Promise.all([
+      api('/api/mechanic/customers').catch(() => ({ customers: [] })),
+      api('/api/tickets/customers').catch(() => ({ customers: [] }))
+    ]);
+    const map = new Map();
+    const add = (name, vehicles) => {
+      const key = String(name || '').trim().toLowerCase();
+      if (!key) return;
+      if (!map.has(key)) map.set(key, { name: String(name).trim(), vehicles: [] });
+      const entry = map.get(key);
+      (vehicles || []).forEach(v => {
+        const veh = typeof v === 'string' ? v : v.vehicle;
+        const vin = (v && typeof v === 'object') ? (v.vin || '') : '';
+        if (!veh) return;
+        const ex = entry.vehicles.find(x => x.vehicle.toLowerCase() === String(veh).toLowerCase());
+        if (ex) { if (vin && !ex.vin) ex.vin = vin; }
+        else entry.vehicles.push({ vehicle: veh, vin });
+      });
+    };
+    (a.customers || []).forEach(c => add(c.name, (c.jobs || []).map(j => j.vehicle)));
+    (b.customers || []).forEach(c => add(c.name, c.vehicles));
+    KNOWN_CUSTOMERS = [...map.values()].sort((x, y) => x.name.localeCompare(y.name));
   } catch (e) { /* non-fatal */ }
 }
+function renderCustomerSuggest() {
+  const box = $('t-customer-suggest');
+  if (!box) return;
+  const q = $('t-customer').value.trim().toLowerCase();
+  if (!q) { box.hidden = true; box.innerHTML = ''; return; }
+  const matches = KNOWN_CUSTOMERS.filter(c => c.name.toLowerCase().includes(q) && c.name.toLowerCase() !== q).slice(0, 8);
+  if (!matches.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.innerHTML = matches.map(c => `<div data-name="${esc(c.name)}" style="padding:10px;cursor:pointer;border-bottom:1px solid #f1f5f9">${esc(c.name)}</div>`).join('');
+  box.hidden = false;
+  box.querySelectorAll('[data-name]').forEach(el => el.addEventListener('click', () => {
+    $('t-customer').value = el.dataset.name;
+    box.hidden = true;
+    refreshVehicleList();
+  }));
+}
+document.addEventListener('click', e => {
+  const box = $('t-customer-suggest');
+  if (box && !$('t-customer').contains(e.target) && !box.contains(e.target)) box.hidden = true;
+});
 function knownCustomer() {
   const v = $('t-customer').value.trim().toLowerCase();
   return KNOWN_CUSTOMERS.find(x => x.name.toLowerCase() === v) || null;
@@ -764,8 +805,11 @@ function resetTicketForm() {
   $('t-items').innerHTML = ''; addItemRow('', '', '');
   updateVinRequired(); refreshVehicleList();
 }
-$('t-customer').addEventListener('input', refreshVehicleList);
-$('t-prev-select').addEventListener('change', () => { const v = $('t-prev-select').value; if (v && window._tVeh) window._tVeh.setFromString(v); });
+$('t-customer').addEventListener('input', () => { refreshVehicleList(); renderCustomerSuggest(); });
+$('t-prev-select').addEventListener('change', async () => {
+  const v = $('t-prev-select').value;
+  if (v && window._tVeh) { await window._tVeh.setFromString(v); fillVinFromVehicle(); }
+});
 
 /* ---------- Help ---------- */
 $('help-form').onsubmit = async (e) => {
@@ -851,11 +895,12 @@ function renderCustomers() {
     const title = c.name
       ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(c.name)}</div>`
       : (c.phone ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3"><a href="tel:${esc(phoneTel)}">${esc(phoneDisp)}</a></div>` : '');
-    const meta = `${c.name && c.phone ? `<a href="tel:${esc(phoneTel)}">${esc(phoneDisp)}</a> · <a href="sms:${esc(phoneTel)}">Text</a>` : ''}${c.city ? ((c.name && c.phone) ? ' · ' : '') + esc(c.city) + ', ' + esc(c.state) : ''}`;
+    const phoneLine = (c.name && c.phone) ? `<div style="font-size:1.15rem;font-weight:700"><a href="tel:${esc(phoneTel)}">${esc(phoneDisp)}</a> · <a href="sms:${esc(phoneTel)}">Text</a></div>` : '';
+    const cityLine = c.city ? `<div class="muted">${esc(c.city)}, ${esc(c.state)}</div>` : '';
     const earned = c.jobs.filter(j => j.paid).reduce((s, j) => s + Number(j.total || 0), 0);
-    return `<div class="card">${title}${histBtn}${meta ? `<div class="muted">${meta}</div>` : ''}
+    return `<div class="card">${title}${histBtn}${phoneLine}${cityLine}
     <div><a href="#" onclick="toggleCustHist(${i}); return false;">Total earnings: $${earned.toFixed(2)}</a></div>
-    <div id="cust-hist-${i}" hidden style="margin:6px 0">${c.jobs.map(j => `<div>${esc(j.service)} — ${esc(j.vehicle)} · ${esc(j.date)} · $${Number(j.total).toFixed(2)} · <span class="${j.paid ? 'ok' : ''}">${j.paid ? 'Paid' : 'Booked'}</span>${j.ticketId ? ` · <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('')}</div>
+    <div id="cust-hist-${i}" hidden style="margin:6px 0">${c.jobs.map(j => `<div>${esc(j.service)} — ${esc(j.vehicle)} · ${esc(j.date)} · $${Number(j.total).toFixed(2)} · <span class="${j.paid ? 'ok' : ''}">${j.paid ? 'Paid' : 'Booked'}</span>${j.ticketId ? ` · <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('')}<div style="margin-top:8px"><strong>Total earnings: $${earned.toFixed(2)}</strong></div></div>
   </div>`;
   }).join('') : '<p class="muted">No customers yet.</p>';
 }
