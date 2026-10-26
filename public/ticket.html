@@ -34,7 +34,9 @@
   .card label{font-size:.85rem;color:#475569;font-weight:600}
   .err{color:#dc2626;font-size:.9rem;margin-top:8px}
   .muted{color:#64748b;font-size:.9rem}
-  @media print{ .actions,.noprint{display:none} body{background:#fff} .page{box-shadow:none;margin:0;max-width:none} }
+  .editbtn{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:8px 16px;font-size:.95rem;cursor:pointer}
+  .meta input{width:100%;padding:6px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;font-size:.95rem}
+  @media print{ .actions,.noprint{display:none} body{background:#fff} .page{box-shadow:none;margin:0;max-width:none} .meta .empty-line{display:none} }
 </style>
 </head>
 <body>
@@ -80,37 +82,37 @@ function addItemRow(desc, qty, price) {
   row.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" style="flex:3" aria-label="Line description"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" style="flex:1;max-width:70px" aria-label="Quantity"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" style="flex:1;max-width:110px" aria-label="Price"><button type="button" class="ghost" onclick="this.parentElement.remove()">✕</button>`;
   w.appendChild(row);
 }
-function detailsFormHtml() {
-  return `<div style="margin-bottom:16px">
-    <h3 style="margin:0 0 6px">Ticket details</h3>
-    <div style="display:flex;gap:8px"><div style="flex:1"><label>VIN</label><input id="dt-vin" value="${esc(T.vin || '')}"></div><div style="flex:1"><label>Mileage</label><input id="dt-mileage" inputmode="numeric" value="${(T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : T.mileage}"></div></div>
-    <div><label>Payment type</label><input id="dt-pm" placeholder="e.g. cash, card, check" value="${esc(T.paymentMethod || '')}"></div>
-    <div><label>Job address</label><input id="dt-addr" placeholder="e.g. 123 Main St, Slidell, LA" value="${esc(T.jobAddress || '')}"></div>
-    <button type="button" id="btn-save-details">Save details</button>
-    <div class="err" id="details-msg"></div>
-    ${T.type !== 'receipt' ? '<p class="muted" style="margin:6px 0 0">Payment type shows on the ticket once it is paid.</p>' : ''}
-  </div>`;
-}
-async function bindDetails() {
-  const btn = document.getElementById('btn-save-details');
-  if (!btn) return;
-  btn.onclick = async () => {
-    const msg = document.getElementById('details-msg');
-    msg.textContent = '';
-    try {
-      let body;
-      if (T.type === 'receipt') {
-        body = { vin: document.getElementById('dt-vin').value, mileage: document.getElementById('dt-mileage').value, paymentMethod: document.getElementById('dt-pm').value, jobAddress: document.getElementById('dt-addr').value };
-      } else {
-        body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin').value, mileage: document.getElementById('dt-mileage').value, items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm').value, jobAddress: document.getElementById('dt-addr').value };
-      }
-      const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || 'Could not save.');
-      location.reload();
-    } catch (e) { msg.textContent = e.message; }
+// Details are edited on the ticket itself: Edit details turns the
+// Job address, VIN, Mileage, and Payment type lines into inputs in place.
+window.editDetails = () => {
+  const swap = (id, val, placeholder) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.outerHTML = `<input id="${id}-in" value="${esc(val || '')}" placeholder="${placeholder}"${id === 'dt-mile' ? ' inputmode="numeric"' : ''}>`;
   };
-}
+  swap('dt-job', T.jobAddress || '', 'Job address');
+  swap('dt-vin', T.vin || '', 'VIN');
+  swap('dt-mile', (T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : T.mileage, 'Mileage');
+  swap('dt-pm', T.paymentMethod || '', 'e.g. cash, card, check');
+  const btn = document.getElementById('btn-edit-details');
+  if (btn) btn.outerHTML = `<span id="details-edit-btns" class="noprint"><button type="button" class="editbtn" onclick="saveDetails()">Save details</button> <button type="button" class="editbtn" style="background:#fff;color:#0f172a;border:1px solid #e2e8f0" onclick="location.reload()">Cancel</button> <span class="err" id="details-msg"></span></span>`;
+};
+window.saveDetails = async () => {
+  const msg = document.getElementById('details-msg');
+  if (msg) msg.textContent = '';
+  try {
+    let body;
+    if (T.type === 'receipt') {
+      body = { vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value };
+    } else {
+      body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value };
+    }
+    const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Could not save.');
+    location.reload();
+  } catch (e) { if (msg) msg.textContent = e.message; else alert(e.message); }
+};
 window.mechEst = async (action, line) => {
   const verb = action === 'accept' ? 'approved' : 'denied';
   if (!confirm(`Record that the customer ${verb} this ${line === undefined || line === null ? 'estimate' : 'estimate line'} by phone?`)) return;
@@ -126,17 +128,15 @@ function renderActions() {
   const box = document.getElementById('ticket-actions');
   if (!T) { box.innerHTML = ''; return; }
   if (T.type === 'receipt') {
-    box.innerHTML = `<div class="card"><p class="muted" style="margin:0">Paid in full. Prices cannot be changed, but details below can still be added or corrected.</p>${detailsFormHtml()}</div>`;
-    bindDetails();
+    box.innerHTML = `<div class="card"><p class="muted" style="margin:0">Paid in full. Prices cannot be changed.</p></div>`;
     return;
   }
-  let html = '<div class="card">' + detailsFormHtml();
+  let html = '<div class="card">';
   if (T.type === 'estimate') {
     html += `<button type="button" id="btn-edit">Edit lines</button> <button type="button" id="btn-convert">Convert to invoice</button>`;
     html += `<div id="edit-form" hidden style="margin-top:16px">
       <div><label>Customer</label><input id="ed-customer"></div>
       <div><label>Vehicle</label><input id="ed-vehicle"></div>
-      <div style="display:flex;gap:8px"><div style="flex:1"><label>VIN</label><input id="ed-vin"></div><div style="flex:1"><label>Mileage</label><input id="ed-mileage" inputmode="numeric"></div></div>
       <div style="margin-top:10px"><label>Lines</label><div id="edit-items"></div>
       <button type="button" class="ghost" id="btn-add-item">Add line</button></div>
       <div style="display:flex;gap:8px;margin-top:10px"><div style="flex:1"><label>Labor description</label><input id="ed-labor-desc"></div><div style="flex:1"><label>Labor amount</label><input id="ed-labor" type="number" min="0" step="0.01"></div></div>
@@ -169,14 +169,11 @@ function renderActions() {
   }
   html += '</div>';
   box.innerHTML = html;
-  bindDetails();
   const editForm = document.getElementById('edit-form');
   if (editForm) {
     document.getElementById('btn-edit').onclick = () => {
       document.getElementById('ed-customer').value = T.customerName || '';
       document.getElementById('ed-vehicle').value = T.vehicle || '';
-      document.getElementById('ed-vin').value = T.vin || '';
-      document.getElementById('ed-mileage').value = (T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : T.mileage;
       document.getElementById('edit-items').innerHTML = '';
       (T.items || []).forEach(it => addItemRow(it.desc, it.qty, it.price));
       if (!(T.items || []).length) addItemRow('', '', '');
@@ -197,8 +194,8 @@ function renderActions() {
         const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
           customerName: document.getElementById('ed-customer').value,
           vehicle: document.getElementById('ed-vehicle').value,
-          vin: document.getElementById('ed-vin').value,
-          mileage: document.getElementById('ed-mileage').value,
+          vin: T.vin || '',
+          mileage: (T.mileage === undefined || T.mileage === null) ? '' : T.mileage,
           items: itemRows(),
           laborDesc: document.getElementById('ed-labor-desc').value,
           laborAmount: document.getElementById('ed-labor').value,
@@ -280,6 +277,7 @@ function renderActions() {
     const taxRow = (t.taxAmount > 0) ? `<tr><td>Tax (${esc(t.taxRate)}%)</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.taxAmount)}</td></tr>` : '';
     const subRow = (isNew && (t.laborAmount > 0 || t.taxAmount > 0)) ? `<tr><td>Parts subtotal</td><td class="num"></td><td class="num"></td><td class="num">${money(t.subtotal)}</td></tr>` : '';
     box.innerHTML = `
+      <div class="noprint" style="text-align:right;margin-bottom:8px"><button type="button" class="editbtn" id="btn-edit-details" onclick="editDetails()">Edit details</button></div>
       <div class="head">
         ${b && b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
         <div><h1>${esc(b ? b.name : 'Mobile mechanic')}</h1>
@@ -290,9 +288,10 @@ function renderActions() {
         <div><span>Customer</span>${esc(t.customerName)}</div>
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
         <div><span>Vehicle</span>${esc(t.vehicle || '—')}</div>
-        ${t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : ''}
-        ${t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : ''}
-        ${(t.mileage !== '' && t.mileage != null) ? `<div><span>Mileage</span>${Number(t.mileage).toLocaleString('en-US')} mi</div>` : ''}
+        <div class="${t.jobAddress ? '' : 'empty-line'}"><span>Job address</span><span id="dt-job">${esc(t.jobAddress || '—')}</span></div>
+        <div class="${t.vin ? '' : 'empty-line'}"><span>VIN</span><span id="dt-vin">${esc(t.vin || '—')}</span></div>
+        <div class="${(t.mileage !== '' && t.mileage != null) ? '' : 'empty-line'}"><span>Mileage</span><span id="dt-mile">${(t.mileage !== '' && t.mileage != null) ? Number(t.mileage).toLocaleString('en-US') + ' mi' : '—'}</span></div>
+        <div class="${t.paymentMethod ? '' : 'empty-line'}"><span>Payment type</span><span id="dt-pm">${esc(t.paymentMethod || '—')}</span></div>
         <div><span>Ticket</span>#${esc(t.id.slice(0, 8))}</div>
         ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}${t.paymentMethod ? ' via ' + esc(t.paymentMethod) : ''}</div>` : ''}
       </div>
