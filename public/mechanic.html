@@ -362,8 +362,14 @@ async function loadNotifications(markRead) {
     if (markRead && (d.unread || 0) > 0) { await post('/api/notifications/read', {}); updateNotifBadge(0); }
   } catch (e) {}
 }
-window.viewBookedJob = () => { document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('booked'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
-window.viewRequest = () => { document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('inbox'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
+window.viewBookedJob = async () => {
+  // Refresh first: the inbox only loads at portal startup, so a job
+  // accepted after that would otherwise be missing from the list jumped to.
+  try { await loadInbox(); } catch (e) {}
+  document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('booked'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
+window.viewRequest = async () => {
+  try { await loadInbox(); } catch (e) {}
+  document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('inbox'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
 // Keep the unread count live: the number next to Notifications updates
 // without reloading the portal, and refreshes when the tab is reopened.
 async function refreshNotifBadge() {
