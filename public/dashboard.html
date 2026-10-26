@@ -256,6 +256,7 @@
         ${q.notes ? `<p>${q.notes}</p>` : ''}${q.message ? `<p>${q.message}</p>` : ''}
         ${q.businessWarranty ? `<p class="muted"><strong>Warranty:</strong> ${q.businessWarranty}</p>` : ''}
         ${q.status === 'declined' ? '<div style="color:#dc2626;font-weight:700">Quote: denied</div>' : `<div class="muted">Quote: ${q.status}${q.followUp ? ' · Additional work' : ''}</div>`}
+        <p><a href="/quote?id=${q.id}" target="_blank">View quote →</a></p>
         ${q.status === 'pending' ? '<p class="muted">This price covers exactly what is listed. Nothing extra gets added without your approval.</p>' : ''}
         ${q.status === 'pending' && (r.status === 'open' || q.followUp) ? `<button onclick="actQuote('${q.id}','accept')">Accept</button> <button class="decline" onclick="actQuote('${q.id}','decline')">Decline</button>` : ''}
       </div>`).join('') : '<p class="muted">No quotes yet.</p>'}

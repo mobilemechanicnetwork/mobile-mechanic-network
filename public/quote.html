@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quote — Mobile Mechanic Network</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f1f5f9;color:#0f172a}
+  .page{max-width:720px;margin:24px auto;background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+  .head{display:flex;gap:16px;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:16px;margin-bottom:16px}
+  .head img{width:72px;height:72px;object-fit:cover;border-radius:10px}
+  .head h1{margin:0;font-size:1.5rem}
+  .head .sub{color:#475569;font-size:.9rem}
+  .type{display:inline-block;background:#0f172a;color:#fff;border-radius:6px;padding:4px 12px;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+  .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 20px;font-size:.95rem}
+  .meta div span{color:#64748b;font-size:.8rem;display:block;text-transform:uppercase;letter-spacing:.04em}
+  table{width:100%;border-collapse:collapse;margin:8px 0 16px}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #e2e8f0}
+  th{font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+  td.num,th.num{text-align:right}
+  .total{text-align:right;font-size:1.3rem;font-weight:700;margin:8px 0}
+  .notes{background:#f8fafc;border-radius:8px;padding:12px;font-size:.95rem;margin-top:12px}
+  .disc{background:#f8fafc;border-radius:8px;padding:12px;font-size:.9rem;color:#475569;margin-top:12px}
+  .foot{margin-top:28px;padding-top:12px;border-top:1px solid #e2e8f0;color:#64748b;font-size:.85rem;text-align:center}
+  .actions{text-align:center;margin:16px 0}
+  .actions button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:11px 24px;font-size:1rem;cursor:pointer}
+  .muted{color:#64748b;font-size:.9rem}
+  @media print{ .actions,.noprint{display:none} body{background:#fff} .page{box-shadow:none;margin:0;max-width:none} }
+</style>
+</head>
+<body>
+<div class="actions noprint"><button onclick="window.print()">Print / Save as PDF</button> <button onclick="window.print()">Share PDF</button></div>
+<p class="noprint" style="text-align:center;color:#64748b;font-size:.9rem;margin:0 16px">To share the PDF from your phone: tap Share PDF, then tap Share in the print preview and pick Messages, Mail, or another app.</p>
+<div class="page" id="quote"><p>Loading…</p></div>
+<script>
+const esc = s => String(s == null ? '' : s).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
+const money = n => '$' + Number(n).toFixed(2);
+const fmtPhone = p => {
+  const d = String(p || '').replace(/\D/g, '');
+  if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  if (d.length === 11 && d[0] === '1') return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  return p || '';
+};
+(async () => {
+  const id = new URLSearchParams(location.search).get('id') || '';
+  const box = document.getElementById('quote');
+  let d;
+  try {
+    const r = await fetch('/api/quote?id=' + encodeURIComponent(id));
+    d = await r.json().catch(() => ({}));
+    if (r.status === 401) { box.innerHTML = '<p>Please <a href="/account">sign in</a> to view this quote.</p>'; return; }
+    if (!r.ok || !d.quote) throw new Error(d.error || 'Quote not found.');
+  } catch (e) { box.innerHTML = '<p>' + esc(e.message) + '</p>'; return; }
+  const q = d.quote, row = d.request || {}, b = d.business || {};
+  const total = q.total != null ? q.total : q.price;
+  const status = q.status === 'accepted' ? '<span style="color:#16a34a;font-weight:700">Accepted</span>'
+    : q.status === 'declined' ? '<span style="color:#dc2626;font-weight:700">Denied</span>'
+    : '<span style="color:#475569;font-weight:700">Pending</span>';
+  const meta = [];
+  if (row.ownerName) meta.push(`<div><span>Customer</span>${esc(row.ownerName)}</div>`);
+  if (row.phone) meta.push(`<div><span>Customer phone</span>${esc(fmtPhone(row.phone))}</div>`);
+  if (row.vehicle) meta.push(`<div><span>Vehicle</span>${esc(row.vehicle)}</div>`);
+  if (row.service) meta.push(`<div><span>Service</span>${esc(row.service)}${q.followUp ? ' (additional work)' : ''}</div>`);
+  if (row.city) meta.push(`<div><span>Area</span>${esc(row.city)}, ${esc(row.state)}</div>`);
+  if (row.date) meta.push(`<div><span>Needed by</span>${esc(row.date)}</div>`);
+  meta.push(`<div><span>Quoted on</span>${new Date(q.createdAt).toLocaleDateString()}</div>`);
+  meta.push(`<div><span>Status</span>${status}</div>`);
+  const items = (q.items && q.items.length) ? `<table><tr><th>Work</th><th class="num">Amount</th></tr>${q.items.map(i => `<tr><td>${esc(i.desc)}</td><td class="num">${money(i.amount)}</td></tr>`).join('')}</table>` : '';
+  box.innerHTML = `<div class="type">Quote${q.followUp ? ' — Additional work' : ''}</div>
+  <div class="head">
+    ${b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
+    <div><h1>${esc(b.name || 'Mobile mechanic')}</h1>${b.phone || b.city ? `<div class="sub">${b.phone ? esc(fmtPhone(b.phone)) : ''}${b.phone && b.city ? ' · ' : ''}${b.city ? esc(b.city) + ', ' + esc(b.state) : ''}</div>` : ''}</div>
+  </div>
+  <div class="meta">${meta.join('')}</div>
+  ${row.description ? `<div class="disc"><strong>What is going on:</strong> ${esc(row.description)}</div>` : ''}
+  ${items}
+  <div class="total">Total: ${money(total)}</div>
+  ${q.message ? `<div class="notes"><strong>Message:</strong> ${esc(q.message)}</div>` : ''}
+  ${q.notes ? `<div class="notes"><strong>Notes:</strong> ${esc(q.notes)}</div>` : ''}
+  ${b.warranty ? `<div class="notes"><strong>Warranty:</strong> ${esc(b.warranty)}</div>` : ''}
+  <div class="disc">This price covers exactly what is listed. Nothing extra gets added without your approval.</div>
+  <div class="foot">${esc(b.name || '')} · Quote · ${new Date(q.createdAt).toLocaleDateString()} · Mobile Mechanic Network</div>`;
+})();
+</script>
+</body>
+</html>

@@ -2039,6 +2039,23 @@ const server = http.createServer(async (req, res) => {
       const totals = (t.type === 'invoice' && t.estimateStatus === 'pending') ? invoiceTotalsAfter(t, t.estimateLines || []) : null;
       return sendJson(res, 200, { ticket: t, business: biz ? publicBusiness(biz) : null, totals });
     }
+    // Printable quote document. The mechanic who quoted it and the
+    // request's owner may open it; anyone else (including guests with no
+    // account) gets a 404, and shares the PDF file itself instead.
+    if (p === '/api/quote' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const q = quotesStore.read().find(x => x.id === url.searchParams.get('id'));
+      if (!q) return sendJson(res, 404, { error: 'Not found.' });
+      const row = requestsStore.read().find(r => r.id === q.requestId);
+      if (!row) return sendJson(res, 404, { error: 'Not found.' });
+      const biz = myBusiness(user.id);
+      const isMechanic = user.role === 'mechanic' && biz && q.businessId === biz.id;
+      const isOwner = user.role === 'owner' && row.ownerId === user.id;
+      if (!isMechanic && !isOwner) return sendJson(res, 404, { error: 'Not found.' });
+      const b = businessesStore.read().find(x => x.id === q.businessId);
+      return sendJson(res, 200, { quote: q, request: row, business: b ? publicBusiness(b) : null });
+    }
     // Customer sets the repair location on their own booked ticket.
     // Address is never required at quote-request time; it is only added
     // here, once the job is approved, by the customer or the mechanic.
@@ -2341,6 +2358,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/job-ticket') {
       return serveFile(res, path.join(PUBLIC_DIR, 'customer-ticket.html'));
+    }
+    if (p === '/quote') {
+      return serveFile(res, path.join(PUBLIC_DIR, 'quote.html'));
     }
     if (p === '/mechanics') return serveFile(res, path.join(PUBLIC_DIR, 'mechanics.html'));
     if (p === '/request') return serveFile(res, path.join(PUBLIC_DIR, 'request.html'));
