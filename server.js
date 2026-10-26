@@ -1240,20 +1240,24 @@ const server = http.createServer(async (req, res) => {
       if (mechanicFrozen(user)) return frozenError(res);
       const biz = myBusiness(user.id);
       if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
-      const { date, title, notes, ticketId } = await parseBody(req);
+      const { date, title, notes, ticketId, time } = await parseBody(req);
       let ticket = null;
+      let ticketReq = null;
       if (ticketId) {
         ticket = ticketsStore.read().find(x => x.id === ticketId);
         if (!ticket || ticket.businessId !== biz.id) return sendJson(res, 400, { error: 'Ticket not found.' });
         if (ticket.type === 'receipt') return sendJson(res, 400, { error: 'Paid tickets can\'t be added to the calendar.' });
+        if (ticket.requestId) ticketReq = requestsStore.read().find(x => x.id === ticket.requestId) || null;
         const existing = calendarStore.read().find(e => e.businessId === biz.id && e.ticketId === ticketId);
         if (existing) return sendJson(res, 200, { entry: existing });
       }
       const d = String(date || '').trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || isNaN(new Date(d + 'T00:00:00Z').getTime())) return sendJson(res, 400, { error: 'Pick a valid date.' });
+      const tm = String(time || '').trim();
+      if (tm && !/^([01]\d|2[0-3]):[0-5]\d$/.test(tm)) return sendJson(res, 400, { error: 'Pick a valid time.' });
       if (!title || !String(title).trim()) return sendJson(res, 400, { error: 'A job title is required.' });
       const entries = calendarStore.read();
-      const entry = { id: crypto.randomUUID(), businessId: biz.id, date: d, title: String(title).trim().slice(0, 120), notes: String(notes || '').trim().slice(0, 500), createdAt: new Date().toISOString(), ...(ticket ? { ticketId: ticket.id } : {}) };
+      const entry = { id: crypto.randomUUID(), businessId: biz.id, date: d, time: tm, title: String(title).trim().slice(0, 120), notes: String(notes || '').trim().slice(0, 500), createdAt: new Date().toISOString(), ...(ticket ? { ticketId: ticket.id, customerName: ticket.customerName || '', vehicle: ticket.vehicle || '', service: ticketReq ? (ticketReq.service || '') : '', location: (ticket.jobAddress || '') || (ticketReq ? [ticketReq.city, ticketReq.state].filter(Boolean).join(', ') : '') } : {}) };
       entries.push(entry); calendarStore.write(entries);
       return sendJson(res, 200, { entry });
     }
