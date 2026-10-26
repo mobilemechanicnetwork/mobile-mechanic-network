@@ -67,7 +67,7 @@ window.actAll = (action) => act(action, null);
     const d = await r.json();
     T = d.ticket; TOT = d.totals;
     const t = T, b = d.business;
-    document.getElementById('addr-form').innerHTML = `<div class="card" style="border:0">
+    document.getElementById('addr-form').innerHTML = t.type === 'receipt' ? '' : `<div class="card" style="border:0">
       <h2 style="margin:0 0 6px;font-size:1.1rem">Where is the vehicle?</h2>
       <p class="muted" style="margin:0 0 10px">Add the repair location here. You do not have to give your full address when you request a quote.</p>
       <label>Job address</label><input id="cust-addr" placeholder="e.g. 123 Main St, Slidell, LA, or the store or workplace where the vehicle is" value="${esc(t.jobAddress || '')}" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box">
@@ -112,7 +112,7 @@ window.actAll = (action) => act(action, null);
       <div class="meta">
         <div><span>Customer</span>${esc(t.customerName)}</div>
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
-        <div><span>Vehicle</span>${esc(t.vehicle || '—')}</div>
+        ${t.vehicle ? `<div><span>Vehicle</span>${esc(t.vehicle)}</div>` : ''}
         ${t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : ''}
         ${t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : ''}
         ${(t.mileage !== '' && t.mileage != null) ? `<div><span>Mileage</span>${Number(t.mileage).toLocaleString('en-US')} mi</div>` : ''}

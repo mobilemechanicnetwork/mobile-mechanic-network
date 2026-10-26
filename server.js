@@ -1656,28 +1656,10 @@ const server = http.createServer(async (req, res) => {
       const tickets = ticketsStore.read();
       const t = tickets.find(x => x.id === ticketUpdate[1] && x.mechanicId === user.id);
       if (!t) return sendJson(res, 404, { error: 'Not found.' });
+      // Once a ticket is paid, it cannot be edited at all: not prices,
+      // not details, not notes or comments. The receipt is final.
       if (t.type === 'receipt') {
-        // Paid receipts stay price-locked, but non-price details (VIN,
-        // mileage, payment type) can still be added or corrected.
-        const body = await parseBody(req);
-        if ('items' in body || 'laborAmount' in body || 'taxRate' in body || 'laborDesc' in body)
-          return sendJson(res, 400, { error: 'Paid receipts cannot be edited.' });
-        if (body.vin !== undefined && String(body.vin).trim()) {
-          const v = cleanVin(body.vin);
-          if (!v) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
-          t.vin = v;
-        }
-        if (body.mileage !== undefined && String(body.mileage).trim() !== '') {
-          const m = Number(String(body.mileage).replace(/[^0-9]/g, ''));
-          if (!Number.isFinite(m) || m < 0 || m > 9999999) return sendJson(res, 400, { error: 'Enter a valid vehicle mileage.' });
-          t.mileage = m;
-        }
-        if (body.paymentMethod !== undefined) t.paymentMethod = String(body.paymentMethod || '').trim().slice(0, 50);
-        if (body.jobAddress !== undefined) t.jobAddress = String(body.jobAddress || '').trim().slice(0, 200);
-        if (body.comments !== undefined) t.comments = String(body.comments || '').trim().slice(0, 2000);
-        t.updatedAt = new Date().toISOString();
-        ticketsStore.write(tickets);
-        return sendJson(res, 200, { ticket: t });
+        return sendJson(res, 400, { error: 'Paid receipts cannot be edited.' });
       }
       const body = await parseBody(req);
       const clean = cleanTicketBody(body, t.type);
@@ -1890,6 +1872,52 @@ const server = http.createServer(async (req, res) => {
       ticketsStore.write(tickets);
       return sendJson(res, 200, { ticket: t });
     }
+    // Customers tab: prior customers with this mechanic, with their
+    // service history. Platform jobs (accepted quotes) key by phone;
+    // billed walk-in tickets key by name, joining a phone-keyed customer
+    // of the same name when one exists. Estimates alone do not create a
+    // customer record: history is booked and billed work only.
+    if (p === '/api/mechanic/customers' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const biz = myBusiness(user.id);
+      if (!biz) return sendJson(res, 200, { customers: [] });
+      const myTickets = ticketsStore.read().filter(t => t.mechanicId === user.id);
+      const allRequests = requestsStore.read();
+      const allQuotes = quotesStore.read();
+      const normName = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const byKey = new Map();
+      const getCust = (key, name, phone, city, state) => {
+        if (!byKey.has(key)) byKey.set(key, { name: name || '', phone: phone || '', city: city || '', state: state || '', jobs: [] });
+        const c = byKey.get(key);
+        if (name && !c.name) c.name = name;
+        if (phone && !c.phone) c.phone = phone;
+        if (city && !c.city) { c.city = city; c.state = state || ''; }
+        return c;
+      };
+      for (const q of allQuotes) {
+        if (q.businessId !== biz.id || q.status !== 'accepted') continue;
+        const pr = allRequests.find(r => r.id === q.requestId);
+        if (!pr) continue;
+        const ticket = myTickets.find(t => t.requestId === pr.id);
+        const c = getCust('phone:' + (pr.phone || pr.ownerId || q.requestId), pr.ownerName, pr.phone, pr.city, pr.state);
+        c.jobs.push({ service: pr.service, vehicle: pr.vehicle || '', date: (pr.createdAt || '').slice(0, 10), total: ticket ? ticket.total : (q.total != null ? q.total : q.price), paid: myTickets.some(t => t.requestId === pr.id && t.type === 'receipt'), ticketId: ticket ? ticket.id : null, createdAt: pr.createdAt || '' });
+      }
+      for (const t of myTickets) {
+        if (t.requestId || (t.type !== 'invoice' && t.type !== 'receipt')) continue;
+        const want = normName(t.customerName);
+        if (!want) continue;
+        let c = [...byKey.values()].find(x => normName(x.name) === want);
+        if (!c) c = getCust('name:' + want, t.customerName, '', '', '');
+        c.jobs.push({ service: (t.items || []).map(it => it.desc).filter(Boolean).join(', ') || t.laborDesc || 'Service', vehicle: t.vehicle || '', date: (t.createdAt || '').slice(0, 10), total: t.total, paid: t.type === 'receipt', ticketId: t.id, createdAt: t.createdAt || '' });
+      }
+      const customers = [...byKey.values()].map(c => {
+        c.jobs.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+        return { name: c.name, phone: c.phone, city: c.city, state: c.state, jobs: c.jobs, lastJob: c.jobs.length ? c.jobs[0].createdAt : '' };
+      }).sort((a, b) => String(b.lastJob).localeCompare(String(a.lastJob)));
+      return sendJson(res, 200, { customers });
+    }
     if (p === '/api/tickets/customers' && req.method === 'GET') {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
@@ -1945,7 +1973,8 @@ const server = http.createServer(async (req, res) => {
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       const tickets = ticketsStore.read();
       const t = tickets.find(x => x.id === jobTicketAddr[1]);
-      if (!t || !t.requestId || (t.type !== 'invoice' && t.type !== 'receipt')) return sendJson(res, 404, { error: 'Not found.' });
+      if (t && t.type === 'receipt') return sendJson(res, 400, { error: 'Paid receipts cannot be edited.' });
+      if (!t || !t.requestId || t.type !== 'invoice') return sendJson(res, 404, { error: 'Not found.' });
       const row = requestsStore.read().find(x => x.id === t.requestId);
       if (!row || row.ownerId !== user.id) return sendJson(res, 404, { error: 'Not found.' });
       const body = await parseBody(req);

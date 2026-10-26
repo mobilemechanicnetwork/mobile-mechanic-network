@@ -149,12 +149,39 @@ function bindComments() {
     } catch (e) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = e.message; } }
   });
 }
+// Notes work like Additional comments: an optional editor on the ticket
+// view that auto-saves when the mechanic finishes writing. Notes show on
+// the ticket document; blank notes show nothing.
+function notesSectionHtml() {
+  return `<div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:12px">
+    <h3 style="margin:0 0 6px">Notes (optional)</h3>
+    <textarea id="ticket-notes" rows="3" placeholder="Notes about this job (optional)...">${esc(T.notes || '')}</textarea>
+    <div><span id="notes-msg"></span></div>
+    <p class="muted" style="margin:6px 0 0">Optional. Saves automatically when you finish writing. Notes show on the ticket.</p>
+  </div>`;
+}
+function bindNotes() {
+  const ta = document.getElementById('ticket-notes');
+  if (!ta) return;
+  ta.addEventListener('change', async () => {
+    const msg = document.getElementById('notes-msg');
+    if (msg) msg.textContent = '';
+    try {
+      const dv = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+      const body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: ta.value, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '' };
+      const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Could not save.');
+      if (d.ticket) T = d.ticket;
+      if (msg) { msg.style.color = '#15803d'; msg.textContent = 'Saved.'; }
+    } catch (e) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = e.message; } }
+  });
+}
 function renderActions() {
   const box = document.getElementById('ticket-actions');
   if (!T) { box.innerHTML = ''; return; }
   if (T.type === 'receipt') {
-    box.innerHTML = `<div class="card"><p class="muted" style="margin:0">Paid in full. Prices cannot be changed.</p>${commentsSectionHtml()}</div>`;
-    bindComments();
+    box.innerHTML = `<div class="card"><p class="muted" style="margin:0">Paid in full. This receipt cannot be edited.</p></div>`;
     return;
   }
   let html = '<div class="card">';
@@ -193,9 +220,11 @@ function renderActions() {
       html += `<div style="margin-top:14px"><button type="button" id="btn-paid">Mark as paid</button></div>`;
     }
   }
+  html += notesSectionHtml();
   html += commentsSectionHtml();
   html += '</div>';
   box.innerHTML = html;
+  bindNotes();
   bindComments();
   const editForm = document.getElementById('edit-form');
   if (editForm) {
@@ -305,7 +334,7 @@ function renderActions() {
     const taxRow = (t.taxAmount > 0) ? `<tr><td>Tax (${esc(t.taxRate)}%)</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.taxAmount)}</td></tr>` : '';
     const subRow = (isNew && (t.laborAmount > 0 || t.taxAmount > 0)) ? `<tr><td>Parts subtotal</td><td class="num"></td><td class="num"></td><td class="num">${money(t.subtotal)}</td></tr>` : '';
     box.innerHTML = `
-      <div class="noprint" style="text-align:right;margin-bottom:8px;min-height:1.2em"><span id="details-msg"></span></div>
+      ${t.type === 'receipt' ? '' : `<div class="noprint" style="text-align:right;margin-bottom:8px;min-height:1.2em"><span id="details-msg"></span></div>`}
       <div class="head">
         ${b && b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
         <div><h1>${esc(b ? b.name : 'Mobile mechanic')}</h1>
@@ -313,13 +342,13 @@ function renderActions() {
       </div>
       <div class="type" style="${t.type === 'estimate' ? 'background:#2563eb' : t.type === 'receipt' ? 'background:#16a34a' : 'background:#eab308;color:#422006'}">${esc(t.type)}</div>
       <div class="meta">
-        <div><span>Customer</span>${esc(t.customerName)}</div>
+        ${t.customerName ? `<div><span>Customer</span>${esc(t.customerName)}</div>` : ''}
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
-        <div><span>Vehicle</span>${esc(t.vehicle || '—')}</div>
-        <div class="${t.jobAddress ? '' : 'empty-line'}"><span>Job address</span><input id="dt-job-in" value="${esc(t.jobAddress || '')}" placeholder="Job address"></div>
-        <div class="${t.vin ? '' : 'empty-line'}"><span>VIN</span><input id="dt-vin-in" value="${esc(t.vin || '')}" placeholder="VIN"></div>
-        <div class="${(t.mileage !== '' && t.mileage != null) ? '' : 'empty-line'}"><span>Mileage</span><input id="dt-mile-in" value="${(t.mileage !== '' && t.mileage != null) ? t.mileage : ''}" placeholder="Mileage" inputmode="numeric"></div>
-        <div class="${t.paymentMethod ? '' : 'empty-line'}"><span>Payment type</span><input id="dt-pm-in" value="${esc(t.paymentMethod || '')}" placeholder="e.g. cash, card, check"></div>
+        ${t.vehicle ? `<div><span>Vehicle</span>${esc(t.vehicle)}</div>` : ''}
+        ${t.type === 'receipt' ? (t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : '') : `<div class="${t.jobAddress ? '' : 'empty-line'}"><span>Job address</span><input id="dt-job-in" value="${esc(t.jobAddress || '')}" placeholder="Job address"></div>`}
+        ${t.type === 'receipt' ? (t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : '') : `<div class="${t.vin ? '' : 'empty-line'}"><span>VIN</span><input id="dt-vin-in" value="${esc(t.vin || '')}" placeholder="VIN"></div>`}
+        ${t.type === 'receipt' ? ((t.mileage !== '' && t.mileage != null) ? `<div><span>Mileage</span>${Number(t.mileage).toLocaleString('en-US')} mi</div>` : '') : `<div class="${(t.mileage !== '' && t.mileage != null) ? '' : 'empty-line'}"><span>Mileage</span><input id="dt-mile-in" value="${(t.mileage !== '' && t.mileage != null) ? t.mileage : ''}" placeholder="Mileage" inputmode="numeric"></div>`}
+        ${t.type === 'receipt' ? (t.paymentMethod ? `<div><span>Payment type</span>${esc(t.paymentMethod)}</div>` : '') : `<div class="${t.paymentMethod ? '' : 'empty-line'}"><span>Payment type</span><input id="dt-pm-in" value="${esc(t.paymentMethod || '')}" placeholder="e.g. cash, card, check"></div>`}
         <div><span>Ticket</span>${t.label ? esc(t.label) : '#' + esc(t.id.slice(0, 8))}</div>
         ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}${t.paymentMethod ? ' via ' + esc(t.paymentMethod) : ''}</div>` : ''}
       </div>
