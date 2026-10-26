@@ -796,6 +796,18 @@ function showTicketForm(show) {
   if (show) window.scrollTo(0, 0);
 }
 $('t-new').onclick = () => { resetTicketForm(); showTicketForm(true); loadCustomerCache(); };
+// From a Customers card: open the ticket form with this customer's name
+// filled in and their previous vehicles ready to pick from history.
+window.createTicketForCustomer = async (i) => {
+  const c = (window._custList || [])[i];
+  if (!c || !c.name) return;
+  document.querySelector('[data-tab="tickets"]').click();
+  resetTicketForm();
+  showTicketForm(true);
+  await loadCustomerCache();
+  $('t-customer').value = c.name;
+  refreshVehicleList();
+};
 $('t-cancel').onclick = () => { resetTicketForm(); showTicketForm(false); };
 function resetTicketForm() {
   $('t-type').disabled = false;
@@ -888,6 +900,7 @@ function renderCustomers() {
   const q = (document.getElementById('cust-search').value || '').trim().toLowerCase();
   const qDigits = q.replace(/\D/g, '');
   const list = (window._customers || []).filter(c => !q || (c.name || '').toLowerCase().includes(q) || (qDigits && String(c.phone || '').replace(/\D/g, '').includes(qDigits)));
+  window._custList = list;
   $('customer-list').innerHTML = list.length ? list.map((c, i) => {
     const phoneDisp = c.phone ? (window.PhoneFmt ? window.PhoneFmt.display(c.phone) : c.phone) : '';
     const phoneTel = c.phone ? String(c.phone).replace(/[^+\d]/g, '') : '';
@@ -913,7 +926,7 @@ function renderCustomers() {
     });
     const vehiclesBlock = vehMap.size ? `<div style="margin-top:6px"><div class="muted" style="margin-bottom:2px">Vehicles worked on:</div>${[...vehMap.values()].map(v => `<div>${esc(v.vehicle)}${v.vin ? ` · VIN ${esc(v.vin)}` : ''}${v.address ? ` · ${esc(v.address)}` : ''}</div>`).join('')}</div>` : '';
     const earned = c.jobs.filter(j => j.paid).reduce((s, j) => s + Number(j.total || 0), 0);
-    return `<div class="card">${title}<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 6px">${phoneLine}${histBtn}</div>${cityLine}${vehiclesBlock}
+    return `<div class="card">${title}<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 6px">${phoneLine}${histBtn}</div>${cityLine}${vehiclesBlock}${c.name ? `<div style="margin-top:10px"><button type="button" onclick="createTicketForCustomer(${i})">Create new ticket</button></div>` : ''}
     <div id="cust-hist-${i}" hidden style="margin:6px 0">${c.jobs.map(j => `<div>${esc(j.service)} — ${esc(j.vehicle)} · ${esc(j.date)} · $${Number(j.total).toFixed(2)} · <span class="${j.paid ? 'ok' : ''}">${j.paid ? 'Paid' : 'Booked'}</span>${j.ticketId ? ` · <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('')}<div style="margin-top:8px"><strong>Total spent on service history: $${earned.toFixed(2)}</strong></div></div>
   </div>`;
   }).join('') : '<p class="muted">No customers yet.</p>';
