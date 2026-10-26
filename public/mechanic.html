@@ -891,14 +891,29 @@ function renderCustomers() {
   $('customer-list').innerHTML = list.length ? list.map((c, i) => {
     const phoneDisp = c.phone ? (window.PhoneFmt ? window.PhoneFmt.display(c.phone) : c.phone) : '';
     const phoneTel = c.phone ? String(c.phone).replace(/[^+\d]/g, '') : '';
-    const histBtn = `<div style="margin:2px 0 6px"><button type="button" class="ghost" onclick="toggleCustHist(${i})">Service history (${c.jobs.length})</button></div>`;
+    const histBtn = `<button type="button" class="ghost" onclick="toggleCustHist(${i})">Service history (${c.jobs.length})</button>`;
     const title = c.name
       ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(c.name)}</div>`
       : (c.phone ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3"><a href="tel:${esc(phoneTel)}">${esc(phoneDisp)}</a></div>` : '');
     const phoneLine = (c.name && c.phone) ? `<div style="font-size:1.15rem;font-weight:700"><a href="tel:${esc(phoneTel)}">${esc(phoneDisp)}</a> · <a href="sms:${esc(phoneTel)}">Text</a></div>` : '';
     const cityLine = c.city ? `<div class="muted">${esc(c.city)}, ${esc(c.state)}</div>` : '';
+    // Vehicles worked on: one line per distinct vehicle, with the VIN and
+    // the job address from the newest job for that vehicle when known.
+    const vehMap = new Map();
+    c.jobs.forEach(j => {
+      const v = String(j.vehicle || '').trim();
+      if (!v) return;
+      const key = v.toLowerCase();
+      if (!vehMap.has(key)) vehMap.set(key, { vehicle: v, address: j.address || '', vin: j.vin || '' });
+      else {
+        const ex = vehMap.get(key);
+        if (!ex.address && j.address) ex.address = j.address;
+        if (!ex.vin && j.vin) ex.vin = j.vin;
+      }
+    });
+    const vehiclesBlock = vehMap.size ? `<div style="margin-top:6px"><div class="muted" style="margin-bottom:2px">Vehicles worked on:</div>${[...vehMap.values()].map(v => `<div>${esc(v.vehicle)}${v.vin ? ` · VIN ${esc(v.vin)}` : ''}${v.address ? ` · ${esc(v.address)}` : ''}</div>`).join('')}</div>` : '';
     const earned = c.jobs.filter(j => j.paid).reduce((s, j) => s + Number(j.total || 0), 0);
-    return `<div class="card">${title}${histBtn}${phoneLine}${cityLine}
+    return `<div class="card">${title}<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 6px">${phoneLine}${histBtn}</div>${cityLine}${vehiclesBlock}
     <div id="cust-hist-${i}" hidden style="margin:6px 0">${c.jobs.map(j => `<div>${esc(j.service)} — ${esc(j.vehicle)} · ${esc(j.date)} · $${Number(j.total).toFixed(2)} · <span class="${j.paid ? 'ok' : ''}">${j.paid ? 'Paid' : 'Booked'}</span>${j.ticketId ? ` · <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('')}<div style="margin-top:8px"><strong>Total spent on service history: $${earned.toFixed(2)}</strong></div></div>
   </div>`;
   }).join('') : '<p class="muted">No customers yet.</p>';

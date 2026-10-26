@@ -1903,7 +1903,7 @@ const server = http.createServer(async (req, res) => {
         if (!pr) continue;
         const ticket = myTickets.find(t => t.requestId === pr.id);
         const c = getCust('phone:' + (pr.phone || pr.ownerId || q.requestId), pr.ownerName, pr.phone, pr.city, pr.state);
-        c.jobs.push({ service: pr.service, vehicle: pr.vehicle || '', date: (pr.createdAt || '').slice(0, 10), total: ticket ? ticket.total : (q.total != null ? q.total : q.price), paid: myTickets.some(t => t.requestId === pr.id && t.type === 'receipt'), ticketId: ticket ? ticket.id : null, createdAt: pr.createdAt || '' });
+        c.jobs.push({ service: pr.service, vehicle: pr.vehicle || '', date: (pr.createdAt || '').slice(0, 10), total: ticket ? ticket.total : (q.total != null ? q.total : q.price), paid: myTickets.some(t => t.requestId === pr.id && t.type === 'receipt'), ticketId: ticket ? ticket.id : null, address: ticket ? (ticket.jobAddress || '') : '', vin: ticket ? (ticket.vin || '') : '', createdAt: pr.createdAt || '' });
       }
       for (const t of myTickets) {
         if (t.requestId || (t.type !== 'invoice' && t.type !== 'receipt')) continue;
@@ -1911,7 +1911,7 @@ const server = http.createServer(async (req, res) => {
         if (!want) continue;
         let c = [...byKey.values()].find(x => normName(x.name) === want);
         if (!c) c = getCust('name:' + want, t.customerName, '', '', '');
-        c.jobs.push({ service: (t.items || []).map(it => it.desc).filter(Boolean).join(', ') || t.laborDesc || 'Service', vehicle: t.vehicle || '', date: (t.createdAt || '').slice(0, 10), total: t.total, paid: t.type === 'receipt', ticketId: t.id, createdAt: t.createdAt || '' });
+        c.jobs.push({ service: (t.items || []).map(it => it.desc).filter(Boolean).join(', ') || t.laborDesc || 'Service', vehicle: t.vehicle || '', date: (t.createdAt || '').slice(0, 10), total: t.total, paid: t.type === 'receipt', ticketId: t.id, address: t.jobAddress || '', vin: t.vin || '', createdAt: t.createdAt || '' });
       }
       const customers = [...byKey.values()].map(c => {
         c.jobs.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
