@@ -836,19 +836,24 @@ async function loadCustomers() {
     renderCustomers();
   } catch (e) { box.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; }
 }
+function toggleCustHist(i) {
+  const el = document.getElementById('cust-hist-' + i);
+  if (el) el.hidden = !el.hidden;
+}
 function renderCustomers() {
   const q = (document.getElementById('cust-search').value || '').trim().toLowerCase();
   const qDigits = q.replace(/\D/g, '');
   const list = (window._customers || []).filter(c => !q || (c.name || '').toLowerCase().includes(q) || (qDigits && String(c.phone || '').replace(/\D/g, '').includes(qDigits)));
-  $('customer-list').innerHTML = list.length ? list.map(c => {
+  $('customer-list').innerHTML = list.length ? list.map((c, i) => {
     const phoneDisp = c.phone ? (window.PhoneFmt ? window.PhoneFmt.display(c.phone) : c.phone) : '';
     const phoneTel = c.phone ? String(c.phone).replace(/[^+\d]/g, '') : '';
+    const histBtn = `<div style="margin:2px 0 6px"><button type="button" class="ghost" onclick="toggleCustHist(${i})">Service history (${c.jobs.length})</button></div>`;
     const title = c.name
       ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(c.name)}</div>`
       : (c.phone ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3"><a href="tel:${esc(phoneTel)}">${esc(phoneDisp)}</a></div>` : '');
     const meta = `${c.name && c.phone ? `<a href="tel:${esc(phoneTel)}">${esc(phoneDisp)}</a> · <a href="sms:${esc(phoneTel)}">Text</a>` : ''}${c.city ? ((c.name && c.phone) ? ' · ' : '') + esc(c.city) + ', ' + esc(c.state) : ''}`;
-    return `<div class="card">${title}${meta ? `<div class="muted">${meta}</div>` : ''}
-    <div style="margin:6px 0">${c.jobs.map(j => `<div>${esc(j.service)} — ${esc(j.vehicle)} · ${esc(j.date)} · $${Number(j.total).toFixed(2)} · <span class="${j.paid ? 'ok' : ''}">${j.paid ? 'Paid' : 'Booked'}</span>${j.ticketId ? ` · <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('')}</div>
+    return `<div class="card">${title}${histBtn}${meta ? `<div class="muted">${meta}</div>` : ''}
+    <div id="cust-hist-${i}" hidden style="margin:6px 0">${c.jobs.map(j => `<div>${esc(j.service)} — ${esc(j.vehicle)} · ${esc(j.date)} · $${Number(j.total).toFixed(2)} · <span class="${j.paid ? 'ok' : ''}">${j.paid ? 'Paid' : 'Booked'}</span>${j.ticketId ? ` · <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('')}</div>
   </div>`;
   }).join('') : '<p class="muted">No customers yet.</p>';
 }
