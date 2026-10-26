@@ -14,6 +14,7 @@
   .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0}
   .tabs button{background:#ffffff;border:1px solid #e2e8f0;color:#475569;border-radius:999px;padding:9px 16px;cursor:pointer;font-size:.9rem;box-shadow:0 1px 2px rgba(15,23,42,.06)}
   .tabs button.active{background:#2563eb;border-color:#2563eb;color:#fff}
+  @media (max-width:640px){.tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.tabs button{flex:none}}
   section.tab{display:none}
   section.tab.active{display:block}
   label{display:block;margin:12px 0 4px;font-size:.9rem;color:#475569}
@@ -127,7 +128,8 @@
   </div>
 
   <section class="tab active" id="tab-requests">
-    <h2>Requests in your area</h2>
+    <h2>Requests</h2>
+    <p style="display:flex;gap:8px;flex-wrap:wrap"><input id="req-search" placeholder="Search requests by name, phone, service, or vehicle…" style="flex:1;min-width:220px;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"><button type="button" class="ghost" id="req-refresh">Refresh requests</button></p>
     <div id="inbox"></div>
     <h2 style="margin-top:28px">Booked jobs</h2>
     <div id="booked"></div>
@@ -254,6 +256,7 @@
       <button class="ghost" type="button" id="t-cancel">Cancel</button>
       <div class="err" id="t-err"></div><div class="ok" id="t-ok"></div>
     </form>
+    <p><input id="ticket-search" placeholder="Search tickets by name, vehicle, or ticket number…" style="width:100%;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"></p>
     <div id="ticket-list"></div>
   </section>
 
@@ -346,7 +349,7 @@ document.querySelectorAll('.tabs button').forEach(b => {
   };
 });
 $('logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout', {}); location.href = '/'; };
-$('portal-home').onclick = (e) => { e.preventDefault(); document.querySelector('[data-tab="profile"]').click(); window.scrollTo(0, 0); };
+$('portal-home').onclick = (e) => { e.preventDefault(); document.querySelector('[data-tab="requests"]').click(); window.scrollTo(0, 0); };
 
 let SERVICES = [];
 async function loadServices() {
@@ -413,12 +416,23 @@ window.toggleHist = (id) => { const el = $('hist-' + id); if (el) el.hidden = !e
 /* ---------- Requests inbox ---------- */
 async function loadInbox() {
   const inbox = await api('/api/requests/inbox');
-  const box = $('inbox');
+  window._inboxData = inbox;
   window._booked = inbox.booked || [];
   window._inboxRequests = inbox.requests || [];
+  renderInbox();
+}
+function renderInbox() {
+  const inbox = window._inboxData || {};
+  const box = $('inbox');
   if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Publish your business page to start receiving requests in your area.</p>'; return; }
+  const q = (document.getElementById('req-search').value || '').trim().toLowerCase();
+  const qDigits = q.replace(/\D/g, '');
+  const matchReq = r => !q || (r.ownerName || '').toLowerCase().includes(q) || (r.service || '').toLowerCase().includes(q) || (r.vehicle || '').toLowerCase().includes(q) || (r.city || '').toLowerCase().includes(q) || (qDigits && String(r.phone || '').replace(/\D/g, '').includes(qDigits));
+  const bookedList = (inbox.booked || []).filter(matchReq);
+  const reqList = (inbox.requests || []).filter(matchReq);
+  window._renderedRequests = reqList;
   const bk = $('booked');
-  bk.innerHTML = (inbox.booked && inbox.booked.length) ? inbox.booked.map(b => `<div class="card">
+  bk.innerHTML = bookedList.length ? bookedList.map(b => `<div class="card">
     ${b.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(b.ownerName)}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(b)}${historyButton(b)}</div><strong>${esc(b.service)}</strong> — ${esc(b.vehicle)}${b.vin ? ' · VIN ' + esc(b.vin) : ''} <span class="ok">Booked</span>
     ${b.lines && b.lines.length ? `<div style="margin:6px 0">${b.lines.map(l => `<div>${esc(l.desc)} — $${Number(l.amount).toFixed(2)}</div>`).join('')}</div>` : ''}
     <p><strong>${b.paid ? `Total: $${Number(b.ticketTotal != null ? b.ticketTotal : b.acceptedTotal).toFixed(2)}` : (b.ticketTotal != null && Number(b.ticketTotal) !== Number(b.acceptedTotal) ? `Current ticket total: $${Number(b.ticketTotal).toFixed(2)}` : `Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}`)}</strong></p>
@@ -427,10 +441,10 @@ async function loadInbox() {
     ${historyBlock(b)}
     <p>${b.hasTicket ? (b.ticketId ? `<a href="/ticket?id=${b.ticketId}" target="_blank">View ticket →</a>` : '<span class="ok">Ticket created</span>') : `<button type="button" class="primary" onclick="bookedToTicket('${b.id}')">Create ticket from quote</button>`}</p>
     ${b.paid ? '<p><span class="ok">Paid</span></p>' : b.pendingFollowUp ? `<p class="ok">Additional work quoted $${esc(b.pendingFollowUp.total != null ? b.pendingFollowUp.total : b.pendingFollowUp.price)} (pending customer approval).</p><p><a href="/quote?id=${b.pendingFollowUp.id}" target="_blank">View quote →</a> <button type="button" class="ghost" onclick="textFollowUp('${b.id}')">Text quote from my phone</button></p>` : ''}
-  </div>`).join('') : '<p class="muted">No booked jobs yet. When a customer accepts your quote, it shows up here.</p>';
-  if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
-  inbox.requests.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
-  box.innerHTML = inbox.requests.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
+  </div>`).join('') : (q ? '<p class="muted">No booked jobs match your search.</p>' : '<p class="muted">No booked jobs yet. When a customer accepts your quote, it shows up here.</p>');
+  if (!reqList.length) { box.innerHTML = q ? '<p class="muted">No open requests match your search.</p>' : '<p class="muted">No open requests match your area and services right now.</p>'; return; }
+  reqList.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
+  box.innerHTML = reqList.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
     ${r.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(r.ownerName)}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(r)}${historyButton(r)}</div>${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)}${r.phone ? ` · <a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · <a href="sms:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
     <p>${esc(r.description)}</p>
     ${historyBlock(r)}
@@ -444,8 +458,11 @@ async function loadInbox() {
       <p><button class="primary" type="button" onclick="sendItemizedQuote('${r.id}')">Send quote</button></p>
     </div>`}
   </div>`).join('');
-  inbox.requests.forEach(r => { if (!r.myQuote) addQuoteRow(r.id); });
+  reqList.forEach(r => { if (!r.myQuote) { addQuoteRow(r.id); const qn = document.getElementById('qn-' + r.id); if (qn) qn.oninput = () => saveQuoteDraft(r.id); } });
+  restoreQuoteDrafts();
 }
+document.getElementById('req-search').addEventListener('input', renderInbox);
+$('req-refresh').onclick = () => loadInbox();
 window.textQuote = (rid) => {
   const r = (window._inboxRequests || []).find(x => x.id === rid);
   if (!r || !r.myQuote) return;
@@ -483,10 +500,34 @@ window.addQuoteRow = (rid) => {
   row.style.cssText = 'display:flex;gap:8px;margin:6px 0';
   row.innerHTML = `<input placeholder="Description (e.g. Brake pads — parts)" style="flex:2" aria-label="Line item description"><input type="number" min="0.01" step="0.01" placeholder="$" style="flex:1;max-width:110px" aria-label="Line item amount"><button type="button" class="ghost" aria-label="Remove line item">✕</button>`;
   const ins = row.querySelectorAll('input');
-  ins.forEach(i => i.oninput = () => updateQuoteTotal(rid));
-  row.querySelector('button').onclick = () => { row.remove(); updateQuoteTotal(rid); };
+  ins.forEach(i => i.oninput = () => { updateQuoteTotal(rid); saveQuoteDraft(rid); });
+  row.querySelector('button').onclick = () => { row.remove(); updateQuoteTotal(rid); saveQuoteDraft(rid); };
   wrap.appendChild(row);
 };
+const quoteDraftKey = rid => 'mmn-quote-draft-' + rid;
+window.saveQuoteDraft = (rid) => {
+  const wrap = document.getElementById('qi-' + rid); if (!wrap) return;
+  const items = [...wrap.children].map(row => { const ins = row.querySelectorAll('input'); return { desc: ins[0].value, amount: ins[1].value }; });
+  const notesEl = document.getElementById('qn-' + rid);
+  const data = { items, notes: notesEl ? notesEl.value : '' };
+  const hasContent = (data.notes || '').trim() || data.items.some(i => (i.desc || '').trim() || i.amount);
+  try { if (hasContent) localStorage.setItem(quoteDraftKey(rid), JSON.stringify(data)); else localStorage.removeItem(quoteDraftKey(rid)); } catch (e) {}
+};
+function restoreQuoteDrafts() {
+  // Prune drafts for requests that no longer have an open quote form,
+  // but only restore into cards actually on screen (search may hide some).
+  const live = new Set((window._inboxRequests || []).filter(r => !r.myQuote).map(r => r.id));
+  try { const keys = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('mmn-quote-draft-')) keys.push(k); } keys.forEach(k => { if (!live.has(k.replace('mmn-quote-draft-', ''))) localStorage.removeItem(k); }); } catch (e) {}
+  (window._renderedRequests || []).filter(r => !r.myQuote).forEach(r => {
+    let data; try { data = JSON.parse(localStorage.getItem(quoteDraftKey(r.id)) || 'null'); } catch (e) { data = null; }
+    if (!data) return;
+    const wrap = document.getElementById('qi-' + r.id); if (!wrap) return;
+    wrap.innerHTML = '';
+    (data.items && data.items.length ? data.items : [{}]).forEach(it => { addQuoteRow(r.id); const row = wrap.lastElementChild; const ins = row.querySelectorAll('input'); ins[0].value = it.desc || ''; ins[1].value = it.amount || ''; });
+    const notesEl = document.getElementById('qn-' + r.id); if (notesEl) notesEl.value = data.notes || '';
+    updateQuoteTotal(r.id);
+  });
+}
 window.updateQuoteTotal = (rid) => {
   let t = 0;
   document.querySelectorAll('#qi-' + rid + ' input[type="number"]').forEach(i => { t += Number(i.value) || 0; });
@@ -498,7 +539,7 @@ window.sendItemizedQuote = async (rid) => {
     const ins = row.querySelectorAll('input');
     items.push({ desc: ins[0].value, amount: ins[1].value });
   });
-  try { await post('/api/quotes', { requestId: rid, items, notes: document.getElementById('qn-' + rid).value }); loadInbox(); }
+  try { await post('/api/quotes', { requestId: rid, items, notes: document.getElementById('qn-' + rid).value }); try { localStorage.removeItem(quoteDraftKey(rid)); } catch (e) {} loadInbox(); }
   catch (e) { alert(e.message); }
 };
 
@@ -900,18 +941,24 @@ updateVinRequired();
 async function loadTickets() {
   const d = await api('/api/tickets/me');
   window._tickets = d.tickets || [];
+  renderTickets();
+}
+function renderTickets() {
+  const q = (document.getElementById('ticket-search').value || '').trim().toLowerCase();
+  const list = (window._tickets || []).filter(t => !q || (t.customerName || '').toLowerCase().includes(q) || (t.vehicle || '').toLowerCase().includes(q) || (t.label || '').toLowerCase().includes(q) || (t.type || '').includes(q));
   const ticketBadge = t => t.type === 'estimate'
     ? '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:#dbeafe;color:#1e40af">Estimate</span>'
     : t.type === 'receipt'
     ? '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:#dcfce7;color:#15803d">Completed</span>'
     : '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:#fef08a;color:#854d0e">Active</span>';
-  $('ticket-list').innerHTML = d.tickets.length ? d.tickets.map(t => `<div class="card" id="ticket-${t.id}">
+  $('ticket-list').innerHTML = list.length ? list.map(t => `<div class="card" id="ticket-${t.id}">
     ${t.customerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(t.customerName)}</div>` : ''}
     <h3>${ticketBadge(t)} — $${esc(t.total)}</h3>
     <div class="muted">${t.label ? 'Ticket ' + esc(t.label) + ' · ' : ''}${t.vehicle ? esc(t.vehicle) + ' · ' : ''}${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() + (t.paymentMethod ? ' via ' + esc(t.paymentMethod) : '') : ''}</div>
     <p><a href="/ticket?id=${t.id}" target="_blank">View ticket →</a></p>
-  </div>`).join('') : '<p class="muted">No tickets yet.</p>';
+  </div>`).join('') : (q ? '<p class="muted">No tickets match your search.</p>' : '<p class="muted">No tickets yet.</p>');
 }
+document.getElementById('ticket-search').addEventListener('input', renderTickets);
 async function loadCustomers() {
   const box = $('customer-list');
   try {
