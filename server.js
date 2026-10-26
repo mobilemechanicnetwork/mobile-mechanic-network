@@ -244,7 +244,7 @@ function ensureTrial(user) {
 
 // Validate and normalize ticket fields. Returns {error} or the cleaned fields.
 function cleanTicketBody(body, type) {
-  const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage } = body || {};
+  const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage, paymentMethod } = body || {};
   if (!customerName || !String(customerName).trim()) return { error: 'Customer name is required.' };
   if (!Array.isArray(items) || !items.length) return { error: 'At least one line item is required.' };
   let ticketVin = '';
@@ -280,6 +280,7 @@ function cleanTicketBody(body, type) {
     taxRate: rate, subtotal: partsSubtotal, taxAmount,
     notes: String(notes || '').trim().slice(0, 1000),
     warranty: String(warranty || '').trim().slice(0, 2000),
+    ...(paymentMethod !== undefined ? { paymentMethod: String(paymentMethod || '').trim().slice(0, 50) } : {}),
     total
   };
 }
@@ -1604,7 +1605,27 @@ const server = http.createServer(async (req, res) => {
       const tickets = ticketsStore.read();
       const t = tickets.find(x => x.id === ticketUpdate[1] && x.mechanicId === user.id);
       if (!t) return sendJson(res, 404, { error: 'Not found.' });
-      if (t.type === 'receipt') return sendJson(res, 400, { error: 'Paid receipts cannot be edited.' });
+      if (t.type === 'receipt') {
+        // Paid receipts stay price-locked, but non-price details (VIN,
+        // mileage, payment type) can still be added or corrected.
+        const body = await parseBody(req);
+        if ('items' in body || 'laborAmount' in body || 'taxRate' in body || 'laborDesc' in body)
+          return sendJson(res, 400, { error: 'Paid receipts cannot be edited.' });
+        if (body.vin !== undefined && String(body.vin).trim()) {
+          const v = cleanVin(body.vin);
+          if (!v) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
+          t.vin = v;
+        }
+        if (body.mileage !== undefined && String(body.mileage).trim() !== '') {
+          const m = Number(String(body.mileage).replace(/[^0-9]/g, ''));
+          if (!Number.isFinite(m) || m < 0 || m > 9999999) return sendJson(res, 400, { error: 'Enter a valid vehicle mileage.' });
+          t.mileage = m;
+        }
+        if (body.paymentMethod !== undefined) t.paymentMethod = String(body.paymentMethod || '').trim().slice(0, 50);
+        t.updatedAt = new Date().toISOString();
+        ticketsStore.write(tickets);
+        return sendJson(res, 200, { ticket: t });
+      }
       const body = await parseBody(req);
       const clean = cleanTicketBody(body, t.type);
       if (clean.error) return sendJson(res, 400, { error: clean.error });

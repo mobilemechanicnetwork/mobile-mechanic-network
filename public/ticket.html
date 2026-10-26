@@ -79,14 +79,45 @@ function addItemRow(desc, qty, price) {
   row.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" style="flex:3" aria-label="Line description"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" style="flex:1;max-width:70px" aria-label="Quantity"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" style="flex:1;max-width:110px" aria-label="Price"><button type="button" class="ghost" onclick="this.parentElement.remove()">✕</button>`;
   w.appendChild(row);
 }
+function detailsFormHtml() {
+  return `<div style="margin-bottom:16px">
+    <h3 style="margin:0 0 6px">Ticket details</h3>
+    <div style="display:flex;gap:8px"><div style="flex:1"><label>VIN</label><input id="dt-vin" value="${esc(T.vin || '')}"></div><div style="flex:1"><label>Mileage</label><input id="dt-mileage" inputmode="numeric" value="${(T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : T.mileage}"></div></div>
+    <div><label>Payment type</label><input id="dt-pm" placeholder="e.g. cash, card, check" value="${esc(T.paymentMethod || '')}"></div>
+    <button type="button" id="btn-save-details">Save details</button>
+    <div class="err" id="details-msg"></div>
+    ${T.type !== 'receipt' ? '<p class="muted" style="margin:6px 0 0">Payment type shows on the ticket once it is paid.</p>' : ''}
+  </div>`;
+}
+async function bindDetails() {
+  const btn = document.getElementById('btn-save-details');
+  if (!btn) return;
+  btn.onclick = async () => {
+    const msg = document.getElementById('details-msg');
+    msg.textContent = '';
+    try {
+      let body;
+      if (T.type === 'receipt') {
+        body = { vin: document.getElementById('dt-vin').value, mileage: document.getElementById('dt-mileage').value, paymentMethod: document.getElementById('dt-pm').value };
+      } else {
+        body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin').value, mileage: document.getElementById('dt-mileage').value, items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm').value };
+      }
+      const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Could not save.');
+      location.reload();
+    } catch (e) { msg.textContent = e.message; }
+  };
+}
 function renderActions() {
   const box = document.getElementById('ticket-actions');
   if (!T) { box.innerHTML = ''; return; }
   if (T.type === 'receipt') {
-    box.innerHTML = `<div class="card"><p class="muted" style="margin:0">Paid in full. No further actions on this ticket.</p></div>`;
+    box.innerHTML = `<div class="card"><p class="muted" style="margin:0">Paid in full. Prices cannot be changed, but details below can still be added or corrected.</p>${detailsFormHtml()}</div>`;
+    bindDetails();
     return;
   }
-  let html = '<div class="card">';
+  let html = '<div class="card">' + detailsFormHtml();
   if (T.type === 'estimate') {
     html += `<button type="button" id="btn-edit">Edit lines</button> <button type="button" id="btn-convert">Convert to invoice</button>`;
     html += `<div id="edit-form" hidden style="margin-top:16px">
@@ -117,6 +148,7 @@ function renderActions() {
   }
   html += '</div>';
   box.innerHTML = html;
+  bindDetails();
   const editForm = document.getElementById('edit-form');
   if (editForm) {
     document.getElementById('btn-edit').onclick = () => {
@@ -199,7 +231,7 @@ function renderActions() {
         mileage = prompt('Enter the odometer reading in miles (required before marking paid):') || '';
         if (!mileage.trim()) return;
       }
-      const pm = prompt('How was this paid? (cash, card, check, etc.)') || '';
+      const pm = T.paymentMethod || prompt('How was this paid? (cash, card, check, etc.)') || '';
       if (!pm.trim()) return;
       if (!confirm('Mark this invoice as paid via ' + pm.trim() + '? It will become a receipt.')) return;
       try { await api('/api/tickets/' + T.id + '/paid', { paymentMethod: pm.trim(), vin, mileage }); location.reload(); }
