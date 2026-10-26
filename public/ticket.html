@@ -84,6 +84,7 @@ function detailsFormHtml() {
     <h3 style="margin:0 0 6px">Ticket details</h3>
     <div style="display:flex;gap:8px"><div style="flex:1"><label>VIN</label><input id="dt-vin" value="${esc(T.vin || '')}"></div><div style="flex:1"><label>Mileage</label><input id="dt-mileage" inputmode="numeric" value="${(T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : T.mileage}"></div></div>
     <div><label>Payment type</label><input id="dt-pm" placeholder="e.g. cash, card, check" value="${esc(T.paymentMethod || '')}"></div>
+    <div><label>Job address</label><input id="dt-addr" placeholder="e.g. 123 Main St, Slidell, LA" value="${esc(T.jobAddress || '')}"></div>
     <button type="button" id="btn-save-details">Save details</button>
     <div class="err" id="details-msg"></div>
     ${T.type !== 'receipt' ? '<p class="muted" style="margin:6px 0 0">Payment type shows on the ticket once it is paid.</p>' : ''}
@@ -98,9 +99,9 @@ async function bindDetails() {
     try {
       let body;
       if (T.type === 'receipt') {
-        body = { vin: document.getElementById('dt-vin').value, mileage: document.getElementById('dt-mileage').value, paymentMethod: document.getElementById('dt-pm').value };
+        body = { vin: document.getElementById('dt-vin').value, mileage: document.getElementById('dt-mileage').value, paymentMethod: document.getElementById('dt-pm').value, jobAddress: document.getElementById('dt-addr').value };
       } else {
-        body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin').value, mileage: document.getElementById('dt-mileage').value, items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm').value };
+        body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin').value, mileage: document.getElementById('dt-mileage').value, items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm').value, jobAddress: document.getElementById('dt-addr').value };
       }
       const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
@@ -269,6 +270,7 @@ function renderActions() {
         <div><span>Customer</span>${esc(t.customerName)}</div>
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
         <div><span>Vehicle</span>${esc(t.vehicle || '—')}</div>
+        ${t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : ''}
         ${t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : ''}
         ${(t.mileage !== '' && t.mileage != null) ? `<div><span>Mileage</span>${Number(t.mileage).toLocaleString('en-US')} mi</div>` : ''}
         <div><span>Ticket</span>#${esc(t.id.slice(0, 8))}</div>

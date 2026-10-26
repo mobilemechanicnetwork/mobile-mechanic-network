@@ -244,7 +244,7 @@ function ensureTrial(user) {
 
 // Validate and normalize ticket fields. Returns {error} or the cleaned fields.
 function cleanTicketBody(body, type) {
-  const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage, paymentMethod } = body || {};
+  const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage, paymentMethod, jobAddress } = body || {};
   if (!customerName || !String(customerName).trim()) return { error: 'Customer name is required.' };
   if (!Array.isArray(items) || !items.length) return { error: 'At least one line item is required.' };
   let ticketVin = '';
@@ -281,6 +281,7 @@ function cleanTicketBody(body, type) {
     notes: String(notes || '').trim().slice(0, 1000),
     warranty: String(warranty || '').trim().slice(0, 2000),
     ...(paymentMethod !== undefined ? { paymentMethod: String(paymentMethod || '').trim().slice(0, 50) } : {}),
+    ...(jobAddress !== undefined ? { jobAddress: String(jobAddress || '').trim().slice(0, 200) } : {}),
     total
   };
 }
@@ -1622,6 +1623,7 @@ const server = http.createServer(async (req, res) => {
           t.mileage = m;
         }
         if (body.paymentMethod !== undefined) t.paymentMethod = String(body.paymentMethod || '').trim().slice(0, 50);
+        if (body.jobAddress !== undefined) t.jobAddress = String(body.jobAddress || '').trim().slice(0, 200);
         t.updatedAt = new Date().toISOString();
         ticketsStore.write(tickets);
         return sendJson(res, 200, { ticket: t });
