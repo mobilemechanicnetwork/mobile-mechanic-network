@@ -265,7 +265,7 @@ function renderActions() {
     const taxRow = (t.taxAmount > 0) ? `<tr><td>Tax (${esc(t.taxRate)}%)</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.taxAmount)}</td></tr>` : '';
     const subRow = (isNew && (t.laborAmount > 0 || t.taxAmount > 0)) ? `<tr><td>Parts subtotal</td><td class="num"></td><td class="num"></td><td class="num">${money(t.subtotal)}</td></tr>` : '';
     box.innerHTML = `
-      <div class="noprint" style="text-align:right;margin-bottom:8px"><button type="button" class="editbtn" onclick="saveDetails()">Save details</button> <button type="button" class="editbtn" style="background:#fff;color:#0f172a;border:1px solid #e2e8f0" onclick="location.reload()">Cancel</button> <span class="err" id="details-msg"></span></div>
+      <div class="noprint" style="text-align:right;margin-bottom:8px"><button type="button" class="editbtn" onclick="saveDetails()">Save details</button> <span class="err" id="details-msg"></span></div>
       <div class="head">
         ${b && b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
         <div><h1>${esc(b ? b.name : 'Mobile mechanic')}</h1>
