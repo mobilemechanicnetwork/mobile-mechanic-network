@@ -501,7 +501,7 @@ function renderCalendar() {
   const past = dated.filter(r => r.date < today);
   const undated = rows.filter(r => !r.date);
   const rowHtml = r => `<div class="card">
-    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><strong>${esc(r.title)}</strong>${r.date ? `<span class="muted">${new Date(r.date + 'T00:00:00').toLocaleDateString()}</span>` : ''}</div>
+    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><strong style="min-width:0">${esc(r.title)}</strong>${r.date ? `<span class="muted" style="flex-shrink:0">${new Date(r.date + 'T00:00:00').toLocaleDateString()}</span>` : ''}</div>
     ${r.kind === 'booked' ? `<div class="muted" style="margin-top:4px">${r.phone ? `<a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · ` : ''}${r.address ? esc(r.address) + ' · ' : ''}<span class="ok">Booked</span></div>${r.ticketId ? `<p style="margin:8px 0 0"><a href="/ticket?id=${r.ticketId}" target="_blank">View ticket →</a></p>` : ''}` : `<div class="muted" style="margin-top:4px">${esc(r.notes)}</div><p style="margin:8px 0 0"><button type="button" class="danger" onclick="delCalEntry('${r.id}')">Delete</button></p>`}
   </div>`;
   box.innerHTML = (upcoming.length ? `<h3>Upcoming</h3>` + upcoming.map(rowHtml).join('') : '<p class="muted">No upcoming jobs with a date yet.</p>')
@@ -1119,7 +1119,7 @@ function renderCustomers() {
     });
     const vehiclesBlock = vehMap.size ? `<div style="margin-top:6px"><div class="muted" style="margin-bottom:2px">Vehicles worked on:</div>${[...vehMap.values()].map(v => `<div>${esc(v.vehicle)}${v.vin ? ` · VIN ${esc(v.vin)}` : ''}${v.address ? ` · ${esc(v.address)}` : ''}</div>`).join('')}</div>` : '';
     const earned = c.jobs.filter(j => j.paid).reduce((s, j) => s + Number(j.total || 0), 0);
-    return `<div class="card">${title}<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 6px">${phoneLine}${histBtn}</div>${c.name ? `<div style="margin:6px 0 2px"><button type="button" class="primary" style="width:100%;padding:13px;font-size:1.1rem;margin-top:0" onclick="createTicketForCustomer(${i})">Create new ticket</button></div>` : ''}${cityLine}${vehiclesBlock}
+    return `<div class="card">${title}<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 6px">${phoneLine}${histBtn}</div>${c.name ? `<div style="margin:6px 0 2px"><button type="button" class="primary" style="margin-top:0" onclick="createTicketForCustomer(${i})">Create new ticket</button></div>` : ''}${cityLine}${vehiclesBlock}
     <div id="cust-hist-${i}" hidden style="margin:6px 0">${c.jobs.map(j => `<div>${esc(j.service)} — ${esc(j.vehicle)} · ${esc(j.date)} · $${Number(j.total).toFixed(2)} · <span class="${j.paid ? 'ok' : ''}">${j.paid ? 'Paid' : 'Booked'}</span>${j.ticketId ? ` · <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('')}<div style="margin-top:8px"><strong>Total spent on service history: $${earned.toFixed(2)}</strong></div></div>
   </div>`;
   }).join('') : '<p class="muted">No customers yet.</p>';
