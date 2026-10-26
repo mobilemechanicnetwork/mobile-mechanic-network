@@ -71,7 +71,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;
       ${t.type === 'receipt' && t.paidAt ? `<div class="total">Balance due: $0.00</div><div class="paid">Paid in full. Thank you for your business.</div>` : ''}
       ${t.notes ? `<div class="notes"><strong>Notes:</strong> ${esc(t.notes)}</div>` : ''}
       ${t.warranty ? `<div class="notes"><strong>Warranty:</strong> ${esc(t.warranty)}</div>` : ''}
-      ${t.type === 'estimate' ? `<div class="disc">This is an estimate only and is not a final invoice. The final amount may differ based on the actual work performed, parts needed, and any additional issues found during service. No payment is due until the work is complete and a final invoice is issued.</div>` : ''}
+      ${t.type === 'estimate' ? `<div class="disc">This is an estimate only and is not a final invoice. The work and price listed above are what is quoted. No additional charges will be added without your approval.</div>` : ''}
       <div class="foot">Prepared by ${esc(b ? b.name : '')}${b && b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network${t.type === 'receipt' ? '<br>This receipt confirms payment received in full for the services listed above.' : ''}</div>`;
     document.title = t.type.charAt(0).toUpperCase() + t.type.slice(1) + ' — ' + (b ? b.name : '');
   } catch (e) { box.innerHTML = '<p>' + esc(e.message) + '</p>'; }

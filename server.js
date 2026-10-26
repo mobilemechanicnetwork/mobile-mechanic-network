@@ -275,7 +275,7 @@ function cleanTicketBody(body, type) {
     total
   };
 }
-// Build an estimate ticket from an accepted quote. Returns the ticket object or null.
+// Build an invoice from an accepted quote. Returns the ticket object or null.
 function ticketFromAcceptedQuote(quote, row) {
   const r2 = n => Math.round(n * 100) / 100;
   let items = (quote.items || [])
@@ -286,7 +286,7 @@ function ticketFromAcceptedQuote(quote, row) {
   if (!items.length) return null;
   const subtotal = r2(items.reduce((s, it) => s + it.qty * it.price, 0));
   const biz = businessesStore.read().find(b => b.id === quote.businessId);
-  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'estimate', customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, total: subtotal, createdAt: new Date().toISOString() };
+  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, total: subtotal, createdAt: new Date().toISOString() };
 }
 // Service areas are stored as "City, ST" strings so a mechanic can serve
 // cities in other states (e.g. Slidell, LA serving Picayune, MS).
@@ -1028,7 +1028,7 @@ const server = http.createServer(async (req, res) => {
         .filter(r => r.status === 'accepted')
         .map(r => {
           const q = quotes.find(q => q.requestId === r.id && q.businessId === biz.id && q.status === 'accepted');
-          return q ? { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, hasTicket: myTickets.some(t => t.requestId === r.id) } : null;
+          return q ? { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, hasTicket: myTickets.some(t => t.requestId === r.id), paid: myTickets.some(t => t.requestId === r.id && t.type === 'receipt'), pendingFollowUp: quotes.find(q2 => q2.requestId === r.id && q2.businessId === biz.id && q2.status === 'pending' && q2.followUp === true) || null } : null;
         })
         .filter(Boolean);
       return sendJson(res, 200, { requests: inbox, booked });
@@ -1043,8 +1043,20 @@ const server = http.createServer(async (req, res) => {
       const biz = myBusiness(user.id);
       const { requestId, price, message, items, notes } = await parseBody(req);
       const row = requestsStore.read().find(r => r.id === requestId);
-      if (!row || row.status !== 'open' || !requestMatchesBusiness(row, biz))
+      let followUp = false;
+      if (!row) return sendJson(res, 400, { error: 'That request is not open in your service area.' });
+      if (row.status === 'accepted') {
+        // Follow-up quote on a booked job (diagnosis findings, extra work):
+        // only the mechanic whose quote was accepted may add one, and only
+        // while the job is not yet paid.
+        const bookedQuote = quotesStore.read().find(q => q.requestId === row.id && q.status === 'accepted');
+        const receipt = ticketsStore.read().find(t => t.requestId === row.id && t.type === 'receipt');
+        if (!bookedQuote || bookedQuote.businessId !== biz.id || receipt)
+          return sendJson(res, 400, { error: 'Only the booked mechanic can quote additional work, and only before the job is paid.' });
+        followUp = true;
+      } else if (row.status !== 'open' || !requestMatchesBusiness(row, biz)) {
         return sendJson(res, 400, { error: 'That request is not open in your service area.' });
+      }
       let cleanItems = [];
       if (Array.isArray(items)) for (const it of items.slice(0, 50)) {
         const desc = String((it && it.desc) || '').trim().slice(0, 200);
@@ -1061,7 +1073,7 @@ const server = http.createServer(async (req, res) => {
       const quotes = quotesStore.read();
       if (quotes.some(q => q.requestId === requestId && q.businessId === biz.id && q.status === 'pending'))
         return sendJson(res, 409, { error: 'You already quoted this request.' });
-      const quote = { id: crypto.randomUUID(), requestId, businessId: biz.id, mechanicId: user.id, items: cleanItems, notes: String(notes || '').slice(0, 1000), total, price: total, message: String(message || ''), status: 'pending', createdAt: new Date().toISOString() };
+      const quote = { id: crypto.randomUUID(), requestId, businessId: biz.id, mechanicId: user.id, items: cleanItems, notes: String(notes || '').slice(0, 1000), total, price: total, message: String(message || ''), status: 'pending', followUp, createdAt: new Date().toISOString() };
       quotes.push(quote); quotesStore.write(quotes);
       return sendJson(res, 201, { quote });
     }
@@ -1075,14 +1087,40 @@ const server = http.createServer(async (req, res) => {
       const rows = requestsStore.read();
       const row = rows.find(r => r.id === quote.requestId);
       if (!row || row.ownerId !== user.id) return sendJson(res, 403, { error: 'That is not your request.' });
-      if (row.status !== 'open' || quote.status !== 'pending') return sendJson(res, 400, { error: 'That quote can no longer be changed.' });
+      const isFollowUp = row.status === 'accepted' && quote.followUp === true;
+      if (quote.status !== 'pending' || (row.status !== 'open' && !isFollowUp)) return sendJson(res, 400, { error: 'That quote can no longer be changed.' });
       if (quoteAction[2] === 'accept') {
-        quote.status = 'accepted'; row.status = 'accepted';
-        quotes.forEach(q => { if (q.requestId === row.id && q.id !== quote.id && q.status === 'pending') q.status = 'declined'; });
-        // Auto-create an estimate ticket from the accepted quote
+        quote.status = 'accepted';
         let autoTicket = null;
-        const built = ticketFromAcceptedQuote(quote, row);
-        if (built) { const tickets = ticketsStore.read(); tickets.push(built); ticketsStore.write(tickets); autoTicket = built; }
+        if (isFollowUp) {
+          // Additional work the customer approved: append it to the job's
+          // invoice. Existing lines never change price; only approved
+          // additions land on the invoice.
+          const tickets = ticketsStore.read();
+          const r2 = n => Math.round(n * 100) / 100;
+          const inv = tickets.find(t => t.requestId === row.id && t.businessId === quote.businessId && t.type === 'invoice');
+          const newLines = (quote.items || [])
+            .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), qty: 1, price: r2(Math.max(0, Number(it.amount) || 0)) }))
+            .filter(it => it.desc && it.price > 0);
+          if (!newLines.length && Number(quote.total) > 0) newLines.push({ desc: row.service, qty: 1, price: r2(Number(quote.total)) });
+          if (inv) {
+            inv.items = [...(inv.items || []), ...newLines];
+            const parts = r2(inv.items.reduce((s, it) => s + it.qty * it.price, 0));
+            inv.subtotal = parts;
+            inv.taxAmount = r2(r2(parts + (inv.laborAmount || 0)) * (inv.taxRate || 0) / 100);
+            inv.total = r2(parts + (inv.laborAmount || 0) + inv.taxAmount);
+            ticketsStore.write(tickets); autoTicket = inv;
+          } else {
+            const built = ticketFromAcceptedQuote(quote, row);
+            if (built) { tickets.push(built); ticketsStore.write(tickets); autoTicket = built; }
+          }
+        } else {
+          row.status = 'accepted';
+          quotes.forEach(q => { if (q.requestId === row.id && q.id !== quote.id && q.status === 'pending') q.status = 'declined'; });
+          // An accepted quote becomes the invoice directly: no estimate step.
+          const built = ticketFromAcceptedQuote(quote, row);
+          if (built) { const tickets = ticketsStore.read(); tickets.push(built); ticketsStore.write(tickets); autoTicket = built; }
+        }
         quotesStore.write(quotes); requestsStore.write(rows);
         // Notify the mechanic: an acceptance is only useful if the
         // mechanic hears about it. SMS when Twilio is configured; the
@@ -1097,7 +1135,7 @@ const server = http.createServer(async (req, res) => {
             const c = d.length === 11 && d[0] === '1' ? d.slice(1) : d;
             const custPhone = c.length === 10 ? `(${c.slice(0, 3)}) ${c.slice(3, 6)}-${c.slice(6)}` : (row.phone || '');
             const total = quote.total != null ? quote.total : quote.price;
-            const sms = await sendSms(to, `Mobile Mechanic Network: ${row.ownerName || 'A customer'} accepted your quote for ${row.service} (${row.vehicle}) — $${Number(total).toFixed(2)}. Customer phone: ${custPhone}. See it here: https://mobilemechanicsinmyarea.com/mechanic`);
+            const sms = await sendSms(to, `Mobile Mechanic Network: ${row.ownerName || 'A customer'} accepted your ${isFollowUp ? 'additional ' : ''}quote for ${row.service} (${row.vehicle}) — $${Number(total).toFixed(2)}. Customer phone: ${custPhone}. See it here: https://mobilemechanicsinmyarea.com/mechanic`);
             mechanicNotified = sms.sent === true;
           }
         } catch (e) {}
@@ -1105,7 +1143,7 @@ const server = http.createServer(async (req, res) => {
         // waiting on their profile even before they open a text.
         try {
           const notes = notificationsStore.read();
-          notes.push({ id: crypto.randomUUID(), userId: quote.mechanicId, type: 'quote_accepted', title: `${row.ownerName || 'A customer'} accepted your quote`, service: row.service, vehicle: row.vehicle || '', total: quote.total != null ? quote.total : quote.price, customerName: row.ownerName || '', customerPhone: row.phone || '', requestId: row.id, quoteId: quote.id, read: false, createdAt: new Date().toISOString() });
+          notes.push({ id: crypto.randomUUID(), userId: quote.mechanicId, type: 'quote_accepted', title: `${row.ownerName || 'A customer'} accepted your ${isFollowUp ? 'additional ' : ''}quote`, service: row.service, vehicle: row.vehicle || '', total: quote.total != null ? quote.total : quote.price, customerName: row.ownerName || '', customerPhone: row.phone || '', requestId: row.id, quoteId: quote.id, read: false, createdAt: new Date().toISOString() });
           notificationsStore.write(notes);
         } catch (e) {}
         return sendJson(res, 200, { quote, requestStatus: row.status, ticket: autoTicket, mechanicNotified });
@@ -1459,6 +1497,14 @@ const server = http.createServer(async (req, res) => {
       const body = await parseBody(req);
       const clean = cleanTicketBody(body, t.type);
       if (clean.error) return sendJson(res, 400, { error: clean.error });
+      if (t.type === 'invoice') {
+        // Invoices are locked: the accepted price never changes. Only
+        // customer-approved follow-up quotes add lines, never edits.
+        const sameItems = (clean.items || []).length === (t.items || []).length &&
+          (clean.items || []).every((it, i) => t.items[i] && it.desc === t.items[i].desc && Number(it.qty) === Number(t.items[i].qty) && Number(it.price) === Number(t.items[i].price));
+        if (!sameItems || clean.laborAmount !== t.laborAmount || clean.taxRate !== t.taxRate)
+          return sendJson(res, 400, { error: 'Invoice prices are locked. Additional work needs customer approval first.' });
+      }
       Object.assign(t, clean, { updatedAt: new Date().toISOString() });
       ticketsStore.write(tickets);
       return sendJson(res, 200, { ticket: t });
@@ -1521,9 +1567,14 @@ const server = http.createServer(async (req, res) => {
       const t = tickets.find(x => x.id === ticketPaid[1] && x.mechanicId === user.id);
       if (!t) return sendJson(res, 404, { error: 'Not found.' });
       if (t.type !== 'invoice') return sendJson(res, 400, { error: 'Only invoices can be marked as paid.' });
-      const { paymentMethod } = await parseBody(req);
+      const { paymentMethod, vin } = await parseBody(req);
       const pm = String(paymentMethod || '').trim().slice(0, 50);
       if (!pm) return sendJson(res, 400, { error: 'Say how it was paid (cash, card, check, etc.).' });
+      if (!t.vin) {
+        const v = vin ? cleanVin(vin) : '';
+        if (!v) return sendJson(res, 400, { error: 'A VIN is required before this invoice can be marked paid.' });
+        t.vin = v;
+      }
       t.type = 'receipt'; t.paidAt = new Date().toISOString(); t.paymentMethod = pm;
       ticketsStore.write(tickets);
       // Review prompt: text the customer a review link when a job tied to a request is paid.

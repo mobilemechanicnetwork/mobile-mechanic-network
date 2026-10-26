@@ -392,7 +392,17 @@ async function loadInbox() {
     <p>${esc(b.description)}</p>
     <p><strong>Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}</strong></p>
     <p>${b.hasTicket ? '<span class="ok">Ticket created</span>' : `<button type="button" class="primary" onclick="bookedToTicket('${b.id}')">Create ticket from quote</button>`}</p>
+    ${b.paid ? '<p><span class="ok">Paid</span></p>' : b.pendingFollowUp ? `<p class="ok">Additional work quoted $${esc(b.pendingFollowUp.total != null ? b.pendingFollowUp.total : b.pendingFollowUp.price)} (pending customer approval).</p><p><button type="button" class="ghost" onclick="textFollowUp('${b.id}')">Text quote from my phone</button></p>` : `
+    <div id="qb-${b.id}">
+      <p style="margin:8px 0 4px"><strong>Quote additional work</strong> <span class="muted">— the customer must accept it before it is added to the invoice</span></p>
+      <div id="qi-${b.id}"></div>
+      <p style="margin:6px 0"><button type="button" class="ghost" onclick="addQuoteRow('${b.id}')">+ Add line item</button></p>
+      <label>Notes (optional)</label><input id="qn-${b.id}" placeholder="e.g. Found during diagnosis">
+      <p style="margin:8px 0"><strong>Total: $<span id="qt-${b.id}">0.00</span></strong></p>
+      <p><button class="primary" type="button" onclick="sendItemizedQuote('${b.id}')">Send additional quote</button></p>
+    </div>`}
   </div>`).join('') : '<p class="muted">No booked jobs yet. When a customer accepts your quote, it shows up here.</p>';
+  inbox.booked.forEach(b => { if (!b.pendingFollowUp && !b.paid) addQuoteRow(b.id); });
 }
 window.textQuote = (rid) => {
   const r = (window._inboxRequests || []).find(x => x.id === rid);
@@ -402,6 +412,17 @@ window.textQuote = (rid) => {
   const ownerName = (r.ownerName || '').trim();
   const msg = `Hi${ownerName ? ' ' + ownerName : ''}, this is ${bizName} with Mobile Mechanic Network. Your quote for ${r.service} (${r.vehicle}) is $${Number(total).toFixed(2)}. View and accept it here: https://mobilemechanicsinmyarea.com/dashboard`;
   const phone = String(r.phone || '').replace(/[^+\d]/g, '');
+  if (!phone) { alert('No phone number on this request.'); return; }
+  window.location.href = `sms:${phone}?body=${encodeURIComponent(msg)}`;
+};
+window.textFollowUp = (bid) => {
+  const b = (window._booked || []).find(x => x.id === bid);
+  if (!b || !b.pendingFollowUp) return;
+  const total = b.pendingFollowUp.total != null ? b.pendingFollowUp.total : b.pendingFollowUp.price;
+  const bizName = window._bizName || 'your mobile mechanic';
+  const ownerName = (b.ownerName || '').trim();
+  const msg = `Hi${ownerName ? ' ' + ownerName : ''}, this is ${bizName} with Mobile Mechanic Network. Additional work for ${b.service} (${b.vehicle}) is $${Number(total).toFixed(2)}. View and accept it here: https://mobilemechanicsinmyarea.com/dashboard`;
+  const phone = String(b.phone || '').replace(/[^+\d]/g, '');
   if (!phone) { alert('No phone number on this request.'); return; }
   window.location.href = `sms:${phone}?body=${encodeURIComponent(msg)}`;
 };
@@ -782,9 +803,9 @@ async function loadTickets() {
     <h3 style="text-transform:capitalize">${esc(t.type)} — $${esc(t.total)}</h3>
     <div class="muted">${esc(t.customerName)}${t.vehicle ? ' · ' + esc(t.vehicle) : ''} · ${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() + (t.paymentMethod ? ' via ' + esc(t.paymentMethod) : '') : ''}</div>
     <p><a href="/ticket?id=${t.id}" target="_blank"><button class="ghost" type="button">View / Print</button></a>
-    ${(t.type === 'estimate' || t.type === 'invoice') ? `<button class="ghost" type="button" onclick="editTicket('${t.id}')">Edit</button>` : ''}
+    ${(t.type === 'estimate') ? `<button class="ghost" type="button" onclick="editTicket('${t.id}')">Edit</button>` : ''}
     ${t.type === 'estimate' ? `<button class="primary" data-convertticket="${t.id}" data-hasvin="${t.vin ? '1' : ''}">Convert to invoice</button>` : ''}
-    ${t.type === 'invoice' ? `<button class="primary" data-paidticket="${t.id}">Mark as paid</button>` : ''}</p>
+    ${t.type === 'invoice' ? `<button class="primary" data-paidticket="${t.id}" data-hasvin="${t.vin ? '1' : ''}">Mark as paid</button>` : ''}</p>
   </div>`).join('') : '<p class="muted">No tickets yet.</p>';
   document.querySelectorAll('[data-convertticket]').forEach(b => {
     b.onclick = async () => {
@@ -800,10 +821,15 @@ async function loadTickets() {
   });
   document.querySelectorAll('[data-paidticket]').forEach(b => {
     b.onclick = async () => {
+      let vin = '';
+      if (!b.dataset.hasvin) {
+        vin = prompt('Enter the 17-character VIN (required before marking paid):') || '';
+        if (!vin.trim()) return;
+      }
       const pm = prompt('How was this paid? (cash, card, check, etc.)') || '';
       if (!pm.trim()) return;
       if (!confirm('Mark this invoice as paid via ' + pm.trim() + '? It will become a receipt.')) return;
-      try { await post('/api/tickets/' + b.dataset.paidticket + '/paid', { paymentMethod: pm.trim() }); loadTickets(); }
+      try { await post('/api/tickets/' + b.dataset.paidticket + '/paid', { paymentMethod: pm.trim(), vin }); loadTickets(); }
       catch (e) { alert(e.message); }
     };
   });

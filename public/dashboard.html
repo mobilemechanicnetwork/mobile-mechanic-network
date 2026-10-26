@@ -210,8 +210,9 @@
         ${(q.items && q.items.length) ? `<div style="margin:10px 0">${q.items.map(i => `<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid #e2e8f0"><span>${i.desc}</span><span>$${Number(i.amount).toFixed(2)}</span></div>`).join('')}<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;font-weight:700"><span>Total</span><span>$${Number(q.total != null ? q.total : q.price).toFixed(2)}</span></div></div>` : `<div style="margin:10px 0"><span class="price">$${q.price}</span></div>`}
         ${q.notes ? `<p>${q.notes}</p>` : ''}${q.message ? `<p>${q.message}</p>` : ''}
         ${q.businessWarranty ? `<p class="muted"><strong>Warranty:</strong> ${q.businessWarranty}</p>` : ''}
-        <div class="muted">Quote: ${q.status}</div>
-        ${q.status === 'pending' && r.status === 'open' ? `<button onclick="actQuote('${q.id}','accept')">Accept</button> <button class="decline" onclick="actQuote('${q.id}','decline')">Decline</button>` : ''}
+        <div class="muted">Quote: ${q.status}${q.followUp ? ' · Additional work' : ''}</div>
+        ${q.status === 'pending' ? '<p class="muted">This price covers exactly what is listed. Nothing extra gets added without your approval.</p>' : ''}
+        ${q.status === 'pending' && (r.status === 'open' || q.followUp) ? `<button onclick="actQuote('${q.id}','accept')">Accept</button> <button class="decline" onclick="actQuote('${q.id}','decline')">Decline</button>` : ''}
       </div>`).join('') : '<p class="muted">No quotes yet.</p>'}
       ${r.paid && !r.reviewed ? `<div class="card" id="rev-${r.id}">
         <strong>How was the work?</strong>
