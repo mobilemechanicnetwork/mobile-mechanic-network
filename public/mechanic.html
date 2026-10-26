@@ -756,31 +756,7 @@ function showTicketForm(show) {
 }
 $('t-new').onclick = () => { resetTicketForm(); showTicketForm(true); loadCustomerCache(); };
 $('t-cancel').onclick = () => { resetTicketForm(); showTicketForm(false); };
-let EDITING_TICKET = null;
-window.editTicket = (id) => {
-  const t = (window._tickets || []).find(x => x.id === id);
-  if (!t) return;
-  EDITING_TICKET = id;
-  $('t-type').value = t.type; $('t-type').disabled = true; updateVinRequired();
-  $('t-customer').value = t.customerName || '';
-  if (window._tVeh) window._tVeh.setFromString(t.vehicle || '');
-  $('t-vin').value = t.vin || '';
-  $('t-mileage').value = (t.mileage === undefined || t.mileage === null || t.mileage === '') ? '' : t.mileage;
-  $('t-items').innerHTML = '';
-  (t.items || []).forEach(it => addItemRow(it.desc, it.qty, it.price));
-  if (!(t.items || []).length) addItemRow('', '', '');
-  $('t-labor-desc').value = t.laborDesc || '';
-  $('t-labor').value = t.laborAmount || '';
-  $('t-taxrate').value = t.taxRate || '';
-  $('t-notes').value = t.notes || '';
-  $('t-warranty').value = t.warranty || '';
-  updateTicketTotals();
-  refreshVehicleList();
-  document.querySelector('#ticket-form button[type="submit"]').textContent = 'Update ticket';
-  showTicketForm(true);
-};
 function resetTicketForm() {
-  EDITING_TICKET = null;
   $('t-type').disabled = false;
   document.querySelector('#ticket-form button[type="submit"]').textContent = 'Create ticket';
   $('t-customer').value = ''; if (window._tVeh) window._tVeh.reset(); $('t-vin').value = ''; $('t-mileage').value = ''; $('t-notes').value = ''; $('t-warranty').value = '';
@@ -849,56 +825,9 @@ async function loadTickets() {
     ${t.customerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(t.customerName)}</div>` : ''}
     <h3>${ticketBadge(t)} — $${esc(t.total)}</h3>
     <div class="muted">${t.vehicle ? esc(t.vehicle) + ' · ' : ''}${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() + (t.paymentMethod ? ' via ' + esc(t.paymentMethod) : '') : ''}</div>
-    <p><a href="/ticket?id=${t.id}" target="_blank"><button class="ghost" type="button">View / Print</button></a>
-    ${(t.type === 'estimate') ? `<button class="ghost" type="button" onclick="editTicket('${t.id}')">Edit</button>` : ''}
-    ${t.type === 'estimate' ? `<button class="primary" data-convertticket="${t.id}" data-hasvin="${t.vin ? '1' : ''}">Convert to invoice</button>` : ''}
-    ${t.type === 'invoice' ? `<button class="primary" data-paidticket="${t.id}" data-hasvin="${t.vin ? '1' : ''}" data-hasmileage="${(t.mileage !== undefined && t.mileage !== null && t.mileage !== '') ? '1' : ''}">Mark as paid</button>` : ''}</p>
-    ${t.type === 'invoice' && t.requestId ? `<div style="margin-top:10px;border-top:1px solid #e2e8f0;padding-top:10px">
-      <strong>Estimate lines</strong><span class="muted"> — extra work, sent for customer approval</span>
-      ${(t.deniedLines && t.deniedLines.length) ? `<div style="margin-top:6px"><span style="color:#dc2626;font-weight:700">Denied repairs (not charged):</span>${t.deniedLines.map(l => `<div class="muted">${esc(l.desc)} — $${Number(l.price).toFixed(2)}</div>`).join('')}</div>` : ''}
-      ${t.estimateStatus === 'pending' ? `<div style="margin-top:6px">Estimate sent — awaiting customer approval:${(t.estimateLines || []).map(l => `<div>${esc(l.desc)} — $${Number(l.price).toFixed(2)}</div>`).join('')}</div>` : `
-      <div id="est-${t.id}">${(t.estimateStatus === 'draft' ? (t.estimateLines || []) : []).map(l => `<div style="display:flex;gap:8px;margin:6px 0"><input value="${esc(l.desc)}" style="flex:2" aria-label="Estimate line description"><input type="number" min="0.01" step="0.01" value="${l.price}" style="flex:1;max-width:110px" aria-label="Estimate line amount"><button type="button" class="ghost" onclick="this.parentElement.remove()">✕</button></div>`).join('')}</div>
-      <p><button type="button" class="ghost" onclick="addEstRow('${t.id}')">Add line</button> <button type="button" class="ghost" onclick="saveEst('${t.id}')">Save draft</button> <button type="button" class="primary" onclick="sendEst('${t.id}')">Send estimate for approval</button></p>
-      <div class="muted" id="est-msg-${t.id}"></div>`}
-    </div>` : ''}
-    ${(t.type === 'receipt' && t.deniedLines && t.deniedLines.length) ? `<div style="margin-top:10px;border-top:1px solid #e2e8f0;padding-top:10px"><span style="color:#dc2626;font-weight:700">Denied repairs (not charged):</span>${t.deniedLines.map(l => `<div class="muted">${esc(l.desc)} — $${Number(l.price).toFixed(2)}</div>`).join('')}</div>` : ''}
+    <p><a href="/ticket?id=${t.id}" target="_blank">View ticket →</a></p>
   </div>`).join('') : '<p class="muted">No tickets yet.</p>';
-  document.querySelectorAll('[data-convertticket]').forEach(b => {
-    b.onclick = async () => {
-      let vin = '';
-      if (!b.dataset.hasvin) {
-        vin = prompt('Enter the 17-character VIN (required on invoices):') || '';
-        if (!vin.trim()) return;
-      }
-      if (!confirm('Convert this estimate to an invoice?')) return;
-      try { await post('/api/tickets/' + b.dataset.convertticket + '/convert', { vin }); loadTickets(); }
-      catch (e) { alert(e.message); }
-    };
-  });
-  document.querySelectorAll('[data-paidticket]').forEach(b => {
-    b.onclick = async () => {
-      let vin = '';
-      if (!b.dataset.hasvin) {
-        vin = prompt('Enter the 17-character VIN (required before marking paid):') || '';
-        if (!vin.trim()) return;
-      }
-      let mileage = '';
-      if (!b.dataset.hasmileage) {
-        mileage = prompt('Enter the odometer reading in miles (required before marking paid):') || '';
-        if (!mileage.trim()) return;
-      }
-      const pm = prompt('How was this paid? (cash, card, check, etc.)') || '';
-      if (!pm.trim()) return;
-      if (!confirm('Mark this invoice as paid via ' + pm.trim() + '? It will become a receipt.')) return;
-      try { await post('/api/tickets/' + b.dataset.paidticket + '/paid', { paymentMethod: pm.trim(), vin, mileage }); loadTickets(); }
-      catch (e) { alert(e.message); }
-    };
-  });
 }
-window.addEstRow = (tid) => { const w = document.getElementById('est-' + tid); if (!w) return; const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;margin:6px 0'; row.innerHTML = `<input placeholder="Description (e.g. Brake pads — parts)" style="flex:2" aria-label="Estimate line description"><input type="number" min="0.01" step="0.01" placeholder="$" style="flex:1;max-width:110px" aria-label="Estimate line amount"><button type="button" class="ghost" onclick="this.parentElement.remove()">✕</button>`; w.appendChild(row); };
-const readEstRows = (tid) => [...document.querySelectorAll('#est-' + tid + ' > div')].map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, price: ins[1].value }; });
-window.saveEst = async (tid) => { const msg = document.getElementById('est-msg-' + tid); try { await post('/api/tickets/' + tid + '/estimate', { lines: readEstRows(tid) }); loadTickets(); } catch (e) { if (msg) msg.textContent = e.message; else alert(e.message); } };
-window.sendEst = async (tid) => { const msg = document.getElementById('est-msg-' + tid); try { await post('/api/tickets/' + tid + '/estimate/send', { lines: readEstRows(tid) }); loadTickets(); } catch (e) { if (msg) msg.textContent = e.message; else alert(e.message); } };
 $('ticket-form').onsubmit = async (e) => {
   e.preventDefault(); $('t-err').textContent = ''; $('t-ok').textContent = '';
   const tVeh = window._tVeh ? window._tVeh.vehicleString() : '';
@@ -907,15 +836,9 @@ $('ticket-form').onsubmit = async (e) => {
   const items = rows.map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value }; });
   const payload = { type: $('t-type').value, customerName: $('t-customer').value, vehicle: tVeh, vin: $('t-vin').value, mileage: $('t-mileage').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, notes: $('t-notes').value, warranty: $('t-warranty').value };
   try {
-    let d;
-    if (EDITING_TICKET) {
-      d = await api('/api/tickets/' + EDITING_TICKET, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      $('t-ok').textContent = 'Ticket updated.';
-    } else {
-      d = await post('/api/tickets', payload);
-      $('t-ok').textContent = 'Ticket created.';
-      window.open('/ticket?id=' + d.ticket.id, '_blank');
-    }
+    const d = await post('/api/tickets', payload);
+    $('t-ok').textContent = 'Ticket created.';
+    window.open('/ticket?id=' + d.ticket.id, '_blank');
     resetTicketForm();
     loadTickets();
     showTicketForm(false);

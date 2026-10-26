@@ -25,22 +25,197 @@
   .foot{margin-top:28px;padding-top:12px;border-top:1px solid #e2e8f0;color:#64748b;font-size:.85rem;text-align:center}
   .actions{text-align:center;margin:16px 0}
   .actions button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:11px 24px;font-size:1rem;cursor:pointer}
-  @media print{ .actions{display:none} body{background:#fff} .page{box-shadow:none;margin:0;max-width:none} }
+  .actions a{color:#2563eb}
+  .card{max-width:720px;margin:0 auto 24px;background:#fff;border-radius:12px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+  .card button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:.95rem;cursor:pointer;margin:4px 4px 4px 0}
+  .card button.ghost{background:#fff;color:#0f172a;border:1px solid #e2e8f0}
+  .card input,.card textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:.95rem;margin:4px 0}
+  .card label{font-size:.85rem;color:#475569;font-weight:600}
+  .err{color:#dc2626;font-size:.9rem;margin-top:8px}
+  .muted{color:#64748b;font-size:.9rem}
+  @media print{ .actions,.noprint{display:none} body{background:#fff} .page{box-shadow:none;margin:0;max-width:none} }
 </style>
 </head>
 <body>
-<div class="actions"><button onclick="window.print()">Print / Save as PDF</button></div>
+<div class="actions noprint"><a href="/mechanic">← Back to mechanic portal</a> &nbsp; <button onclick="window.print()">Print / Save as PDF</button> <button onclick="window.print()">Share PDF</button></div>
+<p class="noprint" style="text-align:center;color:#64748b;font-size:.9rem;margin:0 16px">To share the PDF from your phone: tap Share PDF, then tap Share in the print preview and pick Messages, Mail, or another app.</p>
+<div id="ticket-actions" class="noprint"></div>
 <div class="page" id="ticket"><p>Loading…</p></div>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money = n => '$' + Number(n).toFixed(2);
+let T = null, B = null;
+async function api(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Something went wrong.');
+  return d;
+}
+function estRows() {
+  return [...document.querySelectorAll('#est-rows > div')].map(r => {
+    const ins = r.querySelectorAll('input');
+    return { desc: ins[0].value, price: ins[1].value };
+  });
+}
+function addEstRow(desc, price) {
+  const w = document.getElementById('est-rows');
+  if (!w) return;
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;margin:6px 0';
+  row.innerHTML = `<input placeholder="Description (e.g. Brake pads — parts)" value="${esc(desc || '')}" style="flex:2" aria-label="Estimate line description"><input type="number" min="0.01" step="0.01" placeholder="$" value="${price || ''}" style="flex:1;max-width:110px" aria-label="Estimate line amount"><button type="button" class="ghost" onclick="this.parentElement.remove()">✕</button>`;
+  w.appendChild(row);
+}
+function itemRows() {
+  return [...document.querySelectorAll('#edit-items > div')].map(r => {
+    const ins = r.querySelectorAll('input');
+    return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value };
+  });
+}
+function addItemRow(desc, qty, price) {
+  const w = document.getElementById('edit-items');
+  if (!w) return;
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;margin:6px 0';
+  row.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" style="flex:3" aria-label="Line description"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" style="flex:1;max-width:70px" aria-label="Quantity"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" style="flex:1;max-width:110px" aria-label="Price"><button type="button" class="ghost" onclick="this.parentElement.remove()">✕</button>`;
+  w.appendChild(row);
+}
+function renderActions() {
+  const box = document.getElementById('ticket-actions');
+  if (!T) { box.innerHTML = ''; return; }
+  if (T.type === 'receipt') {
+    box.innerHTML = `<div class="card"><p class="muted" style="margin:0">Paid in full. No further actions on this ticket.</p></div>`;
+    return;
+  }
+  let html = '<div class="card">';
+  if (T.type === 'estimate') {
+    html += `<button type="button" id="btn-edit">Edit lines</button> <button type="button" id="btn-convert">Convert to invoice</button>`;
+    html += `<div id="edit-form" hidden style="margin-top:16px">
+      <div><label>Customer</label><input id="ed-customer"></div>
+      <div><label>Vehicle</label><input id="ed-vehicle"></div>
+      <div style="display:flex;gap:8px"><div style="flex:1"><label>VIN</label><input id="ed-vin"></div><div style="flex:1"><label>Mileage</label><input id="ed-mileage" inputmode="numeric"></div></div>
+      <div style="margin-top:10px"><label>Lines</label><div id="edit-items"></div>
+      <button type="button" class="ghost" id="btn-add-item">Add line</button></div>
+      <div style="display:flex;gap:8px;margin-top:10px"><div style="flex:1"><label>Labor description</label><input id="ed-labor-desc"></div><div style="flex:1"><label>Labor amount</label><input id="ed-labor" type="number" min="0" step="0.01"></div></div>
+      <div><label>Tax rate (%)</label><input id="ed-tax" type="number" min="0" max="100" step="0.01"></div>
+      <div><label>Notes</label><textarea id="ed-notes" rows="3"></textarea></div>
+      <div><label>Warranty</label><textarea id="ed-warranty" rows="2"></textarea></div>
+      <button type="button" id="btn-save-edit">Save changes</button> <button type="button" class="ghost" id="btn-cancel-edit">Cancel</button>
+      <div class="err" id="edit-msg"></div></div>`;
+  }
+  if (T.type === 'invoice') {
+    if (T.requestId && T.estimateStatus === 'pending') {
+      html += `<p style="margin:0 0 10px"><strong>Estimate sent — awaiting customer approval:</strong>${(T.estimateLines || []).map(l => `<div>${esc(l.desc)} — ${money(l.price)}</div>`).join('')}</p><p class="muted" style="margin:0">This invoice cannot be marked paid until the customer decides on the estimate.</p>`;
+    } else {
+      if (T.requestId) {
+        html += `<h3 style="margin:0 0 6px">Add lines as an estimate</h3><p class="muted" style="margin:0 0 8px">Extra work, sent for customer approval. Approved lines join the invoice; denied lines are never charged.</p>
+        <div id="est-rows"></div>
+        <button type="button" class="ghost" id="btn-add-est">Add line</button> <button type="button" class="ghost" id="btn-save-est">Save draft</button> <button type="button" id="btn-send-est">Send estimate for approval</button>
+        <div class="err" id="est-msg"></div>`;
+      }
+      html += `<div style="margin-top:14px"><button type="button" id="btn-paid">Mark as paid</button></div>`;
+    }
+  }
+  html += '</div>';
+  box.innerHTML = html;
+  const editForm = document.getElementById('edit-form');
+  if (editForm) {
+    document.getElementById('btn-edit').onclick = () => {
+      document.getElementById('ed-customer').value = T.customerName || '';
+      document.getElementById('ed-vehicle').value = T.vehicle || '';
+      document.getElementById('ed-vin').value = T.vin || '';
+      document.getElementById('ed-mileage').value = (T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : T.mileage;
+      document.getElementById('edit-items').innerHTML = '';
+      (T.items || []).forEach(it => addItemRow(it.desc, it.qty, it.price));
+      if (!(T.items || []).length) addItemRow('', '', '');
+      document.getElementById('ed-labor-desc').value = T.laborDesc || '';
+      document.getElementById('ed-labor').value = T.laborAmount || '';
+      document.getElementById('ed-tax').value = T.taxRate || '';
+      document.getElementById('ed-notes').value = T.notes || '';
+      document.getElementById('ed-warranty').value = T.warranty || '';
+      editForm.hidden = false;
+      editForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    document.getElementById('btn-add-item').onclick = () => addItemRow('', '', '');
+    document.getElementById('btn-cancel-edit').onclick = () => { editForm.hidden = true; };
+    document.getElementById('btn-save-edit').onclick = async () => {
+      const msg = document.getElementById('edit-msg');
+      msg.textContent = '';
+      try {
+        const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+          customerName: document.getElementById('ed-customer').value,
+          vehicle: document.getElementById('ed-vehicle').value,
+          vin: document.getElementById('ed-vin').value,
+          mileage: document.getElementById('ed-mileage').value,
+          items: itemRows(),
+          laborDesc: document.getElementById('ed-labor-desc').value,
+          laborAmount: document.getElementById('ed-labor').value,
+          taxRate: document.getElementById('ed-tax').value,
+          notes: document.getElementById('ed-notes').value,
+          warranty: document.getElementById('ed-warranty').value
+        }) });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || 'Could not save.');
+        location.reload();
+      } catch (e) { msg.textContent = e.message; }
+    };
+    document.getElementById('btn-convert').onclick = async () => {
+      let vin = T.vin || '';
+      if (!vin) {
+        vin = prompt('Enter the 17-character VIN (required on invoices):') || '';
+        if (!vin.trim()) return;
+      }
+      if (!confirm('Convert this estimate to an invoice?')) return;
+      try { await api('/api/tickets/' + T.id + '/convert', { vin }); location.reload(); }
+      catch (e) { alert(e.message); }
+    };
+  }
+  const estRowsBox = document.getElementById('est-rows');
+  if (estRowsBox) {
+    (T.estimateStatus === 'draft' ? (T.estimateLines || []) : []).forEach(l => addEstRow(l.desc, l.price));
+    document.getElementById('btn-add-est').onclick = () => addEstRow('', '');
+    document.getElementById('btn-save-est').onclick = async () => {
+      const msg = document.getElementById('est-msg');
+      msg.textContent = '';
+      try { await api('/api/tickets/' + T.id + '/estimate', { lines: estRows() }); location.reload(); }
+      catch (e) { msg.textContent = e.message; }
+    };
+    document.getElementById('btn-send-est').onclick = async () => {
+      const msg = document.getElementById('est-msg');
+      msg.textContent = '';
+      try { await api('/api/tickets/' + T.id + '/estimate/send', { lines: estRows() }); location.reload(); }
+      catch (e) { msg.textContent = e.message; }
+    };
+  }
+  const paidBtn = document.getElementById('btn-paid');
+  if (paidBtn) {
+    paidBtn.onclick = async () => {
+      let vin = T.vin || '';
+      if (!vin) {
+        vin = prompt('Enter the 17-character VIN (required before marking paid):') || '';
+        if (!vin.trim()) return;
+      }
+      let mileage = (T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : String(T.mileage);
+      if (!mileage) {
+        mileage = prompt('Enter the odometer reading in miles (required before marking paid):') || '';
+        if (!mileage.trim()) return;
+      }
+      const pm = prompt('How was this paid? (cash, card, check, etc.)') || '';
+      if (!pm.trim()) return;
+      if (!confirm('Mark this invoice as paid via ' + pm.trim() + '? It will become a receipt.')) return;
+      try { await api('/api/tickets/' + T.id + '/paid', { paymentMethod: pm.trim(), vin, mileage }); location.reload(); }
+      catch (e) { alert(e.message); }
+    };
+  }
+}
 (async () => {
   const id = new URLSearchParams(location.search).get('id');
   const box = document.getElementById('ticket');
   try {
     const r = await fetch('/api/ticket?id=' + encodeURIComponent(id || ''));
     if (!r.ok) throw new Error('Ticket not found.');
-    const { ticket: t, business: b } = await r.json();
-    const money = n => '$' + Number(n).toFixed(2);
+    const d = await r.json();
+    T = d.ticket; B = d.business;
+    const t = T, b = B;
     const isNew = t.items && t.items.length && t.items[0].qty !== undefined;
     const itemRows = (t.items || []).map(i => isNew
       ? `<tr><td>${esc(i.desc)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`
@@ -77,6 +252,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;
       ${t.type === 'estimate' ? `<div class="disc">This is an estimate only and is not a final invoice. The work and price listed above are what is quoted. No additional charges will be added without your approval.</div>` : ''}
       <div class="foot">Prepared by ${esc(b ? b.name : '')}${b && b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network${t.type === 'receipt' ? '<br>This receipt confirms payment received in full for the services listed above.' : ''}</div>`;
     document.title = t.type.charAt(0).toUpperCase() + t.type.slice(1) + ' — ' + (b ? b.name : '');
+    renderActions();
   } catch (e) { box.innerHTML = '<p>' + esc(e.message) + '</p>'; }
 })();
 </script>
