@@ -1005,7 +1005,10 @@ const server = http.createServer(async (req, res) => {
           notes.push({ id: crypto.randomUUID(), userId: biz.userId, type: 'request_received', title: (row.urgent ? 'URGENT — ' : '') + (row.ownerName ? `${row.ownerName} requested a quote` : 'New quote request'), service: row.service, vehicle: row.vehicle || '', customerName: row.ownerName || '', customerPhone: row.phone || '', requestId: row.id, urgent: row.urgent === true, read: false, createdAt: new Date().toISOString() });
           const mechUser = users.find(u => u.id === biz.userId);
           const to = (mechUser && mechUser.phone) || biz.phone || '';
-          if (to) sendSms(to, `Mobile Mechanic Network: New quote request for ${row.service} (${row.vehicle}) in ${row.city}, ${row.state}. View it here: https://mobilemechanicsinmyarea.com/mechanic`);
+          const d = String(row.phone || '').replace(/\D/g, '');
+          const c = d.length === 11 && d[0] === '1' ? d.slice(1) : d;
+          const custPhone = c.length === 10 ? `(${c.slice(0, 3)}) ${c.slice(3, 6)}-${c.slice(6)}` : (row.phone || '');
+          if (to) sendSms(to, `Mobile Mechanic Network: New quote request for ${row.service} (${row.vehicle}) in ${row.city}, ${row.state}. Customer phone: ${custPhone}. View it here: https://mobilemechanicsinmyarea.com/mechanic`);
         }
         notificationsStore.write(notes);
       } catch (e) {}
