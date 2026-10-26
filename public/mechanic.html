@@ -404,23 +404,6 @@ async function loadInbox() {
   window._booked = inbox.booked || [];
   window._inboxRequests = inbox.requests || [];
   if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Publish your business page to start receiving requests in your area.</p>'; return; }
-  if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
-  inbox.requests.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
-  box.innerHTML = inbox.requests.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
-    ${r.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(r.ownerName)}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(r)}${historyButton(r)}</div>${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)}${r.phone ? ` · <a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · <a href="sms:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
-    <p>${esc(r.description)}</p>
-    ${historyBlock(r)}
-    ${r.myQuote ? (r.myQuote.status === 'declined' ? `<p>You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (<span style="color:#dc2626;font-weight:700">denied</span>).</p>` : `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p>${r.myQuote.status === 'pending' ? `<p><button type="button" class="ghost" onclick="textQuote('${r.id}')">Text quote from my phone</button></p>` : ''}`) : `
-    <div id="qb-${r.id}">
-      <p style="margin:8px 0 4px"><strong>Build your itemized quote</strong> <span class="muted">— sent under your business name</span></p>
-      <div id="qi-${r.id}"></div>
-      <p style="margin:6px 0"><button type="button" class="ghost" onclick="addQuoteRow('${r.id}')">+ Add line item</button></p>
-      <label>Notes (optional)</label><input id="qn-${r.id}" placeholder="e.g. Parts are OEM, labor includes diagnostic">
-      <p style="margin:8px 0"><strong>Total: $<span id="qt-${r.id}">0.00</span></strong></p>
-      <p><button class="primary" type="button" onclick="sendItemizedQuote('${r.id}')">Send quote</button></p>
-    </div>`}
-  </div>`).join('');
-  inbox.requests.forEach(r => { if (!r.myQuote) addQuoteRow(r.id); });
   const bk = $('booked');
   bk.innerHTML = (inbox.booked && inbox.booked.length) ? inbox.booked.map(b => `<div class="card">
     <strong>${esc(b.service)}</strong> — ${esc(b.vehicle)}${b.vin ? ' · VIN ' + esc(b.vin) : ''} <span class="ok">Booked</span><div class="muted">${esc(b.city)}, ${esc(b.state)} · ${esc(b.ownerName)} · <a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(b.phone) : b.phone)}</a>${b.phone ? ` · <a href="sms:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${b.date ? ' · Needed by ' + esc(b.date) : ''}</div>
@@ -440,6 +423,23 @@ async function loadInbox() {
     </div>`}
   </div>`).join('') : '<p class="muted">No booked jobs yet. When a customer accepts your quote, it shows up here.</p>';
   inbox.booked.forEach(b => { if (!b.pendingFollowUp && !b.paid) addQuoteRow(b.id); });
+  if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
+  inbox.requests.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
+  box.innerHTML = inbox.requests.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
+    ${r.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(r.ownerName)}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(r)}${historyButton(r)}</div>${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)}${r.phone ? ` · <a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · <a href="sms:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
+    <p>${esc(r.description)}</p>
+    ${historyBlock(r)}
+    ${r.myQuote ? (r.myQuote.status === 'declined' ? `<p>You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (<span style="color:#dc2626;font-weight:700">denied</span>).</p>` : `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p>${r.myQuote.status === 'pending' ? `<p><button type="button" class="ghost" onclick="textQuote('${r.id}')">Text quote from my phone</button></p>` : ''}`) : `
+    <div id="qb-${r.id}">
+      <p style="margin:8px 0 4px"><strong>Build your itemized quote</strong> <span class="muted">— sent under your business name</span></p>
+      <div id="qi-${r.id}"></div>
+      <p style="margin:6px 0"><button type="button" class="ghost" onclick="addQuoteRow('${r.id}')">+ Add line item</button></p>
+      <label>Notes (optional)</label><input id="qn-${r.id}" placeholder="e.g. Parts are OEM, labor includes diagnostic">
+      <p style="margin:8px 0"><strong>Total: $<span id="qt-${r.id}">0.00</span></strong></p>
+      <p><button class="primary" type="button" onclick="sendItemizedQuote('${r.id}')">Send quote</button></p>
+    </div>`}
+  </div>`).join('');
+  inbox.requests.forEach(r => { if (!r.myQuote) addQuoteRow(r.id); });
 }
 window.textQuote = (rid) => {
   const r = (window._inboxRequests || []).find(x => x.id === rid);
