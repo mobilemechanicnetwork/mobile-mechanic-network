@@ -409,19 +409,10 @@ async function loadInbox() {
     <div style="margin:2px 0 6px">${customerBadge(b)}${historyButton(b)}</div>
     <p>${esc(b.description)}</p>
     ${historyBlock(b)}
-    <p><strong>Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}</strong></p>
+    <p><strong>Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}</strong>${b.ticketTotal != null && Number(b.ticketTotal) !== Number(b.acceptedTotal) ? `<br><strong>Current ticket total: $${Number(b.ticketTotal).toFixed(2)}</strong>` : ''}</p>
     <p>${b.hasTicket ? (b.ticketId ? `<a href="/ticket?id=${b.ticketId}" target="_blank">View ticket →</a>` : '<span class="ok">Ticket created</span>') : `<button type="button" class="primary" onclick="bookedToTicket('${b.id}')">Create ticket from quote</button>`}</p>
-    ${b.paid ? '<p><span class="ok">Paid</span></p>' : b.pendingFollowUp ? `<p class="ok">Additional work quoted $${esc(b.pendingFollowUp.total != null ? b.pendingFollowUp.total : b.pendingFollowUp.price)} (pending customer approval).</p><p><button type="button" class="ghost" onclick="textFollowUp('${b.id}')">Text quote from my phone</button></p>` : `
-    <div id="qb-${b.id}">
-      <p style="margin:8px 0 4px"><strong>Quote additional work</strong> <span class="muted">— the customer must accept it before it is added to the invoice</span></p>
-      <div id="qi-${b.id}"></div>
-      <p style="margin:6px 0"><button type="button" class="ghost" onclick="addQuoteRow('${b.id}')">+ Add line item</button></p>
-      <label>Notes (optional)</label><input id="qn-${b.id}" placeholder="e.g. Found during diagnosis">
-      <p style="margin:8px 0"><strong>Total: $<span id="qt-${b.id}">0.00</span></strong></p>
-      <p><button class="primary" type="button" onclick="sendItemizedQuote('${b.id}')">Send additional quote</button></p>
-    </div>`}
+    ${b.paid ? '<p><span class="ok">Paid</span></p>' : b.pendingFollowUp ? `<p class="ok">Additional work quoted $${esc(b.pendingFollowUp.total != null ? b.pendingFollowUp.total : b.pendingFollowUp.price)} (pending customer approval).</p><p><button type="button" class="ghost" onclick="textFollowUp('${b.id}')">Text quote from my phone</button></p>` : ''}
   </div>`).join('') : '<p class="muted">No booked jobs yet. When a customer accepts your quote, it shows up here.</p>';
-  inbox.booked.forEach(b => { if (!b.pendingFollowUp && !b.paid) addQuoteRow(b.id); });
   if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
   inbox.requests.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
   box.innerHTML = inbox.requests.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>

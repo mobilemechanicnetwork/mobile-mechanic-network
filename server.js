@@ -1121,9 +1121,11 @@ const server = http.createServer(async (req, res) => {
           const q = quotes.find(q => q.requestId === r.id && q.businessId === biz.id && q.status === 'accepted');
           if (!q) return null;
           const history = historyFor(r.phone, r.ownerId, r.ownerName, r.id);
-          return { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, ownerId: r.ownerId || null, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, hasTicket: myTickets.some(t => t.requestId === r.id), ticketId: (myTickets.find(t => t.requestId === r.id) || {}).id || null, paid: myTickets.some(t => t.requestId === r.id && t.type === 'receipt'), pendingFollowUp: quotes.find(q2 => q2.requestId === r.id && q2.businessId === biz.id && q2.status === 'pending' && q2.followUp === true) || null, history, returning: history.length > 0 };
+          const jobTicket = myTickets.find(t => t.requestId === r.id);
+          return { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, ownerId: r.ownerId || null, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, ticketTotal: jobTicket ? jobTicket.total : null, hasTicket: myTickets.some(t => t.requestId === r.id), ticketId: jobTicket ? jobTicket.id : null, paid: myTickets.some(t => t.requestId === r.id && t.type === 'receipt'), pendingFollowUp: quotes.find(q2 => q2.requestId === r.id && q2.businessId === biz.id && q2.status === 'pending' && q2.followUp === true) || null, history, returning: history.length > 0 };
         })
-        .filter(Boolean);
+        .filter(Boolean)
+        .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       return sendJson(res, 200, { requests: inbox, booked });
     }
 
