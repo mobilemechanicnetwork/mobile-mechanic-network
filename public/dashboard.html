@@ -257,7 +257,7 @@
       <div style="text-align:left;flex:1">
       <strong>${r.service}</strong> — ${r.vehicle}<div class="muted">${r.city}, ${r.state} · ${new Date(r.createdAt).toLocaleDateString()}${r.date ? ' · Needed by ' + r.date : ''} · ${pill(r)}</div>
       ${r.setPrice != null && r.status === 'open' ? `<div style="margin-top:4px"><strong>Set price for this job: $${Number(r.setPrice).toFixed(2)}</strong> <span class="muted">— from the mechanic's set price list. They will call to set up the appointment.</span></div>` : ''}
-      ${(() => { const e = histExtra[r.id]; const m = e && e.mech; if (!m || !m.name) return ''; return `<div style="margin-top:6px">${m.logo ? `<img src="${esc(m.logo)}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:6px">` : ''}<span class="muted">${m.label}</span> <strong>${esc(m.name)}</strong>${m.city ? ` <span class="muted">(${esc(m.city)})</span>` : ''}${m.phone ? ` · <a href="tel:${esc(m.phone.replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(m.phone) : m.phone)}</a>` : ''}</div>`; })()}
+      ${(() => { const e = histExtra[r.id]; const m = e && e.mech; if (!m || !m.name) return ''; if ((r.quotes || []).some(q => q.status === 'accepted')) return ''; return `<div style="margin-top:6px">${m.logo ? `<img src="${esc(m.logo)}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:6px">` : ''}<span class="muted">${m.label}</span> <strong>${esc(m.name)}</strong>${m.city ? ` <span class="muted">(${esc(m.city)})</span>` : ''}${m.phone ? ` · <a href="tel:${esc(m.phone.replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(m.phone) : m.phone)}</a>` : ''}</div>`; })()}
       </div>
       </div>
       <p>${r.description}</p>
@@ -268,7 +268,7 @@
         ${q.notes ? `<p>${q.notes}</p>` : ''}${q.message ? `<p>${q.message}</p>` : ''}
         ${q.businessWarranty ? `<p class="muted"><strong>Warranty:</strong> ${q.businessWarranty}</p>` : ''}
         ${q.status === 'declined' ? '<div style="color:#dc2626;font-weight:700">Quote: denied</div>' : `<div class="muted">Quote: ${q.status}${q.followUp ? ' · Additional work' : ''}</div>`}
-        <p><a href="/quote?id=${q.id}" target="_blank">View quote →</a></p>
+        ${(q.status !== 'accepted' || !r.ticketId) ? `<p><a href="/quote?id=${q.id}" target="_blank">View quote →</a></p>` : ''}
         ${q.status === 'pending' ? '<p class="muted">This price covers exactly what is listed. Nothing extra gets added without your approval.</p>' : ''}
         ${q.status === 'pending' && (r.status === 'open' || q.followUp) ? `<button onclick="actQuote('${q.id}','accept')">Accept</button> <button class="decline" onclick="actQuote('${q.id}','decline')">Decline</button>` : ''}
       </div>`).join('') : '<p class="muted">No quotes yet.</p>'}
