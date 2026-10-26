@@ -455,7 +455,7 @@ function renderInbox() {
   window._renderedRequests = reqList;
   const bk = $('booked');
   bk.innerHTML = bookedList.length ? bookedList.map(b => `<div class="card">
-    ${b.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(b.ownerName)}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(b)}${historyButton(b)}</div><strong>${esc(b.service)}</strong> — ${esc(b.vehicle)}${b.vin ? ' · VIN ' + esc(b.vin) : ''} <span class="ok">Booked</span>
+    ${b.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(b.ownerName)}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(b)}${historyButton(b)}</div><strong>${esc(b.service)}</strong> — ${esc(b.vehicle)}${b.vin ? ' · VIN ' + esc(b.vin) : ''} ${b.paid ? '<span class="ok">Paid invoice</span>' : '<span class="ok">Booked</span>'}
     ${b.lines && b.lines.length ? `<div style="margin:6px 0">${b.lines.map(l => `<div>${esc(l.desc)} — $${Number(l.amount).toFixed(2)}</div>`).join('')}</div>` : ''}
     <p><strong>${b.paid ? `Total: $${Number(b.ticketTotal != null ? b.ticketTotal : b.acceptedTotal).toFixed(2)}` : (b.ticketTotal != null && Number(b.ticketTotal) !== Number(b.acceptedTotal) ? `Current ticket total: $${Number(b.ticketTotal).toFixed(2)}` : `Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}`)}</strong></p>
     <div class="muted">${esc(b.city)}, ${esc(b.state)} · <a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(b.phone) : b.phone)}</a>${b.phone ? ` · <a href="sms:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${b.date ? ' · Needed by ' + esc(b.date) : ''}</div>
