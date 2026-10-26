@@ -994,8 +994,22 @@ const server = http.createServer(async (req, res) => {
       const rows = requestsStore.read();
       const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : '', guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vehicleType: vt, vehicleYear: String(vehicleYear || '').slice(0, 10), vehicleMake: String(vehicleMake || '').slice(0, 60), vehicleModel: String(vehicleModel || '').slice(0, 60), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, createdAt: new Date().toISOString() };
       rows.push(row); requestsStore.write(rows);
-      const matches = targetBiz ? 1 : businessesStore.read().filter(b => requestMatchesBusiness(row, b)).length;
-      return sendJson(res, 201, { request: row, mechanicsNotified: matches });
+      const recipients = targetBiz ? [targetBiz] : businessesStore.read().filter(b => requestMatchesBusiness(row, b));
+      // A request sitting silently in the inbox is not a notification.
+      // Every matched mechanic gets a portal notification (and a text
+      // when Twilio is configured). Neither may fail the request itself.
+      try {
+        const notes = notificationsStore.read();
+        const users = usersStore.read();
+        for (const biz of recipients) {
+          notes.push({ id: crypto.randomUUID(), userId: biz.userId, type: 'request_received', title: (row.urgent ? 'URGENT — ' : '') + (row.ownerName ? `${row.ownerName} requested a quote` : 'New quote request'), service: row.service, vehicle: row.vehicle || '', customerName: row.ownerName || '', customerPhone: row.phone || '', requestId: row.id, urgent: row.urgent === true, read: false, createdAt: new Date().toISOString() });
+          const mechUser = users.find(u => u.id === biz.userId);
+          const to = (mechUser && mechUser.phone) || biz.phone || '';
+          if (to) sendSms(to, `Mobile Mechanic Network: New quote request for ${row.service} (${row.vehicle}) in ${row.city}, ${row.state}. View it here: https://mobilemechanicsinmyarea.com/mechanic`);
+        }
+        notificationsStore.write(notes);
+      } catch (e) {}
+      return sendJson(res, 201, { request: row, mechanicsNotified: recipients.length });
     }
     if (p === '/api/requests/mine' && req.method === 'GET') {
       const user = getSessionUser(req);

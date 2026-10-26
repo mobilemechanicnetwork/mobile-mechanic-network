@@ -352,16 +352,17 @@ async function loadNotifications(markRead) {
     const d = await api('/api/notifications');
     const notes = d.notifications || [];
     $('notif-list').innerHTML = notes.length ? notes.map(n => `<div class="card" style="${n.read ? '' : 'border-left:4px solid #2563eb'}">
-      <strong>${esc(n.title)}</strong>
+      ${n.urgent ? '<span class="urgent-badge">URGENT</span> ' : ''}<strong>${esc(n.title)}</strong>
       <div class="muted">${esc(n.service)}${n.vehicle ? ' · ' + esc(n.vehicle) : ''}${n.total != null ? ' · $' + Number(n.total).toFixed(2) : ''} · ${new Date(n.createdAt).toLocaleDateString()}</div>
       ${n.customerPhone ? `<div style="margin-top:6px">${esc(n.customerName)} · <a href="tel:${esc(String(n.customerPhone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(n.customerPhone) : n.customerPhone)}</a> · <a href="sms:${esc(String(n.customerPhone).replace(/[^+\d]/g, ''))}">Text</a></div>` : ''}
-      <p><button type="button" class="ghost" onclick="viewBookedJob()">View booked job →</button></p>
-    </div>`).join('') : '<p class="muted">No notifications yet. When a customer accepts your quote, it will show up here.</p>';
+      ${n.type === 'request_received' ? '<p><button type="button" class="ghost" onclick="viewRequest()">View request →</button></p>' : '<p><button type="button" class="ghost" onclick="viewBookedJob()">View booked job →</button></p>'}
+    </div>`).join('') : '<p class="muted">No notifications yet. New quote requests and accepted quotes will show up here.</p>';
     updateNotifBadge(d.unread || 0);
     if (markRead && (d.unread || 0) > 0) { await post('/api/notifications/read', {}); updateNotifBadge(0); }
   } catch (e) {}
 }
 window.viewBookedJob = () => { document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('booked'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
+window.viewRequest = () => { document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('inbox'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
 $('notif-clear').onclick = async () => { await post('/api/notifications/clear', {}); loadNotifications(false); };
 
 /* ---------- Requests inbox ---------- */
