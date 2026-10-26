@@ -29,6 +29,7 @@
   .card{max-width:720px;margin:0 auto 24px;background:#fff;border-radius:12px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
   .card button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:.95rem;cursor:pointer;margin:4px 4px 4px 0}
   .card button.ghost{background:#fff;color:#0f172a;border:1px solid #e2e8f0}
+  .card button.decline{background:#fff;color:#dc2626;border:1px solid #fecaca}
   .card input,.card textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:.95rem;margin:4px 0}
   .card label{font-size:.85rem;color:#475569;font-weight:600}
   .err{color:#dc2626;font-size:.9rem;margin-top:8px}
@@ -110,6 +111,17 @@ async function bindDetails() {
     } catch (e) { msg.textContent = e.message; }
   };
 }
+window.mechEst = async (action, line) => {
+  const verb = action === 'accept' ? 'approved' : 'denied';
+  if (!confirm(`Record that the customer ${verb} this ${line === undefined || line === null ? 'estimate' : 'estimate line'} by phone?`)) return;
+  const msg = document.getElementById('mech-est-msg');
+  if (msg) msg.textContent = '';
+  try {
+    const body = (line === undefined || line === null) ? {} : { line };
+    await api('/api/tickets/' + T.id + '/estimate/' + action, body);
+    location.reload();
+  } catch (e) { if (msg) msg.textContent = e.message; else alert(e.message); }
+};
 function renderActions() {
   const box = document.getElementById('ticket-actions');
   if (!T) { box.innerHTML = ''; return; }
@@ -137,6 +149,14 @@ function renderActions() {
   if (T.type === 'invoice') {
     if (T.requestId && T.estimateStatus === 'pending') {
       html += `<p style="margin:0 0 10px"><strong>Estimate sent — awaiting customer approval:</strong>${(T.estimateLines || []).map(l => `<div>${esc(l.desc)} — ${money(l.price)}</div>`).join('')}</p><p class="muted" style="margin:0">This invoice cannot be marked paid until the customer decides on the estimate.</p>`;
+      html += `<div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px">
+        <h3 style="margin:0 0 6px">Customer approved by phone?</h3>
+        <p class="muted" style="margin:0 0 8px">If you went over the estimate with the customer on the phone and they approved or denied it, record it here. It works exactly like their approval from the dashboard.</p>
+        ${(T.estimateLines || []).map((l, i) => `<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #e2e8f0;align-items:center"><span>${esc(l.desc)} — ${money(l.price)}</span><span style="white-space:nowrap"><button type="button" onclick="mechEst('accept',${i})">Approve</button> <button type="button" class="decline" onclick="mechEst('decline',${i})">Deny</button></span></div>`).join('')}
+        <p><button type="button" onclick="mechEst('accept')">Approve all</button> <button type="button" class="decline" onclick="mechEst('decline')">Deny all</button></p>
+        <div class="err" id="mech-est-msg"></div>
+        ${(T.phoneApprovals || []).length ? `<p class="muted" style="margin:6px 0 0">Recorded by phone: ${(T.phoneApprovals || []).map(pa => `${pa.action === 'accept' ? 'approved' : 'denied'} ${pa.lines.join(', ')} (${money(pa.total)}) on ${new Date(pa.at).toLocaleDateString()}`).join('; ')}</p>` : ''}
+      </div>`;
     } else {
       if (T.requestId) {
         html += `<h3 style="margin:0 0 6px">Add lines as an estimate</h3><p class="muted" style="margin:0 0 8px">Extra work, sent for customer approval. Approved lines join the invoice; denied lines are never charged.</p>

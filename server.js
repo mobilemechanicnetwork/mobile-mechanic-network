@@ -1765,9 +1765,14 @@ const server = http.createServer(async (req, res) => {
         // remaining estimate. Decided lines leave the estimate: approved
         // lines join the invoice, denied lines join the denied record.
         // Undecided lines stay pending until the customer decides them.
+        // The ticket's mechanic may also record a decision the customer
+        // gave by phone; those are logged on the ticket as phone decisions.
         if (!t.requestId) return sendJson(res, 400, { error: 'This ticket has no job to approve.' });
         const row = requestsStore.read().find(r => r.id === t.requestId);
-        if (!row || row.ownerId !== user.id) return sendJson(res, 403, { error: 'That is not your job.' });
+        const isOwner = row && row.ownerId === user.id;
+        const isMechanic = user.role === 'mechanic' && t.mechanicId === user.id;
+        if (!row || (!isOwner && !isMechanic)) return sendJson(res, 403, { error: 'That is not your job.' });
+        if (isMechanic && !isOwner && mechanicFrozen(user)) return frozenError(res);
         if (t.type !== 'invoice' || t.estimateStatus !== 'pending') return sendJson(res, 400, { error: 'No estimate is awaiting approval on this job.' });
         if (tickets.some(x => x.requestId === t.requestId && x.type === 'receipt')) return sendJson(res, 400, { error: 'This job is already paid.' });
         const lines = t.estimateLines || [];
@@ -1791,9 +1796,14 @@ const server = http.createServer(async (req, res) => {
           t.deniedLines = [...(t.deniedLines || []), ...acted];
           t.estimateLines = remaining; t.estimateStatus = remaining.length ? 'pending' : 'none';
         }
+        if (isMechanic && !isOwner) {
+          t.phoneApprovals = [...(t.phoneApprovals || []), { action, lines: acted.map(l => l.desc), total: acted.reduce((s, l) => s + Number(l.price || 0), 0), at: new Date().toISOString() }];
+        }
         ticketsStore.write(tickets);
         // Notify the mechanic, same pattern as a quote acceptance: the
-        // mechanic is the one waiting on this decision.
+        // mechanic is the one waiting on this decision. Skipped when the
+        // mechanic recorded the decision themselves by phone.
+        if (isOwner) {
         try {
           const notes = notificationsStore.read();
           notes.push({ id: crypto.randomUUID(), userId: t.mechanicId, type: action === 'accept' ? 'estimate_accepted' : 'estimate_declined', title: `Customer ${action === 'accept' ? 'approved' : 'denied'} your estimate${lineIdx === null ? '' : ' line'}`, service: row.service, vehicle: row.vehicle || '', total: acted.reduce((s, l) => s + Number(l.price || 0), 0), customerName: row.ownerName || '', customerPhone: row.phone || '', requestId: row.id, ticketId: t.id, read: false, createdAt: new Date().toISOString() });
@@ -1805,6 +1815,7 @@ const server = http.createServer(async (req, res) => {
           const to = (mechUser && mechUser.phone) || (biz && biz.phone) || '';
           if (to) await sendSms(to, `Mobile Mechanic Network: ${row.ownerName || 'A customer'} ${action === 'accept' ? 'approved' : 'denied'} your estimate${lineIdx === null ? '' : ' line'} for ${row.service} (${row.vehicle}). See it here: https://mobilemechanicsinmyarea.com/mechanic`);
         } catch (e) {}
+        }
         return sendJson(res, 200, { ticket: t });
       }
       // Mechanic save/send.
