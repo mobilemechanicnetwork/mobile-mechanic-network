@@ -144,19 +144,36 @@
     $('o-view').hidden = false; $('o-edit').hidden = true;
     if (!me.user.phone) $('phone-banner').hidden = false;
     const v = await api('/api/vehicles/me');
+    const d = await api('/api/requests/mine');
     window._garageVehicles = v.vehicles || [];
+    window._ownerRequests = d.requests || [];
     $('my-vehicles').innerHTML = v.vehicles.length ? v.vehicles.map(x => {
       const imgStyle = x.photoKind === 'logo' ? 'width:88px;height:88px;object-fit:contain;background:#ffffff;padding:8px;box-sizing:border-box;border-radius:12px;flex:none' : 'width:88px;height:88px;object-fit:cover;border-radius:12px;flex:none';
-      return `<div class="card" style="display:flex;gap:14px;align-items:center;justify-content:center">
+      // Service history for this vehicle only: its accepted jobs on the
+      // network, newest first, with what was spent on it (paid jobs only).
+      const gs = x.type === 'smallengine' ? (x.make + ' ' + x.model) : (x.year + ' ' + x.make + ' ' + x.model);
+      const vjobs = (d.requests || []).map(r => {
+        const aq = (r.quotes || []).find(q => q.status === 'accepted');
+        if (!aq) return null;
+        if (String(r.vehicle || '').toLowerCase() !== gs.toLowerCase()) return null;
+        return { service: r.service, createdAt: r.createdAt || '', paid: !!r.paid, total: (r.paid && r.ticketTotal != null) ? r.ticketTotal : (aq.total != null ? aq.total : aq.price) };
+      }).filter(Boolean).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+      const vspent = vjobs.filter(j => j.paid).reduce((s, j) => s + Number(j.total || 0), 0);
+      return `<div class="card">
+      <div style="display:flex;gap:14px;align-items:center;justify-content:center">
       ${x.photoUrl ? `<img src="${x.photoUrl}" alt="" style="${imgStyle}">` : ''}
       <div style="text-align:left">
       <strong>${x.year} ${x.make} ${x.model}</strong>${x.type && x.type !== 'car' ? ` <span class="muted">(${x.type === 'motorcycle' ? 'Motorcycle' : x.type === 'commercial' ? 'Bus / Commercial' : 'Small Engine'})</span>` : ''}
       <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap"><button class="ghost" onclick="document.getElementById('photo-${x.id}').click()">${x.photoSource === 'upload' ? 'Change photo' : x.photoSource === 'commons' ? 'Upload my own photo' : 'Add photo'}</button><input type="file" id="photo-${x.id}" accept="image/*" hidden onchange="uploadVehiclePhoto('${x.id}', this)">${x.photoSource === 'upload' ? `<button class="ghost" onclick="delVehiclePhoto('${x.id}')">Remove photo</button>` : ''}<button class="ghost" onclick="delVehicle('${x.id}')">Remove</button></div>
       </div>
+      </div>
+      ${vjobs.length ? `<div style="margin-top:12px;text-align:left">
+      <div class="muted" style="margin-bottom:4px">Service history:</div>
+      ${vjobs.map(j => `<div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>${esc(j.service)}</strong><div class="muted">${j.createdAt ? new Date(j.createdAt).toLocaleDateString() : ''} · ${j.paid ? '<span style="color:#dc2626">Completed</span>' : '<span style="color:#16a34a">Booked</span>'} · $${Number(j.total || 0).toFixed(2)}</div></div>`).join('')}
+      <div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>Total spent: $${vspent.toFixed(2)}</strong></div>
+      </div>` : ''}
     </div>`;
     }).join('') : '<p class="muted">No vehicles saved yet.</p>';
-    const d = await api('/api/requests/mine');
-    window._ownerRequests = d.requests || [];
     const seenMech = new Map();
     (d.requests || []).forEach(r => (r.quotes || []).forEach(q => {
       if (q.status === 'accepted' && q.businessId) {
