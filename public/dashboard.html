@@ -162,7 +162,7 @@
       if (q.status === 'accepted' && q.businessId) {
         if (!seenMech.has(q.businessId)) seenMech.set(q.businessId, { id: q.businessId, name: q.businessName || 'Mobile mechanic', city: q.businessCity || '', logo: q.businessLogo || '', when: r.createdAt || '', jobs: [] });
         const m = seenMech.get(q.businessId);
-        m.jobs.push({ service: r.service, vehicle: r.vehicle, createdAt: r.createdAt || '', status: r.status, paid: !!r.paid, total: q.total != null ? q.total : q.price });
+        m.jobs.push({ service: r.service, vehicle: r.vehicle, createdAt: r.createdAt || '', status: r.status, paid: !!r.paid, total: (r.paid && r.ticketTotal != null) ? r.ticketTotal : (q.total != null ? q.total : q.price) });
         if ((r.createdAt || '') > (m.when || '')) m.when = r.createdAt;
       }
     }));
@@ -170,6 +170,7 @@
     window._recentMechs = recent;
     $('recent-mechanics').innerHTML = recent.length ? recent.map(b => {
       const jobs = b.jobs.slice().sort((a, c) => (c.createdAt || '').localeCompare(a.createdAt || ''));
+      const spent = jobs.filter(j => j.paid).reduce((s, j) => s + Number(j.total || 0), 0);
       return `<div class="card">
       <div style="display:flex;gap:12px;align-items:center;justify-content:center">
       ${b.logo ? `<img src="${esc(b.logo)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:10px;flex:none">` : ''}
@@ -182,6 +183,7 @@
         const st = j.paid ? '<span style="color:#dc2626">Completed</span>' : j.status === 'accepted' ? '<span style="color:#16a34a">Booked</span>' : j.status === 'open' ? '<span style="color:#16a34a">Active</span>' : esc(j.status);
         return `<div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>${esc(j.service)}</strong> — ${esc(j.vehicle)}<div class="muted">${j.createdAt ? new Date(j.createdAt).toLocaleDateString() : ''} · ${st} · $${Number(j.total || 0).toFixed(2)}</div></div>`;
       }).join('')}
+      <div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>Total spent: $${spent.toFixed(2)}</strong></div>
       </div>` : ''}
     </div>`;
     }).join('') : '<p class="muted">Mechanics you have worked with will show up here.</p>';
@@ -237,7 +239,12 @@
       ${r.status === 'accepted' && !r.paid && !r.reviewed ? '<p class="muted">You can leave a review once this job is paid.</p>' : ''}
     </div>`;
     openBox.innerHTML = sortedReqs.filter(r => !r.paid).map(card).join('') || '<p class="muted">No open jobs right now.</p>';
-    box.innerHTML = sortedReqs.filter(r => r.paid).map(card).join('') || '<p class="muted">No completed repairs yet. Jobs show up here once they are paid.</p>';
+    const paidReqs = sortedReqs.filter(r => r.paid);
+    const spentAll = paidReqs.reduce((s, r) => {
+      const aq = (r.quotes || []).find(q => q.status === 'accepted');
+      return s + Number((r.ticketTotal != null ? r.ticketTotal : (aq ? (aq.total != null ? aq.total : aq.price) : 0)) || 0);
+    }, 0);
+    box.innerHTML = paidReqs.length ? paidReqs.map(card).join('') + `<div class="card"><strong>Total spent: $${spentAll.toFixed(2)}</strong></div>` : '<p class="muted">No completed repairs yet. Jobs show up here once they are paid.</p>';
   }
   window.saveProfile = async () => {
     $('o-err').textContent = ''; $('o-ok').textContent = '';

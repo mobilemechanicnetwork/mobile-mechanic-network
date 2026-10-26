@@ -1095,6 +1095,7 @@ const server = http.createServer(async (req, res) => {
           reviewed: reviews.some(x => x.requestId === r.id),
           paid: tickets.some(t => t.requestId === r.id && t.type === 'receipt'),
           ticketId: jobTicket ? jobTicket.id : null,
+          ticketTotal: jobTicket ? jobTicket.total : null,
           pendingEstimate: pendEst ? { ticketId: pendEst.id, lines: (pendEst.estimateLines || []).map((l, i) => ({ desc: l.desc, price: l.price, newTotal: pendTotals.perLineNewTotals[i] })), total: pendTotals.pendingTotal, approvedTotal: pendTotals.approvedTotal, newTotalAll: pendTotals.newTotalAll } : null,
           businessName: reqBiz ? reqBiz.name : '',
           businessCity: reqBiz ? `${reqBiz.city}, ${reqBiz.state}` : '',
