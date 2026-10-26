@@ -1071,10 +1071,10 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/requests' && req.method === 'POST') {
       const user = getSessionUser(req);
       if (user && user.role !== 'owner') return sendJson(res, 403, { error: 'Only vehicle owner accounts can request quotes.' });
-      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip, businessId, vehicleType, vehicleYear, vehicleMake, vehicleModel, vehicleLocation, name, fromProfile } = await parseBody(req);
+      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip, businessId, vehicleType, vehicleYear, vehicleMake, vehicleModel, vehicleLocation, vehicleLocationType, name, fromProfile } = await parseBody(req);
       const e164 = normalizePhone(phone);
-      if (!city || !state || !SERVICES.includes(service) || !vehicle || !description || !String(vehicleLocation || '').trim() || !e164)
-        return sendJson(res, 400, { error: 'City, state, service, vehicle, a description, a vehicle location, and a valid 10-digit phone number are required.' });
+      if (!city || !state || !SERVICES.includes(service) || !vehicle || !description || !String(vehicleLocation || '').trim() || !['house', 'work', 'business'].includes(vehicleLocationType) || !e164)
+        return sendJson(res, 400, { error: 'City, state, service, vehicle, a description, a vehicle location, a location type, and a valid 10-digit phone number are required.' });
       const vt = VTYPES.includes(vehicleType) ? vehicleType : 'car';
       const guest = !user;
       if (guest && !guestRateOk(req)) return sendJson(res, 429, { error: 'Too many requests from this device. Please wait a bit before sending another.' });
@@ -1094,7 +1094,7 @@ const server = http.createServer(async (req, res) => {
       }
       const setPrice = (fromProfile === true && targetBiz && Array.isArray(targetBiz.prices)) ? (targetBiz.prices.find(pr => pr.service === service) || {}).price : null;
       const rows = requestsStore.read();
-      const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : String(name || '').trim().slice(0, 100), guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vehicleType: vt, vehicleYear: String(vehicleYear || '').slice(0, 10), vehicleMake: String(vehicleMake || '').slice(0, 60), vehicleModel: String(vehicleModel || '').slice(0, 60), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), vehicleLocation: String(vehicleLocation).trim().slice(0, 200), status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, ...(setPrice != null ? { setPrice } : {}), createdAt: new Date().toISOString() };
+      const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : String(name || '').trim().slice(0, 100), guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vehicleType: vt, vehicleYear: String(vehicleYear || '').slice(0, 10), vehicleMake: String(vehicleMake || '').slice(0, 60), vehicleModel: String(vehicleModel || '').slice(0, 60), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), vehicleLocation: String(vehicleLocation).trim().slice(0, 200), vehicleLocationType, status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, ...(setPrice != null ? { setPrice } : {}), createdAt: new Date().toISOString() };
       rows.push(row); requestsStore.write(rows);
       const recipients = targetBiz ? [targetBiz] : businessesStore.read().filter(b => requestMatchesBusiness(row, b));
       // A request sitting silently in the inbox is not a notification.
@@ -1212,7 +1212,7 @@ const server = http.createServer(async (req, res) => {
                ...(jobTicket.laborAmount > 0 ? [{ desc: 'Labor' + (jobTicket.laborDesc ? ' — ' + jobTicket.laborDesc : ''), amount: jobTicket.laborAmount }] : []),
                ...(jobTicket.taxAmount > 0 ? [{ desc: 'Tax (' + jobTicket.taxRate + '%)', amount: jobTicket.taxAmount }] : [])]
             : (q.items || []).map(it => ({ desc: it.desc, amount: it.amount != null ? it.amount : it.price }));
-          return { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, vehicleLocation: r.vehicleLocation || '', ownerName: r.ownerName, ownerId: r.ownerId || null, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, ticketTotal: jobTicket ? jobTicket.total : null, lines, hasTicket: myTickets.some(t => t.requestId === r.id), ticketId: jobTicket ? jobTicket.id : null, address: jobTicket ? (jobTicket.jobAddress || '') : '', paid: myTickets.some(t => t.requestId === r.id && t.type === 'receipt'), pendingFollowUp: quotes.find(q2 => q2.requestId === r.id && q2.businessId === biz.id && q2.status === 'pending' && q2.followUp === true) || null, history, returning: history.length > 0 };
+          return { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, vehicleLocation: r.vehicleLocation || '', vehicleLocationType: r.vehicleLocationType || '', ownerName: r.ownerName, ownerId: r.ownerId || null, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, ticketTotal: jobTicket ? jobTicket.total : null, lines, hasTicket: myTickets.some(t => t.requestId === r.id), ticketId: jobTicket ? jobTicket.id : null, address: jobTicket ? (jobTicket.jobAddress || '') : '', paid: myTickets.some(t => t.requestId === r.id && t.type === 'receipt'), pendingFollowUp: quotes.find(q2 => q2.requestId === r.id && q2.businessId === biz.id && q2.status === 'pending' && q2.followUp === true) || null, history, returning: history.length > 0 };
         })
         .filter(Boolean)
         .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));

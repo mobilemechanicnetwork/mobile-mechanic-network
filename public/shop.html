@@ -114,7 +114,7 @@ async function reviewHtml(businessId) {
     if (reqBtn) reqBtn.addEventListener('click', async (e) => {
       let pre = {};
       try { pre = JSON.parse(sessionStorage.getItem('mmn_find') || '{}'); } catch (err) {}
-      const complete = pre.phone && pre.vehicle && pre.service && pre.city && pre.state && pre.date && pre.description && pre.vehicleLocation;
+      const complete = pre.phone && pre.vehicle && pre.service && pre.city && pre.state && pre.date && pre.description && pre.vehicleLocation && pre.vehicleLocationType;
       if (!complete) return;
       e.preventDefault();
       const msg = document.getElementById('req-msg');
@@ -122,7 +122,7 @@ async function reviewHtml(businessId) {
       reqBtn.style.pointerEvents = 'none';
       reqBtn.textContent = 'Sending…';
       try {
-        const body = { name: pre.name || '', service: pre.service, vehicle: pre.vehicle, vehicleType: pre.vehicleType || 'car', vehicleYear: pre.vehicleYear || '', vehicleMake: pre.vehicleMake || '', vehicleModel: pre.vehicleModel || '', vin: '', city: pre.city, state: pre.state, description: pre.description, phone: pre.phone, date: pre.date, urgent: pre.urgent === true, zip: pre.zip || '', vehicleLocation: pre.vehicleLocation, businessId: b.id, fromProfile: true };
+        const body = { name: pre.name || '', service: pre.service, vehicle: pre.vehicle, vehicleType: pre.vehicleType || 'car', vehicleYear: pre.vehicleYear || '', vehicleMake: pre.vehicleMake || '', vehicleModel: pre.vehicleModel || '', vin: '', city: pre.city, state: pre.state, description: pre.description, phone: pre.phone, date: pre.date, urgent: pre.urgent === true, zip: pre.zip || '', vehicleLocation: pre.vehicleLocation, vehicleLocationType: pre.vehicleLocationType, businessId: b.id, fromProfile: true };
         const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const d = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(d.error || 'Something went wrong.');

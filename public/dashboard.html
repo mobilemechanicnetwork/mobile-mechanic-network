@@ -91,6 +91,7 @@
       <label for="rq-desc">What is going on with the vehicle?</label><textarea id="rq-desc" rows="3"></textarea>
       <label for="rq-city">City</label><input id="rq-city">
       <label for="rq-state">State</label><input id="rq-state" maxlength="2">
+      <label for="rq-loctype">Is the vehicle at a house, work, or business?</label><select id="rq-loctype"><option value="" disabled selected>Select one</option><option value="house">House</option><option value="work">Work</option><option value="business">Business</option></select>
       <label for="rq-location">Where is the vehicle? <span class="muted">(if unsure, write "contact for exact location")</span></label><input id="rq-location">
       <label for="rq-date">When do you need it?</label><input id="rq-date" type="date">
       <p><button type="button" onclick="sendRecentRequest()">Send quote request</button></p>
@@ -395,9 +396,10 @@
     }
     const reqs = window._ownerRequests || [];
     const latest = reqs.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
-    if (latest) { $('rq-city').value = latest.city || ''; $('rq-state').value = latest.state || ''; $('rq-location').value = latest.vehicleLocation || ''; }
+    if (latest) { $('rq-city').value = latest.city || ''; $('rq-state').value = latest.state || ''; $('rq-location').value = latest.vehicleLocation || ''; $('rq-loctype').value = latest.vehicleLocationType || ''; }
     $('rq-date').value = '';
     $('rq-location').value = '';
+    $('rq-loctype').value = '';
     $('rq-desc').value = ''; $('rq-err').textContent = ''; $('rq-ok').textContent = '';
     $('recent-req').hidden = false;
     $('recent-req').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -429,10 +431,12 @@
     if (!city || !state) { errEl.textContent = 'Add your city and state.'; return; }
     const vehicleLocation = $('rq-location').value.trim();
     if (!vehicleLocation) { errEl.textContent = 'Add where the vehicle is, or write "contact for exact location".'; return; }
+    const vehicleLocationType = $('rq-loctype').value;
+    if (!vehicleLocationType) { errEl.textContent = 'Pick whether the vehicle is at a house, work, or business.'; return; }
     if (!date) { errEl.textContent = 'Pick a date.'; return; }
     try {
       const me = await api('/api/me');
-      await post('/api/requests', { businessId: window._recentBiz, name: me.user.name, phone: me.user.phone, city, state, vehicle: vehStr, vehicleType: vehType, vehicleYear: vehYear, vehicleMake: vehMake, vehicleModel: vehModel, service: svc, description: desc, date, vehicleLocation });
+      await post('/api/requests', { businessId: window._recentBiz, name: me.user.name, phone: me.user.phone, city, state, vehicle: vehStr, vehicleType: vehType, vehicleYear: vehYear, vehicleMake: vehMake, vehicleModel: vehModel, service: svc, description: desc, date, vehicleLocation, vehicleLocationType });
       try { sessionStorage.setItem('mmn_sent', JSON.stringify({ title: 'Request sent!', msg: 'The mechanic can now send you a quote.', isGuest: false, phone: '' })); } catch (e) {}
       location.href = '/request-sent';
     } catch (e) { errEl.textContent = e.message || 'Could not send the request.'; }
