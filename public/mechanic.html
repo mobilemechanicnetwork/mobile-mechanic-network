@@ -405,11 +405,13 @@ async function loadInbox() {
   if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Publish your business page to start receiving requests in your area.</p>'; return; }
   const bk = $('booked');
   bk.innerHTML = (inbox.booked && inbox.booked.length) ? inbox.booked.map(b => `<div class="card">
-    <strong>${esc(b.service)}</strong> — ${esc(b.vehicle)}${b.vin ? ' · VIN ' + esc(b.vin) : ''} <span class="ok">Booked</span><div class="muted">${esc(b.city)}, ${esc(b.state)} · ${esc(b.ownerName)} · <a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(b.phone) : b.phone)}</a>${b.phone ? ` · <a href="sms:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${b.date ? ' · Needed by ' + esc(b.date) : ''}</div>
+    ${b.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(b.ownerName)}</div>` : ''}<strong>${esc(b.service)}</strong> — ${esc(b.vehicle)}${b.vin ? ' · VIN ' + esc(b.vin) : ''} <span class="ok">Booked</span>
+    ${b.lines && b.lines.length ? `<div style="margin:6px 0">${b.lines.map(l => `<div>${esc(l.desc)} — $${Number(l.amount).toFixed(2)}</div>`).join('')}</div>` : ''}
+    <p><strong>${b.paid ? `Total: $${Number(b.ticketTotal != null ? b.ticketTotal : b.acceptedTotal).toFixed(2)}` : (b.ticketTotal != null && Number(b.ticketTotal) !== Number(b.acceptedTotal) ? `Current ticket total: $${Number(b.ticketTotal).toFixed(2)}` : `Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}`)}</strong></p>
+    <div class="muted">${esc(b.city)}, ${esc(b.state)} · <a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(b.phone) : b.phone)}</a>${b.phone ? ` · <a href="sms:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${b.date ? ' · Needed by ' + esc(b.date) : ''}</div>
     <div style="margin:2px 0 6px">${customerBadge(b)}${historyButton(b)}</div>
     <p>${esc(b.description)}</p>
     ${historyBlock(b)}
-    <p><strong>${b.paid ? `Total: $${Number(b.ticketTotal != null ? b.ticketTotal : b.acceptedTotal).toFixed(2)}` : (b.ticketTotal != null && Number(b.ticketTotal) !== Number(b.acceptedTotal) ? `Current ticket total: $${Number(b.ticketTotal).toFixed(2)}` : `Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}`)}</strong></p>
     <p>${b.hasTicket ? (b.ticketId ? `<a href="/ticket?id=${b.ticketId}" target="_blank">View ticket →</a>` : '<span class="ok">Ticket created</span>') : `<button type="button" class="primary" onclick="bookedToTicket('${b.id}')">Create ticket from quote</button>`}</p>
     ${b.paid ? '<p><span class="ok">Paid</span></p>' : b.pendingFollowUp ? `<p class="ok">Additional work quoted $${esc(b.pendingFollowUp.total != null ? b.pendingFollowUp.total : b.pendingFollowUp.price)} (pending customer approval).</p><p><button type="button" class="ghost" onclick="textFollowUp('${b.id}')">Text quote from my phone</button></p>` : ''}
   </div>`).join('') : '<p class="muted">No booked jobs yet. When a customer accepts your quote, it shows up here.</p>';
