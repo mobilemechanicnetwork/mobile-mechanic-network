@@ -121,7 +121,7 @@ async function reviewHtml(businessId) {
       reqBtn.style.pointerEvents = 'none';
       reqBtn.textContent = 'Sending…';
       try {
-        const body = { service: pre.service, vehicle: pre.vehicle, vehicleType: pre.vehicleType || 'car', vehicleYear: pre.vehicleYear || '', vehicleMake: pre.vehicleMake || '', vehicleModel: pre.vehicleModel || '', vin: '', city: pre.city, state: pre.state, description: pre.description, phone: pre.phone, date: pre.date, urgent: pre.urgent === true, zip: pre.zip || '', businessId: b.id };
+        const body = { name: pre.name || '', service: pre.service, vehicle: pre.vehicle, vehicleType: pre.vehicleType || 'car', vehicleYear: pre.vehicleYear || '', vehicleMake: pre.vehicleMake || '', vehicleModel: pre.vehicleModel || '', vin: '', city: pre.city, state: pre.state, description: pre.description, phone: pre.phone, date: pre.date, urgent: pre.urgent === true, zip: pre.zip || '', businessId: b.id };
         const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const d = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(d.error || 'Something went wrong.');

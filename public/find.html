@@ -326,6 +326,7 @@ $('req-send').onclick = async () => {
     if (!desc) { errEl.textContent = 'Please describe what is going on with the vehicle.'; return; }
   }
   const body = {
+    name: $('f-name').value.trim(),
     service: svc,
     vehicle: veh,
     vehicleType: window._findVeh ? window._findVeh.type : 'car',

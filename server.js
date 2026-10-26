@@ -1034,7 +1034,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/requests' && req.method === 'POST') {
       const user = getSessionUser(req);
       if (user && user.role !== 'owner') return sendJson(res, 403, { error: 'Only vehicle owner accounts can request quotes.' });
-      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip, businessId, vehicleType, vehicleYear, vehicleMake, vehicleModel } = await parseBody(req);
+      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip, businessId, vehicleType, vehicleYear, vehicleMake, vehicleModel, name } = await parseBody(req);
       const e164 = normalizePhone(phone);
       if (!city || !state || !SERVICES.includes(service) || !vehicle || !description || !e164)
         return sendJson(res, 400, { error: 'City, state, service, vehicle, a description, and a valid 10-digit phone number are required.' });
@@ -1056,7 +1056,7 @@ const server = http.createServer(async (req, res) => {
         if (!cleanVinValue) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
       }
       const rows = requestsStore.read();
-      const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : '', guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vehicleType: vt, vehicleYear: String(vehicleYear || '').slice(0, 10), vehicleMake: String(vehicleMake || '').slice(0, 60), vehicleModel: String(vehicleModel || '').slice(0, 60), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, createdAt: new Date().toISOString() };
+      const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : String(name || '').trim().slice(0, 100), guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vehicleType: vt, vehicleYear: String(vehicleYear || '').slice(0, 10), vehicleMake: String(vehicleMake || '').slice(0, 60), vehicleModel: String(vehicleModel || '').slice(0, 60), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, createdAt: new Date().toISOString() };
       rows.push(row); requestsStore.write(rows);
       const recipients = targetBiz ? [targetBiz] : businessesStore.read().filter(b => requestMatchesBusiness(row, b));
       // A request sitting silently in the inbox is not a notification.
@@ -1916,7 +1916,7 @@ const server = http.createServer(async (req, res) => {
       const customers = [...byKey.values()].map(c => {
         c.jobs.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
         return { name: c.name, phone: c.phone, city: c.city, state: c.state, jobs: c.jobs, lastJob: c.jobs.length ? c.jobs[0].createdAt : '' };
-      }).sort((a, b) => String(b.lastJob).localeCompare(String(a.lastJob)));
+      }).filter(c => c.name).sort((a, b) => String(b.lastJob).localeCompare(String(a.lastJob)));
       return sendJson(res, 200, { customers });
     }
     if (p === '/api/tickets/customers' && req.method === 'GET') {
