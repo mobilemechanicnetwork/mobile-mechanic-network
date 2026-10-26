@@ -366,6 +366,7 @@
       $('rq-vehicle-manual').hidden = true;
     }
     if (!window._rqVeh && window.VehiclePicker) window._rqVeh = VehiclePicker.attach({ year: 'rq-year', make: 'rq-make', model: 'rq-model', type: 'rq-type' });
+    if (!window._rqCityAC && window.CityAC) window._rqCityAC = window.CityAC.attach($('rq-city'), { stateInput: $('rq-state') });
     if (!$('rq-service').options.length) {
       try {
         const s = await api('/api/services');
@@ -410,9 +411,8 @@
     try {
       const me = await api('/api/me');
       await post('/api/requests', { businessId: window._recentBiz, name: me.user.name, phone: me.user.phone, city, state, vehicle: vehStr, vehicleType: vehType, vehicleYear: vehYear, vehicleMake: vehMake, vehicleModel: vehModel, service: svc, description: desc, date });
-      okEl.textContent = 'Request sent! The mechanic can now send you a quote.';
-      $('rq-desc').value = '';
-      loadOwner();
+      try { sessionStorage.setItem('mmn_sent', JSON.stringify({ title: 'Request sent!', msg: 'The mechanic can now send you a quote.', isGuest: false, phone: '' })); } catch (e) {}
+      location.href = '/request-sent';
     } catch (e) { errEl.textContent = e.message || 'Could not send the request.'; }
   };
 

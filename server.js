@@ -1439,7 +1439,7 @@ const server = http.createServer(async (req, res) => {
         // waiting on their profile even before they open a text.
         try {
           const notes = notificationsStore.read();
-          notes.push({ id: crypto.randomUUID(), userId: quote.mechanicId, type: 'quote_accepted', title: `${row.ownerName || 'A customer'} accepted your ${isFollowUp ? 'additional ' : ''}quote`, service: row.service, vehicle: row.vehicle || '', total: quote.total != null ? quote.total : quote.price, customerName: row.ownerName || '', customerPhone: row.phone || '', requestId: row.id, quoteId: quote.id, read: false, createdAt: new Date().toISOString() });
+          notes.push({ id: crypto.randomUUID(), userId: quote.mechanicId, type: 'quote_accepted', title: `${row.ownerName || 'A customer'} accepted your ${isFollowUp ? 'additional ' : ''}quote`, service: row.service, vehicle: row.vehicle || '', total: quote.total != null ? quote.total : quote.price, customerName: row.ownerName || '', customerPhone: row.phone || '', ticketId: autoTicket ? autoTicket.id : null, requestId: row.id, quoteId: quote.id, read: false, createdAt: new Date().toISOString() });
           notificationsStore.write(notes);
         } catch (e) {}
         return sendJson(res, 200, { quote, requestStatus: row.status, ticket: autoTicket, mechanicNotified });
@@ -2560,6 +2560,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/mechanics') return serveFile(res, path.join(PUBLIC_DIR, 'mechanics.html'));
     if (p === '/request') return serveFile(res, path.join(PUBLIC_DIR, 'request.html'));
+    if (p === '/request-sent') return serveFile(res, path.join(PUBLIC_DIR, 'request-sent.html'));
     if (p === '/dashboard') {
       const u = getSessionUser(req);
       if (!u) { res.writeHead(302, { Location: '/account' }); return res.end(); }

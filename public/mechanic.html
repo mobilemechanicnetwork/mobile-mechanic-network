@@ -388,22 +388,34 @@ function updateNotifBadge(count) {
   else badge.style.display = 'none';
 }
 async function loadNotifications(markRead) {
+  await loadCalByTicket();
   try {
     const d = await api('/api/notifications');
     const notes = d.notifications || [];
-    $('notif-list').innerHTML = notes.length ? notes.map(n => `<div class="card" style="${n.read ? '' : 'border-left:4px solid #2563eb'}">
+    window._notifs = notes;
+    try { const td = await api('/api/tickets/me'); window._ticketById = {}; window._ticketByReq = {}; (td.tickets || []).forEach(t => { window._ticketById[t.id] = t; if (t.requestId) window._ticketByReq[t.requestId] = t; }); } catch (e) {}
+    $('notif-list').innerHTML = notes.length ? notes.map(n => {
+      const nt = n.ticketId ? (window._ticketById || {})[n.ticketId] : (window._ticketByReq || {})[n.requestId];
+      const calBtn = (n.type !== 'request_received' && nt && nt.type !== 'receipt') ? ' <button type="button" class="ghost" onclick="expandCalForNotif(\'' + n.id + '\', this)">Add to calendar</button>' : '';
+      return `<div class="card" style="${n.read ? '' : 'border-left:4px solid #2563eb'}">
       ${n.urgent ? '<span class="urgent-badge">URGENT</span> ' : ''}<strong>${esc(n.title)}</strong>
       <div class="muted">${esc(n.service)}${n.vehicle ? ' · ' + esc(n.vehicle) : ''}${n.total != null ? ' · $' + Number(n.total).toFixed(2) : ''} · ${new Date(n.createdAt).toLocaleDateString()}</div>
       ${n.customerPhone ? `<div style="margin-top:6px">${esc(n.customerName)} · <a href="tel:${esc(String(n.customerPhone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(n.customerPhone) : n.customerPhone)}</a> · <a href="sms:${esc(String(n.customerPhone).replace(/[^+\d]/g, ''))}">Text</a></div>` : ''}
-      ${n.type === 'request_received' ? '<p><button type="button" class="ghost" onclick="viewRequest()">View request →</button></p>' : '<p><button type="button" class="ghost" onclick="viewBookedJob()">View booked job →</button></p>'}
-    </div>`).join('') : '<p class="muted">No notifications yet. New quote requests and accepted quotes will show up here.</p>';
+      ${n.type === 'request_received' ? '<p><button type="button" class="ghost" onclick="viewRequest()">View request →</button></p>' : '<p><button type="button" class="ghost" onclick="viewBookedJob(\'' + n.id + '\')">View booked job →</button>' + calBtn + '</p>' + (calBtn ? '<div data-calctl></div>' : '')}
+    </div>`;
+    }).join('') : '<p class="muted">No notifications yet. New quote requests and accepted quotes will show up here.</p>';
     updateNotifBadge(d.unread || 0);
     if (markRead && (d.unread || 0) > 0) { await post('/api/notifications/read', {}); updateNotifBadge(0); }
   } catch (e) {}
 }
-window.viewBookedJob = async () => {
-  // Refresh first: the inbox only loads at portal startup, so a job
-  // accepted after that would otherwise be missing from the list jumped to.
+window.viewBookedJob = async (id) => {
+  // Open the job's ticket. Older notifications carry no ticket id, so fall
+  // back to finding the ticket by request, then to the old Requests-tab jump.
+  const note = (window._notifs || []).find(n => n.id === id);
+  if (note && note.ticketId) { window.open('/ticket?id=' + note.ticketId, '_blank'); return; }
+  if (note && note.requestId) {
+    try { const d = await api('/api/tickets/me'); const t = (d.tickets || []).find(x => x.requestId === note.requestId); if (t) { window.open('/ticket?id=' + t.id, '_blank'); return; } } catch (e) {}
+  }
   try { await loadInbox(); } catch (e) {}
   document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('booked'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
 window.viewRequest = async () => {
@@ -442,6 +454,7 @@ async function loadInbox() {
   window._booked = inbox.booked || [];
   window._inboxRequests = inbox.requests || [];
   try { const d = await api('/api/quote-drafts'); window._serverDrafts = {}; (d.drafts || []).forEach(x => { window._serverDrafts[x.requestId] = x; }); } catch (e) { window._serverDrafts = {}; }
+  await loadCalByTicket();
   renderInbox();
 }
 function renderInbox() {
@@ -455,6 +468,8 @@ function renderInbox() {
   const reqList = (inbox.requests || []).filter(matchReq);
   window._renderedRequests = reqList;
   const bk = $('booked');
+  window._calTitles = window._calTitles || {}; window._calPrefill = window._calPrefill || {};
+  bookedList.forEach(b => { if (b.ticketId) { window._calTitles[b.ticketId] = [b.ownerName, b.vehicle].filter(Boolean).join(' — ') || 'Job'; window._calPrefill[b.ticketId] = b.date || ''; } });
   bk.innerHTML = bookedList.length ? bookedList.map(b => `<div class="card">
     ${b.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(b.ownerName)}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(b)}${historyButton(b)}</div><strong>${esc(b.service)}</strong> — ${esc(b.vehicle)}${b.vin ? ' · VIN ' + esc(b.vin) : ''} ${b.paid ? '<span class="ok">Paid invoice</span>' : '<span class="ok">Booked</span>'}
     ${b.lines && b.lines.length ? `<div style="margin:6px 0">${b.lines.map(l => `<div>${esc(l.desc)} — $${Number(l.amount).toFixed(2)}</div>`).join('')}</div>` : ''}
@@ -463,6 +478,7 @@ function renderInbox() {
     <p>${esc(b.description)}</p>
     ${historyBlock(b)}
     <p>${b.hasTicket ? (b.ticketId ? `<a href="/ticket?id=${b.ticketId}" target="_blank">View ticket →</a>` : '<span class="ok">Ticket created</span>') : `<button type="button" class="primary" onclick="bookedToTicket('${b.id}')">Create ticket from quote</button>`}</p>
+    ${b.hasTicket && b.ticketId && !b.paid ? `<div data-calctl="${b.ticketId}" style="margin-top:8px">${calControlHtml(b.ticketId)}</div>` : ''}
     ${b.paid ? '<p><span class="ok">Paid</span></p>' : b.pendingFollowUp ? `<p class="ok">Additional work quoted $${esc(b.pendingFollowUp.total != null ? b.pendingFollowUp.total : b.pendingFollowUp.price)} (pending customer approval).</p><p><a href="/quote?id=${b.pendingFollowUp.id}" target="_blank">View quote →</a> <button type="button" class="ghost" onclick="textFollowUp('${b.id}')">Text quote from my phone</button></p>` : ''}
   </div>`).join('') : (q ? '<p class="muted">No booked jobs match your search.</p>' : '<p class="muted">No booked jobs yet. When a customer accepts your quote, it shows up here.</p>');
   if (!reqList.length) { box.innerHTML = q ? '<p class="muted">No open requests match your search.</p>' : '<p class="muted">No open requests match your area and services right now.</p>'; return; }
@@ -521,6 +537,67 @@ window.delCalEntry = async (id) => {
   if (!confirm('Delete this calendar entry?')) return;
   await api('/api/calendar/' + id, { method: 'DELETE' });
   loadCalendar();
+};
+// ---- Add-to-calendar controls on cards (Tickets tab, booked cards, notifications) ----
+// One control per ticket: either the add form (date + optional time) or the
+// on-calendar state with Remove. Titles and date prefills are cached by ticket
+// id, so no customer text ever goes through an onclick attribute.
+async function loadCalByTicket() {
+  try {
+    const d = await api('/api/calendar');
+    const m = {};
+    (d.entries || []).forEach(e => { if (e.ticketId) m[e.ticketId] = e; });
+    window._calByTicket = m;
+  } catch (e) { window._calByTicket = window._calByTicket || {}; }
+}
+function calControlHtml(ticketId) {
+  const e = (window._calByTicket || {})[ticketId];
+  if (e) return `<span class="ok">On your calendar for ${esc(new Date(e.date + 'T00:00:00').toLocaleDateString())}${e.time ? ' at ' + esc(fmtTime(e.time)) : ''}.</span> <button type="button" class="ghost" onclick="removeCalFromCard('${ticketId}', this)">Remove from calendar</button> <span data-cal-err style="color:#b91c1c;font-size:.9rem"></span>`;
+  const pre = (window._calPrefill || {})[ticketId] || '';
+  return `<span style="display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center"><input type="date" title="Date" data-cal-date value="${esc(pre)}" style="width:auto"> <input type="time" title="Time (optional)" data-cal-time style="width:auto"> <button type="button" class="primary" style="width:auto;margin:0" onclick="addCalFromCard('${ticketId}', this)">Add to calendar</button></span> <span data-cal-err style="color:#b91c1c;font-size:.9rem"></span>`;
+}
+window.addCalFromCard = async (ticketId, btn) => {
+  const wrap = btn.closest('[data-calctl]');
+  const errEl = wrap ? wrap.querySelector('[data-cal-err]') : null;
+  if (errEl) errEl.textContent = '';
+  const date = wrap ? (wrap.querySelector('[data-cal-date]').value || '') : '';
+  const time = wrap ? (wrap.querySelector('[data-cal-time]').value || '') : '';
+  if (!date) { if (errEl) errEl.textContent = 'Pick a date.'; return; }
+  btn.disabled = true;
+  try {
+    const d = await post('/api/calendar', { ticketId, date, time, title: (window._calTitles || {})[ticketId] || 'Job' });
+    if (d.entry) window._calByTicket[ticketId] = d.entry;
+    if (wrap) wrap.innerHTML = calControlHtml(ticketId);
+  } catch (ex) { if (errEl) errEl.textContent = ex.message; btn.disabled = false; }
+};
+window.removeCalFromCard = async (ticketId, btn) => {
+  const entry = (window._calByTicket || {})[ticketId];
+  if (!entry) return;
+  const wrap = btn.closest('[data-calctl]');
+  try {
+    await api('/api/calendar/' + entry.id, { method: 'DELETE' });
+    delete window._calByTicket[ticketId];
+    if (wrap) wrap.innerHTML = calControlHtml(ticketId);
+  } catch (ex) {
+    const errEl = wrap ? wrap.querySelector('[data-cal-err]') : null;
+    if (errEl) errEl.textContent = ex.message;
+  }
+};
+window.expandCalForNotif = async (noteId, btn) => {
+  const note = (window._notifs || []).find(n => n.id === noteId);
+  const card = btn.closest('.card');
+  const wrap = card ? card.querySelector('[data-calctl]') : btn.closest('[data-calctl]');
+  if (!note) return;
+  let ticket = note.ticketId ? (window._ticketById || {})[note.ticketId] : (window._ticketByReq || {})[note.requestId];
+  if (!ticket) {
+    try { const d = await api('/api/tickets/me'); const ts = d.tickets || []; ticket = note.ticketId ? ts.find(x => x.id === note.ticketId) : ts.find(x => x.requestId === note.requestId); } catch (e) {}
+  }
+  if (!ticket) { if (wrap) wrap.innerHTML = '<span class="muted">No ticket found for this job yet.</span>'; return; }
+  if (ticket.type === 'receipt') { if (wrap) wrap.innerHTML = '<span class="muted">This job is already paid, so it is no longer on the calendar.</span>'; return; }
+  const ticketId = ticket.id;
+  window._calTitles = window._calTitles || {};
+  window._calTitles[ticketId] = [note.customerName, note.vehicle].filter(Boolean).join(' — ') || 'Job';
+  if (wrap) wrap.innerHTML = calControlHtml(ticketId);
 };
 $('cal-form').onsubmit = async (e) => {
   e.preventDefault(); $('cal-err').textContent = ''; $('cal-ok').textContent = '';
@@ -1068,6 +1145,7 @@ updateVinRequired();
 async function loadTickets() {
   const d = await api('/api/tickets/me');
   window._tickets = d.tickets || [];
+  await loadCalByTicket();
   renderTickets();
 }
 function renderTickets() {
@@ -1078,11 +1156,14 @@ function renderTickets() {
     : t.type === 'receipt'
     ? '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:#dcfce7;color:#15803d">Completed</span>'
     : '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:#fef08a;color:#854d0e">Active</span>';
+  window._calTitles = window._calTitles || {};
+  list.forEach(t => { window._calTitles[t.id] = [t.customerName, t.vehicle].filter(Boolean).join(' — ') || 'Job'; });
   $('ticket-list').innerHTML = list.length ? list.map(t => `<div class="card" id="ticket-${t.id}">
     ${t.customerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(t.customerName)}</div>` : ''}
     <h3>${ticketBadge(t)} — $${esc(t.total)}</h3>
     <div class="muted">${t.label ? 'Ticket ' + esc(t.label) + ' · ' : ''}${t.vehicle ? esc(t.vehicle) + ' · ' : ''}${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() + (t.paymentMethod ? ' via ' + esc(t.paymentMethod) : '') : ''}</div>
     <p><a href="/ticket?id=${t.id}" target="_blank">View ticket →</a></p>
+    ${t.type !== 'receipt' ? `<div data-calctl="${t.id}" style="margin-top:8px">${calControlHtml(t.id)}</div>` : ''}
   </div>`).join('') : (q ? '<p class="muted">No tickets match your search.</p>' : '<p class="muted">No tickets yet.</p>');
 }
 document.getElementById('ticket-search').addEventListener('input', renderTickets);
