@@ -29,7 +29,7 @@
   <h1 id="hello">My dashboard</h1>
   <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600">Add your phone number below so mechanics can reach you with quotes. <a href="#owner" id="phone-banner-link" style="color:#b91c1c">Add it in My info ↓</a></div>
   <p class="muted" id="who"></p>
-  <p><a href="/mechanics">Find a mobile mechanic</a> · <a href="/security">Security</a> · <span id="adminLink"></span><button type="button" class="ghost" id="logout">Log out</button></p>
+  <p><a href="/security">Security</a> · <span id="adminLink"></span><button type="button" class="ghost" id="logout">Log out</button></p>
 
   <section id="owner" hidden>
     <p><a href="/request"><button type="button">Request quotes</button></a> <a href="/mechanics"><button type="button" class="ghost">Find a mobile mechanic</button></a></p>
@@ -146,7 +146,7 @@
         if (n.vehicle) bits.push(esc(n.vehicle));
         if (n.total != null) bits.push('$' + Number(n.total).toFixed(2));
         bits.push(new Date(n.createdAt).toLocaleDateString());
-        return `<div class="card" style="${n.read ? '' : 'border-left:4px solid #2563eb'}"><strong>${esc(n.title)}</strong><div class="muted">${bits.join(' · ')}</div>${n.requestId ? `<p style="margin:8px 0 0"><button type="button" class="ghost" onclick="document.getElementById('open-jobs').scrollIntoView()">View job →</button></p>` : ''}</div>`;
+        return `<div class="card" style="${n.read ? '' : 'border-left:4px solid #2563eb'}"><strong>${esc(n.title)}</strong><div class="muted">${bits.join(' · ')}</div>${n.requestId ? `<p style="margin:8px 0 0"><button type="button" class="ghost" onclick="(document.getElementById('job-${n.requestId}') || document.getElementById('open-jobs')).scrollIntoView()">View job →</button></p>` : ''}</div>`;
       }).join('') : '<p class="muted">No notifications yet. New quotes, estimates, and tickets from your mechanics will show up here.</p>';
     } catch (e) { $('notif-list').innerHTML = '<p class="muted">Notifications could not be loaded.</p>'; }
   }
@@ -240,7 +240,7 @@
     if (!d.requests.length) { openBox.innerHTML = '<p class="muted">No open jobs right now.</p>'; box.innerHTML = '<p class="muted">No repair history yet. Send your first request and mechanics in your area can quote it.</p>'; return; }
     const pill = r => r.paid ? '<span style="color:#dc2626">Completed</span>' : r.status === 'accepted' ? '<span style="color:#16a34a">Booked</span>' : r.status === 'open' ? '<span style="color:#16a34a">Active</span>' : `<span class="muted">${r.status}</span>`;
     const sortedReqs = [...d.requests].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-    const card = r => `<div class="card">
+    const card = r => `<div class="card" id="job-${r.id}">
       <div style="display:flex;gap:12px;align-items:center">
       ${(() => { const e = histExtra[r.id]; if (!e || !e.gv || !e.gv.photoUrl) return ''; const st = e.gv.photoKind === 'logo' ? 'width:72px;height:72px;object-fit:contain;background:#ffffff;padding:6px;box-sizing:border-box;border-radius:10px;flex:none' : 'width:72px;height:72px;object-fit:cover;border-radius:10px;flex:none'; return `<img src="${esc(e.gv.photoUrl)}" alt="" style="${st}">`; })()}
       <div style="text-align:left;flex:1">

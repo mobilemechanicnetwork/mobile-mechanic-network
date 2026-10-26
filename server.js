@@ -2412,7 +2412,9 @@ const server = http.createServer(async (req, res) => {
     if (p === '/mechanics') return serveFile(res, path.join(PUBLIC_DIR, 'mechanics.html'));
     if (p === '/request') return serveFile(res, path.join(PUBLIC_DIR, 'request.html'));
     if (p === '/dashboard') {
-      if (!getSessionUser(req)) { res.writeHead(302, { Location: '/account' }); return res.end(); }
+      const u = getSessionUser(req);
+      if (!u) { res.writeHead(302, { Location: '/account' }); return res.end(); }
+      if (u.role === 'mechanic') { res.writeHead(302, { Location: '/mechanic' }); return res.end(); }
       return serveFile(res, path.join(PUBLIC_DIR, 'dashboard.html'));
     }
 
