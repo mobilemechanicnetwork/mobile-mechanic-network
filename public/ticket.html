@@ -63,6 +63,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
         <div><span>Vehicle</span>${esc(t.vehicle || '—')}</div>
         ${t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : ''}
+        ${(t.mileage !== '' && t.mileage != null) ? `<div><span>Mileage</span>${Number(t.mileage).toLocaleString('en-US')} mi</div>` : ''}
         <div><span>Ticket</span>#${esc(t.id.slice(0, 8))}</div>
         ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}${t.paymentMethod ? ' via ' + esc(t.paymentMethod) : ''}</div>` : ''}
       </div>

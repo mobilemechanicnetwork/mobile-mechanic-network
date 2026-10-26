@@ -244,13 +244,19 @@ function ensureTrial(user) {
 
 // Validate and normalize ticket fields. Returns {error} or the cleaned fields.
 function cleanTicketBody(body, type) {
-  const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin } = body || {};
+  const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage } = body || {};
   if (!customerName || !String(customerName).trim()) return { error: 'Customer name is required.' };
   if (!Array.isArray(items) || !items.length) return { error: 'At least one line item is required.' };
   let ticketVin = '';
   if (vin && String(vin).trim()) {
     ticketVin = cleanVin(vin);
     if (!ticketVin) return { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' };
+  }
+  let ticketMileage = '';
+  if (mileage !== undefined && mileage !== null && String(mileage).trim() !== '') {
+    const m = Number(String(mileage).replace(/[^0-9]/g, ''));
+    if (!Number.isFinite(m) || m < 0 || m > 9999999) return { error: 'Enter a valid vehicle mileage.' };
+    ticketMileage = m;
   }
   if ((type === 'invoice' || type === 'receipt') && !ticketVin)
     return { error: 'A VIN is required on invoices and receipts.' };
@@ -267,7 +273,7 @@ function cleanTicketBody(body, type) {
   return {
     customerName: String(customerName).trim().slice(0, 120),
     vehicle: String(vehicle || '').trim().slice(0, 120),
-    vin: ticketVin, items: cleanItems,
+    vin: ticketVin, mileage: ticketMileage, items: cleanItems,
     laborDesc: String(laborDesc || '').trim().slice(0, 200), laborAmount: laborAmountNum,
     taxRate: rate, subtotal: partsSubtotal, taxAmount,
     notes: String(notes || '').trim().slice(0, 1000),
@@ -286,7 +292,7 @@ function ticketFromAcceptedQuote(quote, row) {
   if (!items.length) return null;
   const subtotal = r2(items.reduce((s, it) => s + it.qty * it.price, 0));
   const biz = businessesStore.read().find(b => b.id === quote.businessId);
-  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, total: subtotal, createdAt: new Date().toISOString() };
+  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', mileage: '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, total: subtotal, createdAt: new Date().toISOString() };
 }
 // Service areas are stored as "City, ST" strings so a mechanic can serve
 // cities in other states (e.g. Slidell, LA serving Picayune, MS).
@@ -1567,13 +1573,18 @@ const server = http.createServer(async (req, res) => {
       const t = tickets.find(x => x.id === ticketPaid[1] && x.mechanicId === user.id);
       if (!t) return sendJson(res, 404, { error: 'Not found.' });
       if (t.type !== 'invoice') return sendJson(res, 400, { error: 'Only invoices can be marked as paid.' });
-      const { paymentMethod, vin } = await parseBody(req);
+      const { paymentMethod, vin, mileage } = await parseBody(req);
       const pm = String(paymentMethod || '').trim().slice(0, 50);
       if (!pm) return sendJson(res, 400, { error: 'Say how it was paid (cash, card, check, etc.).' });
       if (!t.vin) {
         const v = vin ? cleanVin(vin) : '';
         if (!v) return sendJson(res, 400, { error: 'A VIN is required before this invoice can be marked paid.' });
         t.vin = v;
+      }
+      if (mileage !== undefined && mileage !== null && String(mileage).trim() !== '') {
+        const m = Number(String(mileage).replace(/[^0-9]/g, ''));
+        if (!Number.isFinite(m) || m < 0 || m > 9999999) return sendJson(res, 400, { error: 'Enter a valid vehicle mileage.' });
+        t.mileage = m;
       }
       t.type = 'receipt'; t.paidAt = new Date().toISOString(); t.paymentMethod = pm;
       ticketsStore.write(tickets);
