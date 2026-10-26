@@ -364,6 +364,13 @@ async function loadNotifications(markRead) {
 }
 window.viewBookedJob = () => { document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('booked'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
 window.viewRequest = () => { document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('inbox'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
+// Keep the unread count live: the number next to Notifications updates
+// without reloading the portal, and refreshes when the tab is reopened.
+async function refreshNotifBadge() {
+  try { const d = await api('/api/notifications'); updateNotifBadge(d.unread || 0); } catch (e) {}
+}
+setInterval(refreshNotifBadge, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshNotifBadge(); });
 $('notif-clear').onclick = async () => { await post('/api/notifications/clear', {}); loadNotifications(false); };
 
 /* ---------- Customer badges + service history ---------- */
@@ -1148,6 +1155,7 @@ async function loadStats() {
   else { window.cityChips = { get: () => [], set: () => {} }; }
   await loadProfile();
   await loadInbox();
+  await loadNotifications(false);
   renderPvView();
   await loadPromos();
   await loadTickets();
