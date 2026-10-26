@@ -899,8 +899,7 @@ function renderCustomers() {
     const cityLine = c.city ? `<div class="muted">${esc(c.city)}, ${esc(c.state)}</div>` : '';
     const earned = c.jobs.filter(j => j.paid).reduce((s, j) => s + Number(j.total || 0), 0);
     return `<div class="card">${title}${histBtn}${phoneLine}${cityLine}
-    <div><a href="#" onclick="toggleCustHist(${i}); return false;">Total earnings: $${earned.toFixed(2)}</a></div>
-    <div id="cust-hist-${i}" hidden style="margin:6px 0">${c.jobs.map(j => `<div>${esc(j.service)} — ${esc(j.vehicle)} · ${esc(j.date)} · $${Number(j.total).toFixed(2)} · <span class="${j.paid ? 'ok' : ''}">${j.paid ? 'Paid' : 'Booked'}</span>${j.ticketId ? ` · <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('')}<div style="margin-top:8px"><strong>Total earnings: $${earned.toFixed(2)}</strong></div></div>
+    <div id="cust-hist-${i}" hidden style="margin:6px 0">${c.jobs.map(j => `<div>${esc(j.service)} — ${esc(j.vehicle)} · ${esc(j.date)} · $${Number(j.total).toFixed(2)} · <span class="${j.paid ? 'ok' : ''}">${j.paid ? 'Paid' : 'Booked'}</span>${j.ticketId ? ` · <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('')}<div style="margin-top:8px"><strong>Total spent on service history: $${earned.toFixed(2)}</strong></div></div>
   </div>`;
   }).join('') : '<p class="muted">No customers yet.</p>';
 }
