@@ -852,7 +852,9 @@ function renderCustomers() {
       ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(c.name)}</div>`
       : (c.phone ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3"><a href="tel:${esc(phoneTel)}">${esc(phoneDisp)}</a></div>` : '');
     const meta = `${c.name && c.phone ? `<a href="tel:${esc(phoneTel)}">${esc(phoneDisp)}</a> · <a href="sms:${esc(phoneTel)}">Text</a>` : ''}${c.city ? ((c.name && c.phone) ? ' · ' : '') + esc(c.city) + ', ' + esc(c.state) : ''}`;
+    const earned = c.jobs.filter(j => j.paid).reduce((s, j) => s + Number(j.total || 0), 0);
     return `<div class="card">${title}${histBtn}${meta ? `<div class="muted">${meta}</div>` : ''}
+    <div><a href="#" onclick="toggleCustHist(${i}); return false;">Total earnings: $${earned.toFixed(2)}</a></div>
     <div id="cust-hist-${i}" hidden style="margin:6px 0">${c.jobs.map(j => `<div>${esc(j.service)} — ${esc(j.vehicle)} · ${esc(j.date)} · $${Number(j.total).toFixed(2)} · <span class="${j.paid ? 'ok' : ''}">${j.paid ? 'Paid' : 'Booked'}</span>${j.ticketId ? ` · <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('')}</div>
   </div>`;
   }).join('') : '<p class="muted">No customers yet.</p>';
