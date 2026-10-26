@@ -260,6 +260,8 @@ function cleanTicketBody(body, type) {
   }
   if ((type === 'invoice' || type === 'receipt') && !ticketVin)
     return { error: 'A VIN is required on invoices and receipts.' };
+  if (type === 'receipt' && ticketMileage === '')
+    return { error: 'A vehicle mileage is required on receipts.' };
   const r2 = n => Math.round(n * 100) / 100;
   const cleanItems = items.slice(0, 50)
     .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), qty: Math.max(0, Number(it.qty) || 0), price: Math.max(0, Number(it.price) || 0) }))
@@ -1585,6 +1587,8 @@ const server = http.createServer(async (req, res) => {
         const m = Number(String(mileage).replace(/[^0-9]/g, ''));
         if (!Number.isFinite(m) || m < 0 || m > 9999999) return sendJson(res, 400, { error: 'Enter a valid vehicle mileage.' });
         t.mileage = m;
+      } else if (t.mileage === '' || t.mileage == null) {
+        return sendJson(res, 400, { error: 'A vehicle mileage is required before this invoice can be marked paid.' });
       }
       t.type = 'receipt'; t.paidAt = new Date().toISOString(); t.paymentMethod = pm;
       ticketsStore.write(tickets);

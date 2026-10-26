@@ -229,7 +229,7 @@
       <div class="row"><div><label for="t-year">Year</label><select id="t-year"></select></div><div><label for="t-make">Make</label><select id="t-make"></select></div><div><label for="t-model">Model</label><select id="t-model"></select></div></div>
       <div id="t-prev-vehicles" hidden><label for="t-prev-select">Customer's previous vehicles</label><select id="t-prev-select"><option value="">Choose…</option></select></div>
       <label for="t-vin">VIN <span class="muted" id="t-vin-note">(required on invoices and receipts)</span></label><input id="t-vin" maxlength="17" placeholder="17 characters" style="text-transform:uppercase">
-      <label for="t-mileage">Vehicle mileage (optional)</label><input id="t-mileage" type="number" min="0" max="9999999" step="1" placeholder="e.g. 84320">
+      <label for="t-mileage">Vehicle mileage <span class="muted" id="t-mileage-note">(optional)</span></label><input id="t-mileage" type="number" min="0" max="9999999" step="1" placeholder="e.g. 84320">
       <label>Line items</label>
       <div id="t-items"></div>
       <div><button class="ghost" type="button" id="t-additem">+ Add line item</button></div>
@@ -795,6 +795,9 @@ function updateVinRequired() {
   const need = $('t-type').value === 'invoice' || $('t-type').value === 'receipt';
   $('t-vin').required = need;
   $('t-vin-note').textContent = need ? '(required)' : '(optional)';
+  const mileageNeed = $('t-type').value === 'receipt';
+  $('t-mileage').required = mileageNeed;
+  $('t-mileage-note').textContent = mileageNeed ? '(required on receipts)' : '(optional)';
 }
 $('t-type').onchange = updateVinRequired;
 updateVinRequired();
@@ -830,7 +833,8 @@ async function loadTickets() {
       }
       let mileage = '';
       if (!b.dataset.hasmileage) {
-        mileage = prompt('Odometer reading in miles (optional — leave blank to skip):') || '';
+        mileage = prompt('Enter the odometer reading in miles (required before marking paid):') || '';
+        if (!mileage.trim()) return;
       }
       const pm = prompt('How was this paid? (cash, card, check, etc.)') || '';
       if (!pm.trim()) return;
