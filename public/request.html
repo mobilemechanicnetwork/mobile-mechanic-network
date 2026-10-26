@@ -171,6 +171,14 @@
         if (x && window._reqVeh) { window._reqVeh.setType(x.type || 'car'); window._reqVeh.set(x.year, x.make, x.model); }
         document.getElementById('v-vehicle-manual').hidden = true;
       };
+      window._reqGarage = v.vehicles;
+      // If the browser restored a saved selection (e.g. after a reload),
+      // no change event fires, so apply the visible selection now (unless
+      // a carried-over vehicle already filled the picker).
+      if (sel.value !== '' && sel.value !== 'add' && window._reqVeh && !window._reqVeh.vehicleString()) {
+        const rx = v.vehicles[Number(sel.value)];
+        if (rx) { window._reqVeh.setType(rx.type || 'car'); await window._reqVeh.set(rx.year, rx.make, rx.model); document.getElementById('v-vehicle-manual').hidden = true; }
+      }
       document.getElementById('my-vehicles-row').hidden = false;
       // Garage first only when the form starts empty; a carried-over
       // vehicle (from find or a link) keeps the manual tabs visible.
@@ -180,6 +188,17 @@
   })();
   document.getElementById('form').onsubmit = async (e) => {
     e.preventDefault(); err.textContent = ''; ok.textContent = '';
+    // Safety net: if the garage menu visibly shows a vehicle but the picker
+    // is empty (e.g. the browser restored the menu without a change event),
+    // apply the visible selection before validating. set() is async, so it
+    // must be awaited before reading the picker.
+    if (window._reqVeh && !window._reqVeh.vehicleString()) {
+      const gsel = document.getElementById('my-vehicles-select');
+      if (gsel && gsel.value !== '' && gsel.value !== 'add' && window._reqGarage) {
+        const gx = window._reqGarage[Number(gsel.value)];
+        if (gx) { window._reqVeh.setType(gx.type || 'car'); await window._reqVeh.set(gx.year, gx.make, gx.model); }
+      }
+    }
     const veh = window._reqVeh ? window._reqVeh.vehicleString() : '';
     if (!veh) { const garageMode = !document.getElementById('my-vehicles-row').hidden && document.getElementById('v-vehicle-manual').hidden; err.textContent = garageMode ? 'Please pick a vehicle from your garage, or choose "Add another vehicle" from the menu.' : 'Please pick your vehicle year, make, and model.'; return; }
     const svc = document.getElementById('service').value;

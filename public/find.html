@@ -178,6 +178,13 @@ const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABE
           if (x && window._findVeh) { window._findVeh.setType(x.type || 'car'); window._findVeh.set(x.year, x.make, x.model); }
           $('f-vehicle-manual').hidden = true; $('f-vehicle-label').hidden = true;
         };
+        window._findGarage = v.vehicles;
+        // If the browser restored a saved selection (e.g. after a reload),
+        // no change event fires, so apply the visible selection now.
+        if (sel.value !== '' && sel.value !== 'add' && window._findVeh && !window._findVeh.vehicleString()) {
+          const rx = v.vehicles[Number(sel.value)];
+          if (rx) { window._findVeh.setType(rx.type || 'car'); await window._findVeh.set(rx.year, rx.make, rx.model); }
+        }
         $('f-garage-row').hidden = false;
         $('f-vehicle-manual').hidden = true;
         $('f-vehicle-label').hidden = true;
@@ -205,6 +212,17 @@ $('find-form').onsubmit = async (e) => {
     const first = $(focusFor[missing[0]]);
     if (first) first.focus();
     return;
+  }
+  // Safety net: if the garage menu visibly shows a vehicle but the picker
+  // is empty (e.g. the browser restored the menu without a change event),
+  // apply the visible selection before validating. set() is async, so it
+  // must be awaited before reading the picker.
+  if (window._findVeh && !window._findVeh.vehicleString()) {
+    const gsel = $('f-garage-select');
+    if (gsel && gsel.value !== '' && gsel.value !== 'add' && window._findGarage) {
+      const gx = window._findGarage[Number(gsel.value)];
+      if (gx) { window._findVeh.setType(gx.type || 'car'); await window._findVeh.set(gx.year, gx.make, gx.model); }
+    }
   }
   const veh = window._findVeh ? window._findVeh.vehicleString() : '';
   if (!veh) { const garageMode = !$('f-garage-row').hidden && $('f-vehicle-manual').hidden; $('f-err').textContent = garageMode ? 'Please pick a vehicle from your garage, or choose "Add another vehicle" from the menu.' : 'Please pick your vehicle year, make, and model.'; return; }
@@ -285,6 +303,14 @@ $('find-form').onsubmit = async (e) => {
 $('req-send').onclick = async () => {
   const errEl = $('req-err');
   errEl.textContent = '';
+  // Safety net: same restored-menu case as the search form above.
+  if (window._findVeh && !window._findVeh.vehicleString()) {
+    const gsel = $('f-garage-select');
+    if (gsel && gsel.value !== '' && gsel.value !== 'add' && window._findGarage) {
+      const gx = window._findGarage[Number(gsel.value)];
+      if (gx) { window._findVeh.setType(gx.type || 'car'); await window._findVeh.set(gx.year, gx.make, gx.model); }
+    }
+  }
   const veh = window._findVeh ? window._findVeh.vehicleString() : '';
   if (!veh) { errEl.textContent = 'Please pick your vehicle year, make, and model.'; return; }
   const svc = $('f-service').value;

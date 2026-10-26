@@ -327,6 +327,13 @@
   window.sendRecentRequest = async () => {
     const errEl = $('rq-err'); const okEl = $('rq-ok');
     errEl.textContent = ''; okEl.textContent = '';
+    // Safety net: if the garage menu visibly shows a vehicle but no
+    // selection was recorded (e.g. the browser restored the menu without
+    // a change event), apply the visible selection before validating.
+    if (!window._recentVeh) {
+      const rsel = $('rq-garage-select');
+      if (rsel && rsel.value !== '' && rsel.value !== 'add') window._recentVeh = (window._garageVehicles || [])[Number(rsel.value)] || null;
+    }
     let veh = window._recentVeh || null;
     let vehStr = veh ? (veh.type === 'smallengine' ? (veh.make + ' ' + veh.model) : (veh.year + ' ' + veh.make + ' ' + veh.model)) : '';
     let vehType = veh ? (veh.type || 'car') : 'car';
