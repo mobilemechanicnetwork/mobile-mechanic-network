@@ -64,8 +64,7 @@
     <div id="recent-req" hidden class="card">
       <div><strong id="recent-req-name"></strong></div>
       <label>Vehicle</label>
-      <div id="rq-garage-list"></div>
-      <button type="button" class="ghost" id="rq-garage-add" style="margin-top:8px" hidden>+ Add another vehicle</button>
+      <select id="rq-garage-select"></select>
       <div id="rq-vehicle-manual" hidden>
       <div id="rq-type"></div>
       <div class="row"><div><label for="rq-year">Year</label><select id="rq-year"></select></div><div><label for="rq-make">Make</label><select id="rq-make"></select></div><div><label for="rq-model">Model</label><select id="rq-model"></select></div></div>
@@ -269,26 +268,37 @@
     if (!b) return;
     window._recentBiz = id;
     $('recent-req-name').textContent = 'Request a quote from ' + b.name;
-    const list = $('rq-garage-list');
-    list.innerHTML = '';
+    const sel = $('rq-garage-select');
+    sel.innerHTML = '';
     window._recentVeh = null;
     const mine = window._garageVehicles || [];
     if (!mine.length) {
       $('rq-vehicle-manual').hidden = false;
-      $('rq-garage-add').hidden = true;
+      sel.hidden = true;
     } else {
-      let selected = -1;
-      const paint = () => { Array.from(list.children).forEach((b, i) => { b.style.borderColor = i === selected ? '#2563eb' : '#e2e8f0'; b.style.background = i === selected ? '#eff6ff' : '#ffffff'; b.style.fontWeight = i === selected ? '700' : '400'; }); };
+      const ph = document.createElement('option');
+      ph.value = ''; ph.textContent = 'Select a vehicle from your garage'; ph.disabled = true; ph.selected = true;
+      sel.appendChild(ph);
       mine.forEach((x, i) => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.style.cssText = 'display:block;width:100%;text-align:left;padding:10px 12px;margin:4px 0;border:1px solid #e2e8f0;border-radius:10px;background:#ffffff;cursor:pointer';
-        b.textContent = (x.type === 'smallengine' ? `${x.make} ${x.model}` : `${x.year} ${x.make} ${x.model}`) + (x.type && x.type !== 'car' ? ` (${x.type === 'motorcycle' ? 'Motorcycle' : x.type === 'commercial' ? 'Bus / Commercial' : 'Small Engine'})` : '');
-        b.onclick = () => { selected = i; paint(); window._recentVeh = x; $('rq-vehicle-manual').hidden = true; };
-        list.appendChild(b);
+        const o = document.createElement('option');
+        o.value = String(i);
+        o.textContent = (x.type === 'smallengine' ? `${x.make} ${x.model}` : `${x.year} ${x.make} ${x.model}`) + (x.type && x.type !== 'car' ? ` (${x.type === 'motorcycle' ? 'Motorcycle' : x.type === 'commercial' ? 'Bus / Commercial' : 'Small Engine'})` : '');
+        sel.appendChild(o);
       });
-      $('rq-garage-add').hidden = false;
-      $('rq-garage-add').onclick = () => { selected = -1; paint(); window._recentVeh = null; if (window._rqVeh) window._rqVeh.reset(); $('rq-vehicle-manual').hidden = false; };
+      const add = document.createElement('option');
+      add.value = 'add'; add.textContent = '+ Add another vehicle';
+      sel.appendChild(add);
+      sel.onchange = () => {
+        if (sel.value === 'add') {
+          window._recentVeh = null;
+          if (window._rqVeh) window._rqVeh.reset();
+          $('rq-vehicle-manual').hidden = false;
+          return;
+        }
+        window._recentVeh = mine[Number(sel.value)];
+        $('rq-vehicle-manual').hidden = true;
+      };
+      sel.hidden = false;
       $('rq-vehicle-manual').hidden = true;
     }
     if (!window._rqVeh && window.VehiclePicker) window._rqVeh = VehiclePicker.attach({ year: 'rq-year', make: 'rq-make', model: 'rq-model', type: 'rq-type' });
@@ -318,7 +328,7 @@
       const g = window._rqVeh.get();
       if (g) { vehStr = window._rqVeh.vehicleString(); vehType = g.type; vehYear = g.year; vehMake = g.make; vehModel = g.model; veh = true; }
     }
-    if (!veh) { errEl.textContent = 'Pick a vehicle from your garage, or tap "+ Add another vehicle" below.'; return; }
+    if (!veh) { errEl.textContent = 'Pick a vehicle from your garage, or choose "Add another vehicle" from the menu.'; return; }
     const svc = $('rq-service').value;
     if (!svc) { errEl.textContent = 'Pick a service.'; return; }
     const desc = $('rq-desc').value.trim();

@@ -50,7 +50,7 @@
         <div><label for="f-state">State</label><input id="f-state" required maxlength="2"></div>
         <div><label for="f-zip">ZIP <span class="muted">(optional)</span></label><input id="f-zip" inputmode="numeric" maxlength="10" placeholder="e.g. 70460"></div>
       </div>
-      <div id="f-garage-row" hidden><label>Your garage</label><div id="f-garage-list"></div><button type="button" class="ghost" id="f-garage-add" style="margin-top:8px">+ Add another vehicle</button></div>
+      <div id="f-garage-row" hidden><label for="f-garage-select">Your garage</label><select id="f-garage-select"></select></div>
       <label id="f-vehicle-label">Vehicle (year, make, model)</label>
       <div id="f-vehicle-manual">
       <div id="f-type"></div>
@@ -154,18 +154,30 @@ const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABE
     if (me2.user) {
       const v = await (await fetch('/api/vehicles/me')).json().catch(() => ({}));
       if (v.vehicles && v.vehicles.length) {
-        const list = $('f-garage-list');
-        let selected = -1;
-        const paint = () => { Array.from(list.children).forEach((b, i) => { b.style.borderColor = i === selected ? '#2563eb' : '#e2e8f0'; b.style.background = i === selected ? '#eff6ff' : '#ffffff'; b.style.fontWeight = i === selected ? '700' : '400'; }); };
+        const sel = $('f-garage-select');
+        sel.innerHTML = '';
+        const ph = document.createElement('option');
+        ph.value = ''; ph.textContent = 'Select a vehicle from your garage'; ph.disabled = true; ph.selected = true;
+        sel.appendChild(ph);
         v.vehicles.forEach((x, i) => {
-          const b = document.createElement('button');
-          b.type = 'button';
-          b.style.cssText = 'display:block;width:100%;text-align:left;padding:10px 12px;margin:4px 0;border:1px solid #e2e8f0;border-radius:10px;background:#ffffff;cursor:pointer';
-          b.textContent = (x.type === 'smallengine' ? `${x.make} ${x.model}` : `${x.year} ${x.make} ${x.model}`) + (x.type && x.type !== 'car' ? ` (${x.type === 'motorcycle' ? 'Motorcycle' : x.type === 'commercial' ? 'Bus / Commercial' : 'Small Engine'})` : '');
-          b.onclick = () => { selected = i; paint(); if (window._findVeh) { window._findVeh.setType(x.type || 'car'); window._findVeh.set(x.year, x.make, x.model); } $('f-vehicle-manual').hidden = true; $('f-vehicle-label').hidden = true; };
-          list.appendChild(b);
+          const o = document.createElement('option');
+          o.value = String(i);
+          o.textContent = (x.type === 'smallengine' ? `${x.make} ${x.model}` : `${x.year} ${x.make} ${x.model}`) + (x.type && x.type !== 'car' ? ` (${x.type === 'motorcycle' ? 'Motorcycle' : x.type === 'commercial' ? 'Bus / Commercial' : 'Small Engine'})` : '');
+          sel.appendChild(o);
         });
-        $('f-garage-add').onclick = () => { selected = -1; paint(); if (window._findVeh) window._findVeh.reset(); $('f-vehicle-manual').hidden = false; $('f-vehicle-label').hidden = false; };
+        const add = document.createElement('option');
+        add.value = 'add'; add.textContent = '+ Add another vehicle';
+        sel.appendChild(add);
+        sel.onchange = () => {
+          if (sel.value === 'add') {
+            if (window._findVeh) window._findVeh.reset();
+            $('f-vehicle-manual').hidden = false; $('f-vehicle-label').hidden = false;
+            return;
+          }
+          const x = v.vehicles[Number(sel.value)];
+          if (x && window._findVeh) { window._findVeh.setType(x.type || 'car'); window._findVeh.set(x.year, x.make, x.model); }
+          $('f-vehicle-manual').hidden = true; $('f-vehicle-label').hidden = true;
+        };
         $('f-garage-row').hidden = false;
         $('f-vehicle-manual').hidden = true;
         $('f-vehicle-label').hidden = true;
@@ -195,7 +207,7 @@ $('find-form').onsubmit = async (e) => {
     return;
   }
   const veh = window._findVeh ? window._findVeh.vehicleString() : '';
-  if (!veh) { const garageMode = !$('f-garage-row').hidden && $('f-vehicle-manual').hidden; $('f-err').textContent = garageMode ? 'Please pick a vehicle from your garage, or tap "+ Add another vehicle" below.' : 'Please pick your vehicle year, make, and model.'; return; }
+  if (!veh) { const garageMode = !$('f-garage-row').hidden && $('f-vehicle-manual').hidden; $('f-err').textContent = garageMode ? 'Please pick a vehicle from your garage, or choose "Add another vehicle" from the menu.' : 'Please pick your vehicle year, make, and model.'; return; }
   const svc0 = $('f-service').value;
   if (svc0 === 'Diagnostics') {
     const picked = Array.from(document.querySelectorAll('#f-symptom-chips input:checked')).map(i => i.value);

@@ -44,7 +44,7 @@
         <label class="chip"><input type="checkbox" value="Unsure — needs mechanic assessment"> Unsure — need a mechanic to assess</label>
       </div>
     </div>
-    <div id="my-vehicles-row" style="margin-top:6px" hidden><label style="margin-top:0">Your garage</label><div id="my-vehicles-list"></div><button type="button" class="ghost" id="my-vehicles-add" style="margin-top:8px">+ Add another vehicle</button></div>
+    <div id="my-vehicles-row" style="margin-top:6px" hidden><label style="margin-top:0" for="my-vehicles-select">Your garage</label><select id="my-vehicles-select"></select></div>
     <div id="v-vehicle-manual">
     <label>Vehicle (year, make, model)</label>
     <div id="v-type"></div>
@@ -147,18 +147,30 @@
     if (get('zip')) document.getElementById('zip').value = get('zip');
     const v = await (await fetch('/api/vehicles/me')).json().catch(() => ({}));
     if (v.vehicles && v.vehicles.length) {
-      const list = document.getElementById('my-vehicles-list');
-      let selected = -1;
-      const paint = () => { Array.from(list.children).forEach((b, i) => { b.style.borderColor = i === selected ? '#2563eb' : '#e2e8f0'; b.style.background = i === selected ? '#eff6ff' : '#ffffff'; b.style.fontWeight = i === selected ? '700' : '400'; }); };
+      const sel = document.getElementById('my-vehicles-select');
+      sel.innerHTML = '';
+      const ph = document.createElement('option');
+      ph.value = ''; ph.textContent = 'Select a vehicle from your garage'; ph.disabled = true; ph.selected = true;
+      sel.appendChild(ph);
       v.vehicles.forEach((x, i) => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.style.cssText = 'display:block;width:100%;text-align:left;padding:10px 12px;margin:4px 0;border:1px solid #e2e8f0;border-radius:10px;background:#ffffff;cursor:pointer';
-        b.textContent = (x.type === 'smallengine' ? `${x.make} ${x.model}` : `${x.year} ${x.make} ${x.model}`) + (x.type && x.type !== 'car' ? ` (${x.type === 'motorcycle' ? 'Motorcycle' : x.type === 'commercial' ? 'Bus / Commercial' : 'Small Engine'})` : '');
-        b.onclick = () => { selected = i; paint(); if (window._reqVeh) { window._reqVeh.setType(x.type || 'car'); window._reqVeh.set(x.year, x.make, x.model); } document.getElementById('v-vehicle-manual').hidden = true; };
-        list.appendChild(b);
+        const o = document.createElement('option');
+        o.value = String(i);
+        o.textContent = (x.type === 'smallengine' ? `${x.make} ${x.model}` : `${x.year} ${x.make} ${x.model}`) + (x.type && x.type !== 'car' ? ` (${x.type === 'motorcycle' ? 'Motorcycle' : x.type === 'commercial' ? 'Bus / Commercial' : 'Small Engine'})` : '');
+        sel.appendChild(o);
       });
-      document.getElementById('my-vehicles-add').onclick = () => { selected = -1; paint(); if (window._reqVeh) window._reqVeh.reset(); document.getElementById('v-vehicle-manual').hidden = false; };
+      const add = document.createElement('option');
+      add.value = 'add'; add.textContent = '+ Add another vehicle';
+      sel.appendChild(add);
+      sel.onchange = () => {
+        if (sel.value === 'add') {
+          if (window._reqVeh) window._reqVeh.reset();
+          document.getElementById('v-vehicle-manual').hidden = false;
+          return;
+        }
+        const x = v.vehicles[Number(sel.value)];
+        if (x && window._reqVeh) { window._reqVeh.setType(x.type || 'car'); window._reqVeh.set(x.year, x.make, x.model); }
+        document.getElementById('v-vehicle-manual').hidden = true;
+      };
       document.getElementById('my-vehicles-row').hidden = false;
       // Garage first only when the form starts empty; a carried-over
       // vehicle (from find or a link) keeps the manual tabs visible.
@@ -169,7 +181,7 @@
   document.getElementById('form').onsubmit = async (e) => {
     e.preventDefault(); err.textContent = ''; ok.textContent = '';
     const veh = window._reqVeh ? window._reqVeh.vehicleString() : '';
-    if (!veh) { const garageMode = !document.getElementById('my-vehicles-row').hidden && document.getElementById('v-vehicle-manual').hidden; err.textContent = garageMode ? 'Please pick a vehicle from your garage, or tap "+ Add another vehicle" below.' : 'Please pick your vehicle year, make, and model.'; return; }
+    if (!veh) { const garageMode = !document.getElementById('my-vehicles-row').hidden && document.getElementById('v-vehicle-manual').hidden; err.textContent = garageMode ? 'Please pick a vehicle from your garage, or choose "Add another vehicle" from the menu.' : 'Please pick your vehicle year, make, and model.'; return; }
     const svc = document.getElementById('service').value;
     let descVal = document.getElementById('description').value.trim();
     if (svc === 'Diagnostics') {
