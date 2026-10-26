@@ -116,11 +116,45 @@ window.mechEst = async (action, line) => {
     location.reload();
   } catch (e) { if (msg) msg.textContent = e.message; else alert(e.message); }
 };
+// Additional comments live at the bottom of the ticket. The editor sits
+// at the bottom of the ticket view and auto-saves when the mechanic
+// finishes writing, like the detail fields.
+function commentsSectionHtml() {
+  return `<div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:12px">
+    <h3 style="margin:0 0 6px">Additional comments</h3>
+    <textarea id="ticket-comments" rows="3" placeholder="Anything else about this job...">${esc(T.comments || '')}</textarea>
+    <div><span id="comments-msg"></span></div>
+    <p class="muted" style="margin:6px 0 0">Saves automatically when you finish writing. Comments show at the bottom of the ticket.</p>
+  </div>`;
+}
+function bindComments() {
+  const ta = document.getElementById('ticket-comments');
+  if (!ta) return;
+  ta.addEventListener('change', async () => {
+    const msg = document.getElementById('comments-msg');
+    if (msg) msg.textContent = '';
+    try {
+      const dv = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+      let body;
+      if (T.type === 'receipt') {
+        body = { comments: ta.value };
+      } else {
+        body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', comments: ta.value };
+      }
+      const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Could not save.');
+      if (d.ticket) T = d.ticket;
+      if (msg) { msg.style.color = '#15803d'; msg.textContent = 'Saved.'; }
+    } catch (e) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = e.message; } }
+  });
+}
 function renderActions() {
   const box = document.getElementById('ticket-actions');
   if (!T) { box.innerHTML = ''; return; }
   if (T.type === 'receipt') {
-    box.innerHTML = `<div class="card"><p class="muted" style="margin:0">Paid in full. Prices cannot be changed.</p></div>`;
+    box.innerHTML = `<div class="card"><p class="muted" style="margin:0">Paid in full. Prices cannot be changed.</p>${commentsSectionHtml()}</div>`;
+    bindComments();
     return;
   }
   let html = '<div class="card">';
@@ -159,8 +193,10 @@ function renderActions() {
       html += `<div style="margin-top:14px"><button type="button" id="btn-paid">Mark as paid</button></div>`;
     }
   }
+  html += commentsSectionHtml();
   html += '</div>';
   box.innerHTML = html;
+  bindComments();
   const editForm = document.getElementById('edit-form');
   if (editForm) {
     document.getElementById('btn-edit').onclick = () => {
@@ -294,6 +330,7 @@ function renderActions() {
       ${t.type === 'receipt' && t.paidAt ? `<div class="total">Balance due: $0.00</div><div class="paid">Paid in full. Thank you for your business.</div>` : ''}
       ${t.notes ? `<div class="notes"><strong>Notes:</strong> ${esc(t.notes)}</div>` : ''}
       ${t.warranty ? `<div class="notes"><strong>Warranty:</strong> ${esc(t.warranty)}</div>` : ''}
+      ${t.comments ? `<div class="notes"><strong>Additional comments:</strong> ${esc(t.comments)}</div>` : ''}
       ${t.type === 'estimate' ? `<div class="disc">This is an estimate only and is not a final invoice. The work and price listed above are what is quoted. No additional charges will be added without your approval.</div>` : ''}
       <div class="foot">Prepared by ${esc(b ? b.name : '')}${b && b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network${t.type === 'receipt' ? '<br>This receipt confirms payment received in full for the services listed above.' : ''}</div>`;
     document.title = t.type.charAt(0).toUpperCase() + t.type.slice(1) + ' — ' + (b ? b.name : '');
