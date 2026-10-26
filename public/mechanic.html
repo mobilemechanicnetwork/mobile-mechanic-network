@@ -227,7 +227,7 @@
         <div><label for="t-customer">Customer name</label><input id="t-customer" required autocomplete="off"><div id="t-customer-suggest" hidden style="border:1px solid #e2e8f0;border-radius:8px;margin-top:4px;max-height:220px;overflow:auto;background:#fff"></div></div>
       </div>
       <label>Vehicle</label>
-      <div id="t-type"></div>
+      <div id="t-veh-type"></div>
       <div class="row"><div><label for="t-year">Year</label><select id="t-year"></select></div><div><label for="t-make">Make</label><select id="t-make"></select></div><div><label for="t-model">Model</label><select id="t-model"></select></div></div>
       <div id="t-prev-vehicles" hidden><label for="t-prev-select">Customer's previous vehicles</label><select id="t-prev-select"><option value="">Choose…</option></select></div>
       <label for="t-vin">VIN <span class="muted" id="t-vin-note">(required on invoices and receipts)</span></label><input id="t-vin" maxlength="17" placeholder="17 characters" style="text-transform:uppercase">
@@ -310,7 +310,7 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 if (window.VehiclePicker) {
-  window._tVeh = VehiclePicker.attach({ year: 't-year', make: 't-make', model: 't-model', type: 't-type', onChange: () => { try { fillVinFromVehicle(); } catch (e) {} } });
+  window._tVeh = VehiclePicker.attach({ year: 't-year', make: 't-make', model: 't-model', type: 't-veh-type', onChange: () => { try { fillVinFromVehicle(); } catch (e) {} } });
   window._ppiVeh = VehiclePicker.attach({ year: 'ppi-year', make: 'ppi-make', model: 'ppi-model', type: 'ppi-type' });
 }
 /* Shared badge renderer: b carries fastResponder, avgRating, reviewCount, certifications */
@@ -785,10 +785,12 @@ function refreshVehicleList() {
 }
 function fillVinFromVehicle() {
   const c = knownCustomer();
-  if (!c) return;
   const v = (window._tVeh ? window._tVeh.vehicleString() : '').trim().toLowerCase();
-  const match = c.vehicles.find(x => x.vehicle.toLowerCase() === v);
-  if (match && match.vin) $('t-vin').value = match.vin;
+  if (c) {
+    const match = c.vehicles.find(x => x.vehicle.toLowerCase() === v);
+    if (match && match.vin) { $('t-vin').value = match.vin; return; }
+  }
+  if (v && window._cardVins && window._cardVins[v]) $('t-vin').value = window._cardVins[v];
 }
 function showTicketForm(show) {
   $('ticket-form').hidden = !show;
@@ -807,9 +809,27 @@ window.createTicketForCustomer = async (i) => {
   await loadCustomerCache();
   $('t-customer').value = c.name;
   refreshVehicleList();
+  // Fallback: if the name did not match the suggestion cache, still offer
+  // this customer's vehicles from the card itself, with their VINs.
+  const wrap = $('t-prev-vehicles'), sel = $('t-prev-select');
+  if (wrap && wrap.hidden) {
+    const seen = new Set(); const vs = [];
+    (c.jobs || []).forEach(j => {
+      const v = String(j.vehicle || '').trim();
+      if (v && !seen.has(v.toLowerCase())) { seen.add(v.toLowerCase()); vs.push({ vehicle: v, vin: j.vin || '' }); }
+    });
+    if (vs.length) {
+      window._cardVins = {};
+      vs.forEach(x => { if (x.vin) window._cardVins[x.vehicle.toLowerCase()] = x.vin; });
+      sel.innerHTML = '<option value="">Choose…</option>';
+      vs.forEach(x => { const o = document.createElement('option'); o.value = x.vehicle; o.textContent = x.vehicle; sel.appendChild(o); });
+      wrap.hidden = false;
+    }
+  }
 };
 $('t-cancel').onclick = () => { resetTicketForm(); showTicketForm(false); };
 function resetTicketForm() {
+  window._cardVins = {};
   $('t-type').disabled = false;
   document.querySelector('#ticket-form button[type="submit"]').textContent = 'Create ticket';
   $('t-customer').value = ''; if (window._tVeh) window._tVeh.reset(); $('t-vin').value = ''; $('t-mileage').value = ''; $('t-notes').value = ''; $('t-warranty').value = '';
@@ -926,7 +946,7 @@ function renderCustomers() {
     });
     const vehiclesBlock = vehMap.size ? `<div style="margin-top:6px"><div class="muted" style="margin-bottom:2px">Vehicles worked on:</div>${[...vehMap.values()].map(v => `<div>${esc(v.vehicle)}${v.vin ? ` · VIN ${esc(v.vin)}` : ''}${v.address ? ` · ${esc(v.address)}` : ''}</div>`).join('')}</div>` : '';
     const earned = c.jobs.filter(j => j.paid).reduce((s, j) => s + Number(j.total || 0), 0);
-    return `<div class="card">${title}<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 6px">${phoneLine}${histBtn}</div>${cityLine}${vehiclesBlock}${c.name ? `<div style="margin-top:10px"><button type="button" onclick="createTicketForCustomer(${i})">Create new ticket</button></div>` : ''}
+    return `<div class="card">${title}<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 6px">${phoneLine}${histBtn}</div>${c.name ? `<div style="margin:6px 0 2px"><button type="button" class="primary" style="width:100%;padding:13px;font-size:1.1rem;margin-top:0" onclick="createTicketForCustomer(${i})">Create new ticket</button></div>` : ''}${cityLine}${vehiclesBlock}
     <div id="cust-hist-${i}" hidden style="margin:6px 0">${c.jobs.map(j => `<div>${esc(j.service)} — ${esc(j.vehicle)} · ${esc(j.date)} · $${Number(j.total).toFixed(2)} · <span class="${j.paid ? 'ok' : ''}">${j.paid ? 'Paid' : 'Booked'}</span>${j.ticketId ? ` · <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('')}<div style="margin-top:8px"><strong>Total spent on service history: $${earned.toFixed(2)}</strong></div></div>
   </div>`;
   }).join('') : '<p class="muted">No customers yet.</p>';
