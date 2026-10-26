@@ -156,10 +156,18 @@
         if (n.vehicle) bits.push(esc(n.vehicle));
         if (n.total != null) bits.push('$' + Number(n.total).toFixed(2));
         bits.push(new Date(n.createdAt).toLocaleDateString());
-        return `<div class="card" style="${n.read ? '' : 'border-left:4px solid #2563eb'}"><strong>${esc(n.title)}</strong><div class="muted">${bits.join(' · ')}</div>${n.requestId ? `<p style="margin:8px 0 0"><button type="button" class="ghost" onclick="(document.getElementById('job-${n.requestId}') || document.getElementById('open-jobs')).scrollIntoView()">View job →</button></p>` : ''}${n.ticketId ? `<p style="margin:8px 0 0"><a href="/job-ticket?id=${n.ticketId}">View ticket →</a></p>` : ''}</div>`;
+        return `<div class="card" style="${n.read ? '' : 'border-left:4px solid #2563eb'}"><strong>${esc(n.title)}</strong><div class="muted">${bits.join(' · ')}</div>${n.requestId ? `<p style="margin:8px 0 0"><button type="button" class="ghost" onclick="viewOwnerJob('${n.requestId}', '${n.ticketId || ''}')">View job →</button></p>` : ''}${n.ticketId ? `<p style="margin:8px 0 0"><a href="/job-ticket?id=${n.ticketId}">View ticket →</a></p>` : ''}</div>`;
       }).join('') : '<p class="muted">No notifications yet. New quotes, estimates, and tickets from your mechanics will show up here.</p>';
     } catch (e) { $('notif-list').innerHTML = '<p class="muted">Notifications could not be loaded.</p>'; }
   }
+  window.viewOwnerJob = (requestId, ticketId) => {
+    // A job with a ticket opens the ticket; anything else keeps the old
+    // behavior of scrolling to the job's own card.
+    if (ticketId) { window.open('/job-ticket?id=' + ticketId, '_blank'); return; }
+    const r = (window._ownerRequests || []).find(x => x.id === requestId);
+    if (r && r.ticketId) { window.open('/job-ticket?id=' + r.ticketId, '_blank'); return; }
+    (document.getElementById('job-' + requestId) || document.getElementById('open-jobs')).scrollIntoView();
+  };
   $('notif-read').onclick = async () => { await post('/api/notifications/read', {}); loadOwnerNotifications(); };
   $('notif-clear').onclick = async () => { await post('/api/notifications/clear', {}); loadOwnerNotifications(); };
   async function loadOwner() { try { await loadOwnerInner(); } catch (e) { const box = document.getElementById('open-jobs'); if (box) box.innerHTML = '<p style="color:#dc2626">Could not load your dashboard. <button type="button" class="ghost" onclick="loadOwner()">Try again</button></p>'; } }
