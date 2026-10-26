@@ -36,8 +36,8 @@
 </head>
 <body>
 <div class="actions noprint"><a href="/dashboard">← Back to dashboard</a> &nbsp; <button onclick="window.print()">Print / Save as PDF</button></div>
-<div id="approval" class="noprint"></div>
 <div class="page" id="ticket"><p>Loading…</p></div>
+<div id="approval" class="noprint"></div>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money = n => '$' + Number(n).toFixed(2);
