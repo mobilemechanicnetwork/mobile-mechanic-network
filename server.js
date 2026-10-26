@@ -128,6 +128,7 @@ function searchCities(q, state, limit) {
 const visitsStore = store('visits.json');
 const searchesStore = store('searches.json');
 const notificationsStore = store('notifications.json');
+const quoteDraftsStore = store('quote-drafts.json');
 function clientIpHash(req) {
   const fwd = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   const ip = fwd || (req.socket && req.socket.remoteAddress) || 'unknown';
@@ -1247,6 +1248,52 @@ const server = http.createServer(async (req, res) => {
         await sendSms(row.phone, `Mobile Mechanic Network: New quote from ${biz.name} for ${row.service} (${row.vehicle}) — $${Number(total).toFixed(2)}.${followUp ? ' This covers additional work on your booked job.' : ''} See it in your dashboard: https://mobilemechanicsinmyarea.com/dashboard`);
       } catch (e) {}
       return sendJson(res, 201, { quote });
+    }
+    // Quote drafts: a mechanic's half-written quote, stored on the server
+    // so it follows them to any device they sign in on. Drafts are
+    // personal notes: they never reach the customer until sent as a quote.
+    if (p === '/api/quote-drafts' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const biz = myBusiness(user.id);
+      const quotes = quotesStore.read();
+      const reqs = requestsStore.read();
+      const rows = quoteDraftsStore.read().filter(d => d.userId === user.id);
+      const live = rows.filter(d => {
+        const row = reqs.find(r => r.id === d.requestId);
+        if (!row || row.status !== 'open' || !requestMatchesBusiness(row, biz)) return false;
+        if (quotes.some(q => q.requestId === d.requestId && q.businessId === biz.id && q.status === 'pending')) return false;
+        return true;
+      });
+      if (live.length !== rows.length) quoteDraftsStore.write(quoteDraftsStore.read().filter(d => d.userId !== user.id || live.some(l => l.requestId === d.requestId)));
+      return sendJson(res, 200, { drafts: live });
+    }
+    const draftMatch = p.match(/^\/api\/quote-drafts\/([0-9a-f-]+)$/);
+    if (draftMatch && (req.method === 'PUT' || req.method === 'DELETE')) {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const biz = myBusiness(user.id);
+      const requestId = draftMatch[1];
+      const rows = quoteDraftsStore.read();
+      const kept = rows.filter(d => !(d.userId === user.id && d.requestId === requestId));
+      if (req.method === 'DELETE') { quoteDraftsStore.write(kept); return sendJson(res, 200, { ok: true }); }
+      const { items, notes } = await parseBody(req);
+      const row = requestsStore.read().find(r => r.id === requestId);
+      if (!row || row.status !== 'open' || !requestMatchesBusiness(row, biz)) return sendJson(res, 400, { error: 'That request is not open in your service area.' });
+      if (quotesStore.read().some(q => q.requestId === requestId && q.businessId === biz.id && q.status === 'pending')) return sendJson(res, 409, { error: 'You already quoted this request.' });
+      let cleanItems = [];
+      if (Array.isArray(items)) for (const it of items.slice(0, 50)) {
+        const desc = String((it && it.desc) || '').trim().slice(0, 200);
+        const amount = Math.round(Number(it && it.amount) * 100) / 100;
+        if (desc && amount > 0) cleanItems.push({ desc, amount });
+      }
+      const cleanNotes = String(notes || '').slice(0, 1000);
+      if (!cleanItems.length && !cleanNotes.trim()) { quoteDraftsStore.write(kept); return sendJson(res, 200, { ok: true, cleared: true }); }
+      kept.push({ userId: user.id, requestId, items: cleanItems, notes: cleanNotes, updatedAt: new Date().toISOString() });
+      quoteDraftsStore.write(kept);
+      return sendJson(res, 200, { ok: true });
     }
     const quoteAction = p.match(/^\/api\/quotes\/([0-9a-f-]+)\/(accept|decline)$/);
     if (quoteAction && req.method === 'POST') {

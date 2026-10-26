@@ -419,6 +419,7 @@ async function loadInbox() {
   window._inboxData = inbox;
   window._booked = inbox.booked || [];
   window._inboxRequests = inbox.requests || [];
+  try { const d = await api('/api/quote-drafts'); window._serverDrafts = {}; (d.drafts || []).forEach(x => { window._serverDrafts[x.requestId] = x; }); } catch (e) { window._serverDrafts = {}; }
   renderInbox();
 }
 function renderInbox() {
@@ -505,21 +506,52 @@ window.addQuoteRow = (rid) => {
   wrap.appendChild(row);
 };
 const quoteDraftKey = rid => 'mmn-quote-draft-' + rid;
-window.saveQuoteDraft = (rid) => {
-  const wrap = document.getElementById('qi-' + rid); if (!wrap) return;
+function readQuoteForm(rid) {
+  const wrap = document.getElementById('qi-' + rid); if (!wrap) return null;
   const items = [...wrap.children].map(row => { const ins = row.querySelectorAll('input'); return { desc: ins[0].value, amount: ins[1].value }; });
   const notesEl = document.getElementById('qn-' + rid);
-  const data = { items, notes: notesEl ? notesEl.value : '' };
+  return { items, notes: notesEl ? notesEl.value : '' };
+}
+window._draftTimers = {};
+async function syncQuoteDraft(rid) {
+  const data = readQuoteForm(rid); if (!data) return;
+  try { await api('/api/quote-drafts/' + rid, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); } catch (e) {}
+}
+window.saveQuoteDraft = (rid) => {
+  const data = readQuoteForm(rid); if (!data) return;
   const hasContent = (data.notes || '').trim() || data.items.some(i => (i.desc || '').trim() || i.amount);
-  try { if (hasContent) localStorage.setItem(quoteDraftKey(rid), JSON.stringify(data)); else localStorage.removeItem(quoteDraftKey(rid)); } catch (e) {}
+  try { if (hasContent) localStorage.setItem(quoteDraftKey(rid), JSON.stringify({ items: data.items, notes: data.notes, at: Date.now() })); else localStorage.removeItem(quoteDraftKey(rid)); } catch (e) {}
+  // Sync to the server (debounced) so the draft follows the mechanic to
+  // any device. The local copy stays as the instant/offline fallback.
+  try {
+    clearTimeout(window._draftTimers[rid]);
+    window._draftTimers[rid] = setTimeout(() => { window._draftTimers[rid] = null; syncQuoteDraft(rid); }, 600);
+  } catch (e) {}
 };
+// Flush any pending sync if the tab closes before the debounce fires.
+window.addEventListener('pagehide', () => {
+  Object.keys(window._draftTimers || {}).forEach(rid => {
+    if (!window._draftTimers[rid]) return;
+    clearTimeout(window._draftTimers[rid]); window._draftTimers[rid] = null;
+    const data = readQuoteForm(rid); if (!data) return;
+    try { fetch('/api/quote-drafts/' + rid, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: true }); } catch (e) {}
+  });
+});
 function restoreQuoteDrafts() {
   // Prune drafts for requests that no longer have an open quote form,
   // but only restore into cards actually on screen (search may hide some).
   const live = new Set((window._inboxRequests || []).filter(r => !r.myQuote).map(r => r.id));
   try { const keys = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('mmn-quote-draft-')) keys.push(k); } keys.forEach(k => { if (!live.has(k.replace('mmn-quote-draft-', ''))) localStorage.removeItem(k); }); } catch (e) {}
   (window._renderedRequests || []).filter(r => !r.myQuote).forEach(r => {
-    let data; try { data = JSON.parse(localStorage.getItem(quoteDraftKey(r.id)) || 'null'); } catch (e) { data = null; }
+    // Newest wins between this device's copy and the server's copy, so a
+    // draft started on another device shows up here, and a just-typed
+    // local draft is pushed up instead of being overwritten.
+    let data = null; let dataAt = 0;
+    try { const l = JSON.parse(localStorage.getItem(quoteDraftKey(r.id)) || 'null'); if (l) { data = l; dataAt = l.at || 0; } } catch (e) {}
+    const s = (window._serverDrafts || {})[r.id];
+    const sAt = s ? new Date(s.updatedAt).getTime() || 0 : 0;
+    if (s && sAt >= dataAt) { data = { items: s.items || [], notes: s.notes || '' }; dataAt = sAt; try { localStorage.setItem(quoteDraftKey(r.id), JSON.stringify({ items: data.items, notes: data.notes, at: sAt })); } catch (e) {} }
+    else if (s && data && dataAt > sAt) { syncQuoteDraft(r.id); }
     if (!data) return;
     const wrap = document.getElementById('qi-' + r.id); if (!wrap) return;
     wrap.innerHTML = '';
@@ -539,7 +571,7 @@ window.sendItemizedQuote = async (rid) => {
     const ins = row.querySelectorAll('input');
     items.push({ desc: ins[0].value, amount: ins[1].value });
   });
-  try { await post('/api/quotes', { requestId: rid, items, notes: document.getElementById('qn-' + rid).value }); try { localStorage.removeItem(quoteDraftKey(rid)); } catch (e) {} loadInbox(); }
+  try { await post('/api/quotes', { requestId: rid, items, notes: document.getElementById('qn-' + rid).value }); try { localStorage.removeItem(quoteDraftKey(rid)); } catch (e) {} try { await api('/api/quote-drafts/' + rid, { method: 'DELETE' }); } catch (e) {} loadInbox(); }
   catch (e) { alert(e.message); }
 };
 
