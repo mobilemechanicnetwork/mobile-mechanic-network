@@ -226,6 +226,7 @@
         <div><label for="t-type">Type</label><select id="t-type"><option value="estimate">Estimate</option><option value="invoice">Invoice</option><option value="receipt">Receipt</option></select></div>
         <div><label for="t-customer">Customer name</label><input id="t-customer" required autocomplete="off"><div id="t-customer-suggest" hidden style="border:1px solid #e2e8f0;border-radius:8px;margin-top:4px;max-height:220px;overflow:auto;background:#fff"></div></div>
       </div>
+      <div><label for="t-phone">Customer phone (optional, for texting the ticket)</label><input id="t-phone" type="tel" autocomplete="tel"></div>
       <label>Vehicle</label>
       <div id="t-veh-type"></div>
       <div class="row"><div><label for="t-year">Year</label><select id="t-year"></select></div><div><label for="t-make">Make</label><select id="t-make"></select></div><div><label for="t-model">Model</label><select id="t-model"></select></div></div>
@@ -245,6 +246,11 @@
       </div>
       <label for="t-notes">Notes (optional)</label><textarea id="t-notes" rows="2"></textarea>
       <label for="t-warranty">Warranty (optional)</label><textarea id="t-warranty" rows="2" placeholder="e.g. 12 months / 12,000 miles on parts and labor"></textarea>
+      <div style="margin:12px 0"><strong>Send to customer</strong>
+      <label style="display:block;margin-top:6px"><input type="checkbox" id="t-send-text" checked> Text it to the customer</label>
+      <label style="display:block"><input type="checkbox" id="t-send-share" checked> Share the PDF from my phone (opens the ticket)</label>
+      <label style="display:block"><input type="checkbox" id="t-send-notify" checked> Notify them in their dashboard</label>
+      <p class="muted" style="margin:4px 0 0">Texts need a phone number above and texting set up; dashboard notices reach customers with an account.</p></div>
       <button class="primary" type="submit">Create ticket</button>
       <button class="ghost" type="button" id="t-cancel">Cancel</button>
       <div class="err" id="t-err"></div><div class="ok" id="t-ok"></div>
@@ -732,11 +738,12 @@ async function loadCustomerCache() {
       api('/api/tickets/customers').catch(() => ({ customers: [] }))
     ]);
     const map = new Map();
-    const add = (name, vehicles) => {
+    const add = (name, vehicles, phone) => {
       const key = String(name || '').trim().toLowerCase();
       if (!key) return;
-      if (!map.has(key)) map.set(key, { name: String(name).trim(), vehicles: [] });
+      if (!map.has(key)) map.set(key, { name: String(name).trim(), vehicles: [], phone: phone || '' });
       const entry = map.get(key);
+      if (phone && !entry.phone) entry.phone = phone;
       (vehicles || []).forEach(v => {
         const veh = typeof v === 'string' ? v : v.vehicle;
         const vin = (v && typeof v === 'object') ? (v.vin || '') : '';
@@ -746,7 +753,7 @@ async function loadCustomerCache() {
         else entry.vehicles.push({ vehicle: veh, vin });
       });
     };
-    (a.customers || []).forEach(c => add(c.name, (c.jobs || []).map(j => j.vehicle)));
+    (a.customers || []).forEach(c => add(c.name, (c.jobs || []).map(j => j.vehicle), c.phone));
     (b.customers || []).forEach(c => add(c.name, c.vehicles));
     KNOWN_CUSTOMERS = [...map.values()].sort((x, y) => x.name.localeCompare(y.name));
   } catch (e) { /* non-fatal */ }
@@ -781,6 +788,7 @@ function refreshVehicleList() {
   sel.innerHTML = '<option value="">Choose…</option>';
   vs.forEach(x => { const o = document.createElement('option'); o.value = x.vehicle; o.textContent = x.vehicle; sel.appendChild(o); });
   wrap.hidden = !vs.length;
+  if (c && c.phone && $('t-phone')) $('t-phone').value = window.PhoneFmt ? window.PhoneFmt.display(c.phone) : c.phone;
   fillVinFromVehicle();
 }
 function fillVinFromVehicle() {
@@ -809,6 +817,7 @@ window.createTicketForCustomer = async (i) => {
   await loadCustomerCache();
   $('t-customer').value = c.name;
   refreshVehicleList();
+  if (c.phone && $('t-phone')) $('t-phone').value = window.PhoneFmt ? window.PhoneFmt.display(c.phone) : c.phone;
   // Fallback: if the name did not match the suggestion cache, still offer
   // this customer's vehicles from the card itself, with their VINs.
   const wrap = $('t-prev-vehicles'), sel = $('t-prev-select');
@@ -832,7 +841,7 @@ function resetTicketForm() {
   window._cardVins = {};
   $('t-type').disabled = false;
   document.querySelector('#ticket-form button[type="submit"]').textContent = 'Create ticket';
-  $('t-customer').value = ''; if (window._tVeh) window._tVeh.reset(); $('t-vin').value = ''; $('t-mileage').value = ''; $('t-notes').value = ''; $('t-warranty').value = '';
+  $('t-customer').value = ''; if ($('t-phone')) $('t-phone').value = ''; if ($('t-send-text')) $('t-send-text').checked = true; if ($('t-send-share')) $('t-send-share').checked = true; if ($('t-send-notify')) $('t-send-notify').checked = true; if (window._tVeh) window._tVeh.reset(); $('t-vin').value = ''; $('t-mileage').value = ''; $('t-notes').value = ''; $('t-warranty').value = '';
   $('t-labor-desc').value = ''; $('t-labor').value = ''; $('t-taxrate').value = '';
   $('t-items').innerHTML = ''; addItemRow('', '', '');
   updateVinRequired(); refreshVehicleList();
@@ -958,11 +967,19 @@ $('ticket-form').onsubmit = async (e) => {
   if (!tVeh) { $('t-err').textContent = 'Please pick the vehicle year, make, and model.'; return; }
   const rows = [...document.querySelectorAll('#t-items .itemrow')];
   const items = rows.map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value }; });
-  const payload = { type: $('t-type').value, customerName: $('t-customer').value, vehicle: tVeh, vin: $('t-vin').value, mileage: $('t-mileage').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, notes: $('t-notes').value, warranty: $('t-warranty').value };
+  const payload = { type: $('t-type').value, customerName: $('t-customer').value, phone: $('t-phone') ? $('t-phone').value : '', vehicle: tVeh, vin: $('t-vin').value, mileage: $('t-mileage').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, notes: $('t-notes').value, warranty: $('t-warranty').value, sendText: $('t-send-text') ? $('t-send-text').checked : false, sendNotify: $('t-send-notify') ? $('t-send-notify').checked : false };
   try {
     const d = await post('/api/tickets', payload);
-    $('t-ok').textContent = 'Ticket created.';
-    window.open('/ticket?id=' + d.ticket.id, '_blank');
+    let msg = 'Ticket created.';
+    if (d.sent) {
+      if (d.sent.text === 'sent') msg += ' Text sent.';
+      else if (d.sent.text === 'no-phone') msg += ' Text skipped: no phone number.';
+      else if (d.sent.text === 'twilio-not-configured') msg += ' Text not sent yet: texting is not set up.';
+      else if (d.sent.text !== 'skipped') msg += ' Text failed to send.';
+      if (payload.sendNotify) msg += d.sent.notified ? ' Dashboard notice sent.' : ' No dashboard notice (no account found).';
+    }
+    $('t-ok').textContent = msg;
+    if ($('t-send-share') ? $('t-send-share').checked : true) window.open('/ticket?id=' + d.ticket.id, '_blank');
     resetTicketForm();
     loadTickets();
     showTicketForm(false);

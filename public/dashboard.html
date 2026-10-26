@@ -33,6 +33,9 @@
 
   <section id="owner" hidden>
     <p><a href="/request"><button type="button">Request quotes</button></a> <a href="/mechanics"><button type="button" class="ghost">Find a mobile mechanic</button></a></p>
+    <h2>Notifications <span id="notif-count" class="muted" style="font-size:1rem"></span></h2>
+    <div id="notif-list"><p class="muted">Loading…</p></div>
+    <p><button type="button" class="ghost" id="notif-read">Mark all read</button> <button type="button" class="ghost" id="notif-clear">Clear all</button></p>
     <h2>Open Jobs</h2>
     <div id="open-jobs"></div>
     <h2>Repair history</h2>
@@ -132,7 +135,25 @@
 
   window._vehPicker = VehiclePicker.attach({ year: 'v-year', make: 'v-make', model: 'v-model', type: 'v-type' });
 
+  async function loadOwnerNotifications() {
+    try {
+      const d = await api('/api/notifications');
+      const notes = d.notifications || [];
+      $('notif-count').textContent = d.unread ? `(${d.unread} unread)` : '';
+      $('notif-list').innerHTML = notes.length ? notes.map(n => {
+        const bits = [];
+        if (n.service) bits.push(esc(n.service));
+        if (n.vehicle) bits.push(esc(n.vehicle));
+        if (n.total != null) bits.push('$' + Number(n.total).toFixed(2));
+        bits.push(new Date(n.createdAt).toLocaleDateString());
+        return `<div class="card" style="${n.read ? '' : 'border-left:4px solid #2563eb'}"><strong>${esc(n.title)}</strong><div class="muted">${bits.join(' · ')}</div>${n.requestId ? `<p style="margin:8px 0 0"><button type="button" class="ghost" onclick="document.getElementById('open-jobs').scrollIntoView()">View job →</button></p>` : ''}</div>`;
+      }).join('') : '<p class="muted">No notifications yet. New quotes, estimates, and tickets from your mechanics will show up here.</p>';
+    } catch (e) { $('notif-list').innerHTML = '<p class="muted">Notifications could not be loaded.</p>'; }
+  }
+  $('notif-read').onclick = async () => { await post('/api/notifications/read', {}); loadOwnerNotifications(); };
+  $('notif-clear').onclick = async () => { await post('/api/notifications/clear', {}); loadOwnerNotifications(); };
   async function loadOwner() {
+    loadOwnerNotifications();
     const me = await api('/api/me');
     if (me.user.isAdmin) $('adminLink').innerHTML = '<a href="/admin">Admin</a> · ';
     $('o-email').textContent = me.user.email;

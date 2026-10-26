@@ -177,11 +177,34 @@ function bindNotes() {
     } catch (e) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = e.message; } }
   });
 }
+function sendHtml() {
+  return `<div class="card" style="margin-top:14px"><h3 style="margin:0 0 6px">Send to customer</h3>
+  <p class="muted" style="margin:0 0 8px">Text it, share the PDF, or notify them in their dashboard.</p>
+  <p style="margin:0;display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="btn-send-text">Text to customer</button> <button type="button" id="btn-send-notify">Notify in dashboard</button> <button type="button" onclick="window.print()">Share PDF</button></p>
+  <div class="ok" id="send-msg" style="margin-top:8px"></div><div class="err" id="send-err"></div></div>`;
+}
+function bindSend() {
+  const msg = document.getElementById('send-msg'), err = document.getElementById('send-err');
+  if (!msg) return;
+  const run = async (body) => {
+    msg.textContent = ''; err.textContent = '';
+    try {
+      const d = await api('/api/tickets/' + T.id + '/send', body);
+      const parts = [];
+      if (body.text) parts.push(d.sent.text === 'sent' ? 'Text sent.' : d.sent.text === 'no-phone' ? 'Text skipped: no phone on file.' : d.sent.text === 'twilio-not-configured' ? 'Text not sent yet: texting is not set up.' : 'Text failed to send.');
+      if (body.notify) parts.push(d.sent.notified ? 'Dashboard notice sent.' : 'No dashboard notice: no account found.');
+      msg.textContent = parts.join(' ');
+    } catch (e) { err.textContent = e.message; }
+  };
+  const bt = document.getElementById('btn-send-text'); if (bt) bt.onclick = () => run({ text: true });
+  const bn = document.getElementById('btn-send-notify'); if (bn) bn.onclick = () => run({ notify: true });
+}
 function renderActions() {
   const box = document.getElementById('ticket-actions');
   if (!T) { box.innerHTML = ''; return; }
   if (T.type === 'receipt') {
-    box.innerHTML = `<div class="card"><p class="muted" style="margin:0">Paid in full. This receipt cannot be edited.</p></div>`;
+    box.innerHTML = `<div class="card"><p class="muted" style="margin:0">Paid in full. This receipt cannot be edited.</p></div>` + sendHtml();
+    bindSend();
     return;
   }
   let html = '<div class="card">';
@@ -223,9 +246,11 @@ function renderActions() {
   html += notesSectionHtml();
   html += commentsSectionHtml();
   html += '</div>';
+  html += sendHtml();
   box.innerHTML = html;
   bindNotes();
   bindComments();
+  bindSend();
   const editForm = document.getElementById('edit-form');
   if (editForm) {
     document.getElementById('btn-edit').onclick = () => {

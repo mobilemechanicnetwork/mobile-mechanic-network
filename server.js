@@ -243,8 +243,22 @@ function ensureTrial(user) {
 }
 
 // Validate and normalize ticket fields. Returns {error} or the cleaned fields.
+function ownerByPhone(phone) {
+  const e164 = normalizePhone(phone);
+  if (!e164) return null;
+  return usersStore.read().find(u => u.role === 'owner' && normalizePhone(u.phone) === e164) || null;
+}
+function pushOwnerNote(ownerId, note) {
+  if (!ownerId) return false;
+  try {
+    const notes = notificationsStore.read();
+    notes.push({ id: crypto.randomUUID(), userId: ownerId, read: false, createdAt: new Date().toISOString(), ...note });
+    notificationsStore.write(notes);
+    return true;
+  } catch (e) { return false; }
+}
 function cleanTicketBody(body, type) {
-  const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage, paymentMethod, jobAddress, comments } = body || {};
+  const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage, paymentMethod, jobAddress, comments, phone } = body || {};
   if (!customerName || !String(customerName).trim()) return { error: 'Customer name is required.' };
   if (!Array.isArray(items) || !items.length) return { error: 'At least one line item is required.' };
   let ticketVin = '';
@@ -281,6 +295,7 @@ function cleanTicketBody(body, type) {
     notes: String(notes || '').trim().slice(0, 1000),
     warranty: String(warranty || '').trim().slice(0, 2000),
     ...(paymentMethod !== undefined ? { paymentMethod: String(paymentMethod || '').trim().slice(0, 50) } : {}),
+    ...(phone !== undefined ? { phone: String(phone || '').trim().slice(0, 25) } : {}),
     ...(jobAddress !== undefined ? { jobAddress: String(jobAddress || '').trim().slice(0, 200) } : {}),
     ...(comments !== undefined ? { comments: String(comments || '').trim().slice(0, 2000) } : {}),
     total
@@ -1224,6 +1239,13 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 409, { error: 'An estimate is already awaiting approval for this job.' });
       const quote = { id: crypto.randomUUID(), requestId, businessId: biz.id, mechanicId: user.id, items: cleanItems, notes: String(notes || '').slice(0, 1000), total, price: total, message: String(message || ''), status: 'pending', followUp, createdAt: new Date().toISOString() };
       quotes.push(quote); quotesStore.write(quotes);
+      // The customer hears about every quote: a dashboard notification
+      // when they have an account, plus a text to the request phone.
+      // Never fails the quote itself.
+      try {
+        if (row.ownerId) pushOwnerNote(row.ownerId, { type: 'quote_received', title: `New quote from ${biz.name}`, service: row.service, vehicle: row.vehicle || '', total, requestId: row.id, businessName: biz.name || '' });
+        await sendSms(row.phone, `Mobile Mechanic Network: New quote from ${biz.name} for ${row.service} (${row.vehicle}) — $${Number(total).toFixed(2)}.${followUp ? ' This covers additional work on your booked job.' : ''} See it in your dashboard: https://mobilemechanicsinmyarea.com/dashboard`);
+      } catch (e) {}
       return sendJson(res, 201, { quote });
     }
     const quoteAction = p.match(/^\/api\/quotes\/([0-9a-f-]+)\/(accept|decline)$/);
@@ -1319,14 +1341,14 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/notifications' && req.method === 'GET') {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
-      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (!['mechanic', 'owner'].includes(user.role)) return sendJson(res, 403, { error: 'Not allowed.' });
       const notes = notificationsStore.read().filter(n => n.userId === user.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       return sendJson(res, 200, { notifications: notes, unread: notes.filter(n => !n.read).length });
     }
     if (p === '/api/notifications/read' && req.method === 'POST') {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
-      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (!['mechanic', 'owner'].includes(user.role)) return sendJson(res, 403, { error: 'Not allowed.' });
       const notes = notificationsStore.read();
       let changed = false;
       for (const n of notes) if (n.userId === user.id && !n.read) { n.read = true; changed = true; }
@@ -1336,7 +1358,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/notifications/clear' && req.method === 'POST') {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
-      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (!['mechanic', 'owner'].includes(user.role)) return sendJson(res, 403, { error: 'Not allowed.' });
       notificationsStore.write(notificationsStore.read().filter(n => n.userId !== user.id));
       return sendJson(res, 200, { ok: true });
     }
@@ -1646,7 +1668,46 @@ const server = http.createServer(async (req, res) => {
       const number = nextTicketNumber(biz.id, tickets);
       const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, number, label: businessAbbrev(biz.name) + '-' + number, ...clean, createdAt: new Date().toISOString() };
       tickets.push(ticket); ticketsStore.write(tickets);
-      return sendJson(res, 201, { ticket });
+      // Optional sends, chosen on the create form. Never fail the ticket.
+      const sent = { text: 'skipped', notified: false };
+      try {
+        const phoneE164 = normalizePhone(ticket.phone);
+        if (body.sendText && phoneE164) {
+          const r = await sendSms(phoneE164, `Mobile Mechanic Network: ${biz.name} sent you a ${type} for ${ticket.vehicle} — $${Number(ticket.total).toFixed(2)}. Ticket ${ticket.label}.`);
+          sent.text = r.sent ? 'sent' : (r.reason || 'failed');
+        } else if (body.sendText) sent.text = 'no-phone';
+        if (body.sendNotify) {
+          const owner = ownerByPhone(phoneE164);
+          sent.notified = pushOwnerNote(owner ? owner.id : null, { type: 'ticket_received', title: `${biz.name} sent you a ${type}`, vehicle: ticket.vehicle || '', total: ticket.total, ticketId: ticket.id, ticketLabel: ticket.label || '', businessName: biz.name || '' });
+        }
+      } catch (e) {}
+      return sendJson(res, 201, { ticket, sent });
+    }
+    const ticketSend = p.match(/^\/api\/tickets\/([0-9a-f-]+)\/send$/);
+    if (ticketSend && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
+      const tickets = ticketsStore.read();
+      const t = tickets.find(x => x.id === ticketSend[1] && x.mechanicId === user.id);
+      if (!t) return sendJson(res, 404, { error: 'Not found.' });
+      const biz = myBusiness(user.id);
+      const body = await parseBody(req);
+      const row = t.requestId ? requestsStore.read().find(r => r.id === t.requestId) : null;
+      const phoneE164 = normalizePhone(t.phone) || (row ? normalizePhone(row.phone) : '');
+      const sent = { text: 'skipped', notified: false };
+      try {
+        if (body.text && phoneE164) {
+          const r = await sendSms(phoneE164, `Mobile Mechanic Network: ${biz ? biz.name : 'Your mechanic'} sent you a ${t.type} for ${t.vehicle} — $${Number(t.total).toFixed(2)}. Ticket ${t.label || ''}.`);
+          sent.text = r.sent ? 'sent' : (r.reason || 'failed');
+        } else if (body.text) sent.text = 'no-phone';
+        if (body.notify) {
+          const owner = row && row.ownerId ? usersStore.read().find(u => u.id === row.ownerId) : ownerByPhone(phoneE164);
+          sent.notified = pushOwnerNote(owner ? owner.id : null, { type: 'ticket_received', title: `${biz ? biz.name : 'Your mechanic'} sent you a ${t.type}`, vehicle: t.vehicle || '', total: t.total, ticketId: t.id, ticketLabel: t.label || '', businessName: biz ? biz.name : '' });
+        }
+      } catch (e) {}
+      return sendJson(res, 200, { sent });
     }
     const ticketUpdate = p.match(/^\/api\/tickets\/([0-9a-f-]+)$/);
     if (ticketUpdate && (req.method === 'PUT' || req.method === 'PATCH')) {
@@ -1871,6 +1932,19 @@ const server = http.createServer(async (req, res) => {
         t.estimateLines = lines; t.estimateStatus = lines.length ? 'draft' : 'none';
       }
       ticketsStore.write(tickets);
+      if (action === 'send') {
+        // Sending an estimate for approval notifies the customer the same
+        // way a quote does: dashboard note plus a text. Never fails send.
+        try {
+          const row = t.requestId ? requestsStore.read().find(r => r.id === t.requestId) : null;
+          const biz = myBusiness(user.id);
+          const estTotal = Math.round(lines.reduce((s, l) => s + Number(l.price || 0), 0) * 100) / 100;
+          const phone = row ? row.phone : t.phone;
+          const owner = row && row.ownerId ? usersStore.read().find(u => u.id === row.ownerId) : ownerByPhone(phone);
+          if (owner) pushOwnerNote(owner.id, { type: 'estimate_received', title: `${biz ? biz.name : 'Your mechanic'} sent an estimate for approval`, service: row ? row.service : '', vehicle: t.vehicle || '', total: estTotal, requestId: t.requestId || null, ticketId: t.id, businessName: biz ? biz.name : '' });
+          await sendSms(phone, `Mobile Mechanic Network: ${biz ? biz.name : 'Your mechanic'} sent an estimate for additional work on ${t.vehicle} — $${Number(estTotal).toFixed(2)}. Approve or deny it in your dashboard: https://mobilemechanicsinmyarea.com/dashboard`);
+        } catch (e) {}
+      }
       return sendJson(res, 200, { ticket: t });
     }
     // Customers tab: prior customers with this mechanic, with their
