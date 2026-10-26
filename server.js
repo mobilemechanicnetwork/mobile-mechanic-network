@@ -296,6 +296,28 @@ function ticketFromAcceptedQuote(quote, row) {
   const biz = businessesStore.read().find(b => b.id === quote.businessId);
   return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', mileage: '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, total: subtotal, createdAt: new Date().toISOString() };
 }
+// Total a customer would owe if they approve extra lines on an invoice.
+// Uses the exact rounding the acceptance handlers use, so the total the
+// customer sees before approving is the total they get after approving.
+function invoiceTotalsAfter(t, lines) {
+  const r2 = n => Math.round(n * 100) / 100;
+  const itemsSum = (t.items || []).reduce((s, it) => s + (it.qty != null ? Number(it.qty) : 1) * Number(it.price != null ? it.price : (it.amount || 0)), 0);
+  const parts = r2(itemsSum);
+  const labor = Number(t.laborAmount || 0);
+  const rate = Number(t.taxRate || 0);
+  const totalFor = extra => {
+    const p = r2(parts + extra);
+    const tax = r2(r2(p + labor) * rate / 100);
+    return r2(p + labor + tax);
+  };
+  const pending = (lines || []).reduce((s, l) => s + Number(l.price || 0), 0);
+  return {
+    approvedTotal: r2(Number(t.total || 0)),
+    pendingTotal: r2(pending),
+    newTotalAll: totalFor(pending),
+    perLineNewTotals: (lines || []).map(l => totalFor(Number(l.price || 0)))
+  };
+}
 // Service areas are stored as "City, ST" strings so a mechanic can serve
 // cities in other states (e.g. Slidell, LA serving Picayune, MS).
 // Legacy bare city names are treated as being in the business's base state.
@@ -1023,18 +1045,29 @@ const server = http.createServer(async (req, res) => {
       const mine = requestsStore.read().filter(r => r.ownerId === user.id).map(r => {
         const reqBiz = r.businessId ? businessesStore.read().find(b => b.id === r.businessId) : null;
         const pendEst = tickets.find(t => t.requestId === r.id && t.type === 'invoice' && t.estimateStatus === 'pending');
+        const inv = tickets.find(t => t.requestId === r.id && t.type === 'invoice');
+        const pendTotals = pendEst ? invoiceTotalsAfter(pendEst, pendEst.estimateLines || []) : null;
+        const jobTicket = tickets.find(t => t.requestId === r.id && (t.type === 'invoice' || t.type === 'receipt'));
         return {
           ...r,
           reviewed: reviews.some(x => x.requestId === r.id),
           paid: tickets.some(t => t.requestId === r.id && t.type === 'receipt'),
-          pendingEstimate: pendEst ? { ticketId: pendEst.id, lines: pendEst.estimateLines || [], total: Math.round((pendEst.estimateLines || []).reduce((s, l) => s + Number(l.price || 0), 0) * 100) / 100 } : null,
+          ticketId: jobTicket ? jobTicket.id : null,
+          pendingEstimate: pendEst ? { ticketId: pendEst.id, lines: (pendEst.estimateLines || []).map((l, i) => ({ desc: l.desc, price: l.price, newTotal: pendTotals.perLineNewTotals[i] })), total: pendTotals.pendingTotal, approvedTotal: pendTotals.approvedTotal, newTotalAll: pendTotals.newTotalAll } : null,
           businessName: reqBiz ? reqBiz.name : '',
           businessCity: reqBiz ? `${reqBiz.city}, ${reqBiz.state}` : '',
           businessLogo: reqBiz && reqBiz.logoUrl ? reqBiz.logoUrl : '',
           businessPhone: reqBiz ? (reqBiz.phone || '') : '',
           quotes: quotes.filter(q => q.requestId === r.id).map(q => {
             const biz = businessesStore.read().find(b => b.id === q.businessId);
-            return { ...q, businessName: biz ? biz.name : 'Mobile mechanic', businessCity: biz ? `${biz.city}, ${biz.state}` : '', businessLogo: biz && biz.logoUrl ? biz.logoUrl : '', businessPhone: biz ? (biz.phone || '') : '', businessWarranty: biz && biz.warranty ? biz.warranty : '' };
+            let extra = {};
+            if (q.followUp && q.status === 'pending' && inv) {
+              const nl = (q.items || []).map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), price: Math.round(Math.max(0, Number(it.amount) || 0) * 100) / 100 })).filter(it => it.desc && it.price > 0);
+              if (!nl.length && Number(q.total) > 0) nl.push({ desc: r.service, price: Math.round(Number(q.total) * 100) / 100 });
+              const ft = invoiceTotalsAfter(inv, nl);
+              extra = { approvedTotal: ft.approvedTotal, newTotalIfApproved: ft.newTotalAll };
+            }
+            return { ...q, businessName: biz ? biz.name : 'Mobile mechanic', businessCity: biz ? `${biz.city}, ${biz.state}` : '', businessLogo: biz && biz.logoUrl ? biz.logoUrl : '', businessPhone: biz ? (biz.phone || '') : '', businessWarranty: biz && biz.warranty ? biz.warranty : '', ...extra };
           }),
         };
       });
@@ -1802,6 +1835,20 @@ const server = http.createServer(async (req, res) => {
       const biz = businessesStore.read().find(b => b.id === t.businessId);
       return sendJson(res, 200, { ticket: t, business: biz ? publicBusiness(biz) : null });
     }
+    // Customer view of their own job's ticket. Owner-only: the ticket must
+    // belong to a request owned by the signed-in user. Mechanic actions
+    // live on /ticket; this endpoint only feeds the customer view.
+    if (p === '/api/job-ticket' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const t = ticketsStore.read().find(x => x.id === url.searchParams.get('id'));
+      if (!t || !t.requestId) return sendJson(res, 404, { error: 'Not found.' });
+      const row = requestsStore.read().find(x => x.id === t.requestId);
+      if (!row || row.ownerId !== user.id) return sendJson(res, 404, { error: 'Not found.' });
+      const biz = businessesStore.read().find(b => b.id === t.businessId);
+      const totals = (t.type === 'invoice' && t.estimateStatus === 'pending') ? invoiceTotalsAfter(t, t.estimateLines || []) : null;
+      return sendJson(res, 200, { ticket: t, business: biz ? publicBusiness(biz) : null, totals });
+    }
 
     // ---------- Billing (90-day free trial, then Stripe subscription) ----------
     const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
@@ -2082,6 +2129,9 @@ const server = http.createServer(async (req, res) => {
     if (p === '/ticket') {
       if (!getSessionUser(req)) { res.writeHead(302, { Location: '/account' }); return res.end(); }
       return serveFile(res, path.join(PUBLIC_DIR, 'ticket.html'));
+    }
+    if (p === '/job-ticket') {
+      return serveFile(res, path.join(PUBLIC_DIR, 'customer-ticket.html'));
     }
     if (p === '/mechanics') return serveFile(res, path.join(PUBLIC_DIR, 'mechanics.html'));
     if (p === '/request') return serveFile(res, path.join(PUBLIC_DIR, 'request.html'));

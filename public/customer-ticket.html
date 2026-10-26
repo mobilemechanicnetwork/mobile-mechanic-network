@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your ticket — Mobile Mechanic Network</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f1f5f9;color:#0f172a}
+  .page{max-width:720px;margin:24px auto;background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+  .head{display:flex;gap:16px;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:16px;margin-bottom:16px}
+  .head img{width:72px;height:72px;object-fit:cover;border-radius:10px}
+  .head h1{margin:0;font-size:1.5rem}
+  .head .sub{color:#475569;font-size:.9rem}
+  .type{display:inline-block;background:#0f172a;color:#fff;border-radius:6px;padding:4px 12px;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+  .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 20px;font-size:.95rem}
+  .meta div span{color:#64748b;font-size:.8rem;display:block;text-transform:uppercase;letter-spacing:.04em}
+  table{width:100%;border-collapse:collapse;margin:8px 0 16px}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #e2e8f0}
+  th{font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+  td.num,th.num{text-align:right}
+  .total{text-align:right;font-size:1.3rem;font-weight:700;margin:8px 0}
+  .notes{background:#f8fafc;border-radius:8px;padding:12px;font-size:.95rem;margin-top:12px}
+  .disc{background:#f8fafc;border-radius:8px;padding:12px;font-size:.9rem;color:#475569;margin-top:12px}
+  .paid{text-align:center;font-weight:700;color:#15803d;font-size:1.1rem;margin:14px 0 4px}
+  .foot{margin-top:28px;padding-top:12px;border-top:1px solid #e2e8f0;color:#64748b;font-size:.85rem;text-align:center}
+  .actions{text-align:center;margin:16px 0}
+  .actions button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:11px 24px;font-size:1rem;cursor:pointer}
+  .actions a{color:#2563eb}
+  .card{max-width:720px;margin:0 auto 24px;background:#fff;border-radius:12px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,.08);border:2px solid #2563eb}
+  .card button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:.95rem;cursor:pointer;margin:4px 4px 4px 0}
+  .card button.decline{background:#fff;color:#dc2626;border:1px solid #fecaca}
+  .err{color:#dc2626;font-size:.9rem;margin-top:8px}
+  .muted{color:#64748b;font-size:.9rem}
+  @media print{ .actions,.noprint{display:none} body{background:#fff} .page{box-shadow:none;margin:0;max-width:none} }
+</style>
+</head>
+<body>
+<div class="actions noprint"><a href="/dashboard">← Back to dashboard</a> &nbsp; <button onclick="window.print()">Print / Save as PDF</button></div>
+<div id="approval" class="noprint"></div>
+<div class="page" id="ticket"><p>Loading…</p></div>
+<script>
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money = n => '$' + Number(n).toFixed(2);
+let T = null, TOT = null;
+async function act(action, line) {
+  const msg = document.getElementById('appr-msg');
+  if (msg) msg.textContent = '';
+  try {
+    const body = (line === undefined || line === null) ? {} : { line };
+    const r = await fetch('/api/tickets/' + T.id + '/estimate/' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Something went wrong.');
+    location.reload();
+  } catch (e) { if (msg) msg.textContent = e.message; else alert(e.message); }
+}
+window.actLine = (action, i) => act(action, i);
+window.actAll = (action) => act(action, null);
+(async () => {
+  const id = new URLSearchParams(location.search).get('id');
+  const box = document.getElementById('ticket');
+  const appr = document.getElementById('approval');
+  try {
+    const r = await fetch('/api/job-ticket?id=' + encodeURIComponent(id || ''));
+    if (r.status === 401) throw new Error('Please sign in to view this ticket.');
+    if (!r.ok) throw new Error('Ticket not found.');
+    const d = await r.json();
+    T = d.ticket; TOT = d.totals;
+    const t = T, b = d.business;
+    if (t.type === 'invoice' && t.estimateStatus === 'pending' && TOT) {
+      appr.innerHTML = `<div class="card">
+        <h2 style="margin:0 0 8px">Estimate for additional work — needs your approval</h2>
+        <p class="muted" style="margin:0 0 12px">These lines are extra work on top of your accepted quote. Approve or deny each line: approved lines join your invoice, denied lines do not, and denied lines will show on your receipt as denied repairs.</p>
+        <div>${(t.estimateLines || []).map((l, i) => `<div style="padding:8px 0;border-bottom:1px solid #e2e8f0"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><span>${esc(l.desc)} — ${money(l.price)}</span><span style="white-space:nowrap"><button onclick="actLine('accept',${i})">Approve</button> <button class="decline" onclick="actLine('decline',${i})">Deny</button></span></div><div class="muted">If you approve this line, your total becomes ${money(TOT.perLineNewTotals[i])}.</div></div>`).join('')}</div>
+        <div style="margin-top:12px"><div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0"><span>Already approved total</span><span>${money(TOT.approvedTotal)}</span></div><div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0"><span>New work total</span><span>${money(TOT.pendingTotal)}</span></div><div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;font-weight:700"><span>New total if you approve all</span><span>${money(TOT.newTotalAll)}</span></div></div>
+        <p><button onclick="actAll('accept')">Approve all</button> <button class="decline" onclick="actAll('decline')">Deny all</button></p>
+        <div class="err" id="appr-msg"></div></div>`;
+    }
+    const isNew = t.items && t.items.length && t.items[0].qty !== undefined;
+    const itemRows = (t.items || []).map(i => isNew
+      ? `<tr><td>${esc(i.desc)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`
+      : `<tr><td>${esc(i.desc)}</td><td class="num">${money(i.amount)}</td></tr>`).join('');
+    const headRow = isNew
+      ? `<tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr>`
+      : `<tr><th>Description</th><th class="num">Amount</th></tr>`;
+    const laborRow = (t.laborAmount > 0) ? `<tr><td>Labor${t.laborDesc ? ' — ' + esc(t.laborDesc) : ''}</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.laborAmount)}</td></tr>` : '';
+    const taxRow = (t.taxAmount > 0) ? `<tr><td>Tax (${esc(t.taxRate)}%)</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.taxAmount)}</td></tr>` : '';
+    const subRow = (isNew && (t.laborAmount > 0 || t.taxAmount > 0)) ? `<tr><td>Parts subtotal</td><td class="num"></td><td class="num"></td><td class="num">${money(t.subtotal)}</td></tr>` : '';
+    box.innerHTML = `
+      <div class="head">
+        ${b && b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
+        <div><h1>${esc(b ? b.name : 'Mobile mechanic')}</h1>
+        <div class="sub">${b ? esc(b.city) + ', ' + esc(b.state) : ''}${b && b.phone ? ' · ' + esc(b.phone) : ''}</div></div>
+      </div>
+      <div class="type" style="${t.type === 'estimate' ? 'background:#2563eb' : t.type === 'receipt' ? 'background:#16a34a' : 'background:#eab308;color:#422006'}">${esc(t.type)}</div>
+      <div class="meta">
+        <div><span>Customer</span>${esc(t.customerName)}</div>
+        <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
+        <div><span>Vehicle</span>${esc(t.vehicle || '—')}</div>
+        ${t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : ''}
+        ${(t.mileage !== '' && t.mileage != null) ? `<div><span>Mileage</span>${Number(t.mileage).toLocaleString('en-US')} mi</div>` : ''}
+        <div><span>Ticket</span>#${esc(t.id.slice(0, 8))}</div>
+        ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}${t.paymentMethod ? ' via ' + esc(t.paymentMethod) : ''}</div>` : ''}
+      </div>
+      <table>${headRow}${itemRows}${subRow}${laborRow}${taxRow}</table>
+      ${(t.estimateLines && t.estimateLines.length && t.estimateStatus === 'pending') ? `<h3 style="margin-top:16px">Estimate — awaiting approval</h3><table><tr><th>Description</th><th class="num">Amount</th></tr>${t.estimateLines.map(l => `<tr><td>${esc(l.desc)}</td><td class="num">${money(l.price)}</td></tr>`).join('')}</table><div class="muted">These lines are not yet on the invoice. They join it only if you approve.</div>` : ''}
+      ${(t.deniedLines && t.deniedLines.length) ? `<h3 style="margin-top:16px">Denied repairs (not performed, not charged)</h3><table><tr><th>Description</th><th class="num">Amount</th></tr>${t.deniedLines.map(l => `<tr><td>${esc(l.desc)}</td><td class="num">${money(l.price)}</td></tr>`).join('')}</table><div class="muted">The customer declined these repairs. They are not included in the total.</div>` : ''}
+      <div class="total">${t.type === 'estimate' ? 'Estimated total' : 'Total'}: ${money(t.total)}</div>
+      ${t.type === 'receipt' && t.paidAt ? `<div class="total">Balance due: $0.00</div><div class="paid">Paid in full. Thank you for your business.</div>` : ''}
+      ${t.notes ? `<div class="notes"><strong>Notes:</strong> ${esc(t.notes)}</div>` : ''}
+      ${t.warranty ? `<div class="notes"><strong>Warranty:</strong> ${esc(t.warranty)}</div>` : ''}
+      ${t.type === 'estimate' ? `<div class="disc">This is an estimate only and is not a final invoice. The work and price listed above are what is quoted. No additional charges will be added without your approval.</div>` : ''}
+      <div class="foot">Prepared by ${esc(b ? b.name : '')}${b && b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network${t.type === 'receipt' ? '<br>This receipt confirms payment received in full for the services listed above.' : ''}</div>`;
+    document.title = t.type.charAt(0).toUpperCase() + t.type.slice(1) + ' — ' + (b ? b.name : '');
+  } catch (e) { box.innerHTML = '<p>' + esc(e.message) + ' <a href="/dashboard">Back to dashboard</a></p>'; }
+})();
+</script>
+</body>
+</html>
