@@ -21,18 +21,28 @@
   .checks label{display:inline-block;margin:4px 10px 4px 0}
   .err{color:#dc2626;font-size:.9rem} .ok{color:#16a34a;font-size:.9rem}
   .price{font-size:1.2rem;font-weight:700}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:16px;border-bottom:1px solid #e2e8f0;margin-bottom:28px}
+  .topbar .actions{display:flex;gap:14px;align-items:center}
+  .welcome{text-align:left;margin-bottom:4px}
+  .welcome h1{font-size:1.9rem;font-weight:800;letter-spacing:-.02em;margin:0 0 6px}
+  .welcome .muted{margin:0}
+  .top-actions{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 28px}
 </style>
 </head>
 <body>
 <main>
-  <div style="text-align:left"><a href="/"><img src="/header-logo.webp" alt="Mobile Mechanic Network" style="width:220px;max-width:60vw;height:auto;border-radius:10px"></a></div>
-  <h1 id="hello">My dashboard</h1>
-  <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600">Add your phone number below so mechanics can reach you with quotes. <a href="#owner" id="phone-banner-link" style="color:#b91c1c">Add it in My info ↓</a></div>
-  <p class="muted" id="who"></p>
-  <p><a href="/security">Security</a> · <span id="adminLink"></span><button type="button" class="ghost" id="logout">Log out</button></p>
+  <header class="topbar">
+    <a href="/"><img src="/header-logo.webp" alt="Mobile Mechanic Network" style="width:180px;max-width:55vw;height:auto;border-radius:10px;display:block"></a>
+    <div class="actions"><a href="/security">Security</a> · <span id="adminLink"></span><button type="button" class="ghost" id="logout">Log out</button></div>
+  </header>
+  <div class="welcome">
+    <h1 id="hello">My dashboard</h1>
+    <p class="muted" id="who"></p>
+  </div>
+  <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600;text-align:left">Add your phone number below so mechanics can reach you with quotes. <a href="#owner" id="phone-banner-link" style="color:#b91c1c">Add it in My info ↓</a></div>
 
   <section id="owner" hidden>
-    <p><button type="button" onclick="location.href='/request'">Request quotes</button> <button type="button" class="ghost" onclick="location.href='/mechanics'">Find a mobile mechanic</button></p>
+    <p class="top-actions"><button type="button" onclick="location.href='/request'">Request quotes</button> <button type="button" class="ghost" onclick="location.href='/mechanics'">Find a mobile mechanic</button></p>
     <h2>Notifications <span id="notif-count" class="muted" style="font-size:1rem"></span></h2>
     <div id="notif-list"><p class="muted">Loading…</p></div>
     <p><button type="button" class="ghost" id="notif-read">Mark all read</button> <button type="button" class="ghost" id="notif-clear">Clear all</button></p>
