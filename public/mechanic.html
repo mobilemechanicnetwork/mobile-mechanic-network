@@ -376,7 +376,7 @@ async function loadInbox() {
   box.innerHTML = inbox.requests.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
     ${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)} · ${esc(r.ownerName)}${r.phone ? ` · <a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · <a href="sms:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
     <p>${esc(r.description)}</p>
-    ${r.myQuote ? `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p>${r.myQuote.status === 'pending' ? `<p><button type="button" class="ghost" onclick="textQuote('${r.id}')">Text quote from my phone</button></p>` : ''}` : `
+    ${r.myQuote ? (r.myQuote.status === 'declined' ? `<p>You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (<span style="color:#dc2626;font-weight:700">denied</span>).</p>` : `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p>${r.myQuote.status === 'pending' ? `<p><button type="button" class="ghost" onclick="textQuote('${r.id}')">Text quote from my phone</button></p>` : ''}`) : `
     <div id="qb-${r.id}">
       <p style="margin:8px 0 4px"><strong>Build your itemized quote</strong> <span class="muted">— sent under your business name</span></p>
       <div id="qi-${r.id}"></div>
@@ -804,8 +804,13 @@ updateVinRequired();
 async function loadTickets() {
   const d = await api('/api/tickets/me');
   window._tickets = d.tickets || [];
+  const ticketBadge = t => t.type === 'estimate'
+    ? '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:#dbeafe;color:#1e40af">Estimate</span>'
+    : t.type === 'receipt'
+    ? '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:#dcfce7;color:#15803d">Completed</span>'
+    : '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:#fef08a;color:#854d0e">Active</span>';
   $('ticket-list').innerHTML = d.tickets.length ? d.tickets.map(t => `<div class="card">
-    <h3 style="text-transform:capitalize">${esc(t.type)} — $${esc(t.total)}</h3>
+    <h3>${ticketBadge(t)} — $${esc(t.total)}</h3>
     <div class="muted">${esc(t.customerName)}${t.vehicle ? ' · ' + esc(t.vehicle) : ''} · ${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() + (t.paymentMethod ? ' via ' + esc(t.paymentMethod) : '') : ''}</div>
     <p><a href="/ticket?id=${t.id}" target="_blank"><button class="ghost" type="button">View / Print</button></a>
     ${(t.type === 'estimate') ? `<button class="ghost" type="button" onclick="editTicket('${t.id}')">Edit</button>` : ''}

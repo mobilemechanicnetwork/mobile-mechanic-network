@@ -57,7 +57,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;
         <div><h1>${esc(b ? b.name : 'Mobile mechanic')}</h1>
         <div class="sub">${b ? esc(b.city) + ', ' + esc(b.state) : ''}${b && b.phone ? ' · ' + esc(b.phone) : ''}</div></div>
       </div>
-      <div class="type">${esc(t.type)}</div>
+      <div class="type" style="${t.type === 'estimate' ? 'background:#2563eb' : t.type === 'receipt' ? 'background:#16a34a' : 'background:#eab308;color:#422006'}">${esc(t.type)}</div>
       <div class="meta">
         <div><span>Customer</span>${esc(t.customerName)}</div>
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
