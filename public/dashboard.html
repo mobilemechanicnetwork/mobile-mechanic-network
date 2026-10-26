@@ -245,6 +245,7 @@
       ${(() => { const e = histExtra[r.id]; if (!e || !e.gv || !e.gv.photoUrl) return ''; const st = e.gv.photoKind === 'logo' ? 'width:72px;height:72px;object-fit:contain;background:#ffffff;padding:6px;box-sizing:border-box;border-radius:10px;flex:none' : 'width:72px;height:72px;object-fit:cover;border-radius:10px;flex:none'; return `<img src="${esc(e.gv.photoUrl)}" alt="" style="${st}">`; })()}
       <div style="text-align:left;flex:1">
       <strong>${r.service}</strong> — ${r.vehicle}<div class="muted">${r.city}, ${r.state} · ${new Date(r.createdAt).toLocaleDateString()}${r.date ? ' · Needed by ' + r.date : ''} · ${pill(r)}</div>
+      ${r.setPrice != null ? `<div style="margin-top:4px"><strong>Set price for this job: $${Number(r.setPrice).toFixed(2)}</strong> <span class="muted">— from the mechanic's set price list. They will call to set up the appointment.</span></div>` : ''}
       ${(() => { const e = histExtra[r.id]; const m = e && e.mech; if (!m || !m.name) return ''; return `<div style="margin-top:6px">${m.logo ? `<img src="${esc(m.logo)}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:6px">` : ''}<span class="muted">${m.label}</span> <strong>${esc(m.name)}</strong>${m.city ? ` <span class="muted">(${esc(m.city)})</span>` : ''}${m.phone ? ` · <a href="tel:${esc(m.phone.replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(m.phone) : m.phone)}</a>` : ''}</div>`; })()}
       </div>
       </div>

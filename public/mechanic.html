@@ -120,6 +120,7 @@
     <button data-tab="promos">Promotions</button>
     <button data-tab="photos">Photos</button>
     <button data-tab="tickets">Tickets</button>
+    <button data-tab="calendar">Calendar</button>
     <button data-tab="customers">Customers</button>
     <button data-tab="earnings">Earnings</button>
     <button data-tab="inspections">Inspections</button>
@@ -162,6 +163,8 @@
       <label>Other cities you serve</label><div id="b-cities"></div><p class="muted" style="font-size:.82rem;margin:4px 0 0">Requests are only sent to you for cities you serve. Your base city is always included.</p>
       <label>Services you offer</label>
       <div class="checks" id="b-services"></div>
+      <label style="margin-top:10px">Set prices <span class="muted">(optional — shown on your profile, and attached to quote requests for that service)</span></label>
+      <div id="b-prices"></div>
       <label style="margin-top:10px">Vehicle types you service</label>
       <div class="checks" id="b-vtypes">
         <label class="chip"><input type="checkbox" value="car" checked> Cars & trucks</label>
@@ -260,6 +263,21 @@
     <div id="ticket-list"></div>
   </section>
 
+  <section class="tab" id="tab-calendar">
+    <h2>Calendar</h2>
+    <p class="muted">Upcoming jobs, soonest first. Booked jobs show up here automatically; add anything you set up by phone below.</p>
+    <form id="cal-form">
+      <div class="row">
+        <div><label for="cal-date">Date</label><input id="cal-date" type="date" required></div>
+        <div><label for="cal-title">Job</label><input id="cal-title" required placeholder="e.g. Oil change for Thomas — 2019 F-150"></div>
+      </div>
+      <label for="cal-notes">Notes (optional)</label><input id="cal-notes" placeholder="e.g. Customer will text the address in the morning">
+      <button class="primary" type="submit">Add to calendar</button>
+      <div class="err" id="cal-err"></div><div class="ok" id="cal-ok"></div>
+    </form>
+    <div id="cal-list" style="margin-top:16px"></div>
+  </section>
+
   <section class="tab" id="tab-customers">
     <h2>Customers</h2>
     <p class="muted">Prior customers and their service history with you. A customer appears here once they have a booked or billed job.</p>
@@ -346,6 +364,7 @@ document.querySelectorAll('.tabs button').forEach(b => {
     if (b.dataset.tab === 'profile') renderPvView();
     if (b.dataset.tab === 'notifications') loadNotifications(true);
     if (b.dataset.tab === 'customers') loadCustomers();
+    if (b.dataset.tab === 'calendar') loadCalendar();
   };
 });
 $('logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout', {}); location.href = '/'; };
@@ -409,7 +428,7 @@ function historyButton(r) {
 }
 function historyBlock(r) {
   if (!r.history || !r.history.length) return '';
-  return `<div id="hist-${r.id}" hidden style="margin:8px 0;padding:10px;background:#f8fafc;border-radius:10px"><strong>Service history with you</strong>${r.history.map(h => `<div class="muted">${esc(h.service)} — ${esc(h.vehicle)}${h.date ? ' · ' + esc(h.date) : ''}${h.total != null ? ' · $' + Number(h.total).toFixed(2) : ''} · ${h.paid ? 'Paid' : 'Booked'}</div>`).join('')}</div>`;
+  return `<div id="hist-${r.id}" hidden style="margin:8px 0;padding:10px;background:#f8fafc;border-radius:10px"><strong>Service history with you</strong>${r.history.map(h => `<div class="muted">${esc(h.service)} — ${esc(h.vehicle)}${h.date ? ' · ' + esc(h.date) : ''}${h.total != null ? ' · $' + Number(h.total).toFixed(2) : ''} · ${h.paid ? 'Paid' : 'Booked'}${h.ticketId ? ` · <a href="/ticket?id=${h.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('')}</div>`;
 }
 window.toggleHist = (id) => { const el = $('hist-' + id); if (el) el.hidden = !el.hidden; };
 
@@ -446,7 +465,7 @@ function renderInbox() {
   if (!reqList.length) { box.innerHTML = q ? '<p class="muted">No open requests match your search.</p>' : '<p class="muted">No open requests match your area and services right now.</p>'; return; }
   reqList.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
   box.innerHTML = reqList.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
-    ${r.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(r.ownerName)}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(r)}${historyButton(r)}</div>${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)}${r.phone ? ` · <a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · <a href="sms:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
+    ${r.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(r.ownerName)}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(r)}${historyButton(r)}</div>${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}${r.setPrice != null ? ` <span class="ok">Set price: $${Number(r.setPrice).toFixed(2)}</span>` : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)}${r.phone ? ` · <a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · <a href="sms:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
     <p>${esc(r.description)}</p>
     ${historyBlock(r)}
     ${r.myQuote ? (r.myQuote.status === 'declined' ? `<p>You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (<span style="color:#dc2626;font-weight:700">denied</span>).</p><p><a href="/quote?id=${r.myQuote.id}" target="_blank">View quote →</a></p>` : `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p><p><a href="/quote?id=${r.myQuote.id}" target="_blank">View quote →</a>${r.myQuote.status === 'pending' ? ` <button type="button" class="ghost" onclick="textQuote('${r.id}')">Text quote from my phone</button>` : ''}</p>`) : `
@@ -462,6 +481,41 @@ function renderInbox() {
   reqList.forEach(r => { if (!r.myQuote) { addQuoteRow(r.id); const qn = document.getElementById('qn-' + r.id); if (qn) qn.oninput = () => saveQuoteDraft(r.id); } });
   restoreQuoteDrafts();
 }
+
+/* ---------- Calendar: upcoming jobs list ---------- */
+async function loadCalendar() {
+  try { const d = await api('/api/calendar'); window._calManual = d.entries || []; } catch (e) { window._calManual = []; }
+  renderCalendar();
+}
+function renderCalendar() {
+  const box = $('cal-list');
+  const booked = (window._booked || []).filter(b => !b.paid);
+  const rows = [];
+  for (const b of booked) rows.push({ date: b.date || '', kind: 'booked', title: (b.ownerName ? b.ownerName + ' — ' : '') + b.service + ' — ' + b.vehicle, phone: b.phone, address: b.address || '', ticketId: b.ticketId || null, createdAt: b.createdAt || '' });
+  for (const e of (window._calManual || [])) rows.push({ date: e.date || '', kind: 'manual', id: e.id, title: e.title, notes: e.notes || '', createdAt: e.createdAt || '' });
+  const dated = rows.filter(r => r.date).sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.createdAt).localeCompare(String(b.createdAt)));
+  const undated = rows.filter(r => !r.date);
+  const rowHtml = r => `<div class="card">
+    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><strong>${esc(r.title)}</strong>${r.date ? `<span class="muted">${new Date(r.date + 'T00:00:00').toLocaleDateString()}</span>` : ''}</div>
+    ${r.kind === 'booked' ? `<div class="muted" style="margin-top:4px">${r.phone ? `<a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · ` : ''}${r.address ? esc(r.address) + ' · ' : ''}<span class="ok">Booked</span></div>${r.ticketId ? `<p style="margin:8px 0 0"><a href="/ticket?id=${r.ticketId}" target="_blank">View ticket →</a></p>` : ''}` : `<div class="muted" style="margin-top:4px">${esc(r.notes)}</div><p style="margin:8px 0 0"><button type="button" class="danger" onclick="delCalEntry('${r.id}')">Delete</button></p>`}
+  </div>`;
+  box.innerHTML = (dated.length ? `<h3>Upcoming</h3>` + dated.map(rowHtml).join('') : '<p class="muted">No upcoming jobs with a date yet.</p>')
+    + (undated.length ? `<h3>Booked jobs with no date set</h3>` + undated.map(rowHtml).join('') : '');
+}
+window.delCalEntry = async (id) => {
+  if (!confirm('Delete this calendar entry?')) return;
+  await api('/api/calendar/' + id, { method: 'DELETE' });
+  loadCalendar();
+};
+$('cal-form').onsubmit = async (e) => {
+  e.preventDefault(); $('cal-err').textContent = ''; $('cal-ok').textContent = '';
+  try {
+    await post('/api/calendar', { date: $('cal-date').value, title: $('cal-title').value, notes: $('cal-notes').value });
+    $('cal-ok').textContent = 'Added.';
+    $('cal-date').value = ''; $('cal-title').value = ''; $('cal-notes').value = '';
+    loadCalendar();
+  } catch (ex) { $('cal-err').textContent = ex.message; }
+};
 document.getElementById('req-search').addEventListener('input', renderInbox);
 $('req-refresh').onclick = () => loadInbox();
 window.textQuote = (rid) => {
@@ -594,6 +648,7 @@ async function loadProfile() {
     document.querySelectorAll('#b-services input').forEach(c => { c.checked = (b.services || []).includes(c.value); });
     document.querySelectorAll('#b-vtypes input').forEach(c => { c.checked = (b.vehicleTypes || ['car']).includes(c.value); });
     $('b-urgent').checked = !!b.acceptUrgent;
+    renderPriceInputs(b.prices || []);
     if (b.logoUrl) { $('b-logo-preview').src = b.logoUrl; $('b-logo-preview').style.display = 'block'; }
     if (b.coverUrl) { $('b-cover-wrap').style.display = 'block'; $('b-cover-preview').src = b.coverUrl; $('b-cover-preview').style.objectPosition = b.coverPosition || '50% 50%'; }
     renderGallery(b.gallery || []);
@@ -643,6 +698,7 @@ async function renderPvView() {
         ${b.about ? `<div class="card"><h3>About</h3><p style="margin:0">${esc(b.about)}</p></div>` : `<div class="card"><h3>About</h3><p class="muted" style="margin:0">No description yet. <a href="#" id="pv-edit-about">Add one</a>.</p></div>`}
         <div class="card"><h3>Services</h3><div>${(b.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('') || '<span class="muted">No services selected.</span>'}</div></div>
         <div class="card"><h3>Service area</h3><p class="muted" style="margin:0">${esc([(b.city + ', ' + b.state), ...(b.serviceCities || [])].join('; '))}</p></div>
+        ${(b.prices || []).length ? `<div class="card"><h3>Set prices</h3>${(b.prices || []).map(pr => `<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid #e2e8f0"><span>${esc(pr.service)}</span><strong>$${Number(pr.price).toFixed(2)}</strong></div>`).join('')}</div>` : ''}
         ${gallery ? `<div class="card"><h3>Photos</h3><div class="gallery">${gallery}</div></div>` : ''}
         ${b.promotion ? `<div class="card"><h3>Current special</h3><div class="promo"><strong>${esc(b.promotion.title)}</strong><div class="muted">${esc(b.promotion.description || '')}${b.promotion.validUntil ? ' · Valid until ' + esc(b.promotion.validUntil) : ''}</div></div></div>` : ''}
         ${b.warranty ? `<div class="card"><h3>Warranty</h3><p style="margin:0">${esc(b.warranty)}</p></div>` : ''}
@@ -735,6 +791,30 @@ $('b-cover').onchange = () => { const f = $('b-cover').files[0]; if (f) { $('b-c
   cov.addEventListener('pointerup', endDrag);
   cov.addEventListener('pointercancel', endDrag);
 })();
+
+/* ---------- Set prices: one price per service you offer ---------- */
+function collectPrices() {
+  const out = [];
+  document.querySelectorAll('#b-prices input[data-service]').forEach(inp => {
+    const v = Number(inp.value);
+    if (inp.value !== '' && Number.isFinite(v) && v > 0) out.push({ service: inp.dataset.service, price: Math.round(v * 100) / 100 });
+  });
+  return out;
+}
+function renderPriceInputs(preset) {
+  const prev = {};
+  document.querySelectorAll('#b-prices input[data-service]').forEach(inp => { prev[inp.dataset.service] = inp.value; });
+  const map = {};
+  (preset || []).forEach(p => { map[p.service] = p.price; });
+  const checked = [...document.querySelectorAll('#b-services input:checked')].map(c => c.value);
+  const box = $('b-prices');
+  if (!checked.length) { box.innerHTML = '<p class="muted" style="font-size:.85rem">Check a service above to set a price for it.</p>'; return; }
+  box.innerHTML = checked.map(svc => {
+    const v = prev[svc] !== undefined ? prev[svc] : (map[svc] != null ? map[svc] : '');
+    return `<div style="display:flex;gap:8px;align-items:center;margin:4px 0"><span style="flex:1">${esc(svc)}</span><span>$</span><input data-service="${esc(svc)}" type="number" min="0" step="0.01" value="${esc(String(v))}" placeholder="e.g. 100" style="width:110px"></div>`;
+  }).join('');
+}
+document.getElementById('b-services').addEventListener('change', () => renderPriceInputs());
 $('biz-form').onsubmit = async (e) => {
   e.preventDefault(); $('b-err').textContent = ''; $('b-ok').textContent = '';
   const services = [...document.querySelectorAll('#b-services input:checked')].map(c => c.value);
@@ -742,7 +822,7 @@ $('biz-form').onsubmit = async (e) => {
   try {
     const socials = {};
     for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website', 'google']) socials[k] = $('b-soc-' + k).value;
-    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: window.cityChips.get(), services, vehicleTypes, about: $('b-about').value, phone: $('b-phone').value, socials, warranty: $('b-warranty').value, acceptUrgent: $('b-urgent').checked, certifications: $('b-certs').value.split('\n') };
+    const body = { name: $('b-name').value, city: $('b-city').value, state: $('b-state').value, serviceCities: window.cityChips.get(), services, vehicleTypes, about: $('b-about').value, phone: $('b-phone').value, socials, warranty: $('b-warranty').value, acceptUrgent: $('b-urgent').checked, certifications: $('b-certs').value.split('\n'), prices: collectPrices() };
     if ($('b-logo').files.length) body.logoUrl = await uploadImage('logo', $('b-logo').files[0]);
     if ($('b-cover').files.length) body.coverUrl = await uploadImage('cover', $('b-cover').files[0]);
     if ($('b-cover-wrap').style.display !== 'none') {

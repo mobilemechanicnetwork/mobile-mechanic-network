@@ -36,6 +36,7 @@ const requestsStore = store('requests.json');
 const quotesStore = store('quotes.json');
 const promotionsStore = store('promotions.json');
 const ticketsStore = store('tickets.json');
+const calendarStore = store('calendar.json');
 const vehiclesStore = store('vehicles.json');
 const helpStore = store('help.json');
 const smsCodeStore = store('smscodes.json'); // password-reset + 2FA + login-challenge codes
@@ -410,7 +411,7 @@ function requestMatchesBusiness(reqRow, biz) {
 function publicBusiness(b) {
   const owner = usersStore.read().find(u => u.id === b.userId);
   const rating = businessRating(b.id);
-  return { id: b.id, name: b.name, city: b.city, state: b.state, serviceCities: b.serviceCities || [], services: b.services, vehicleTypes: Array.isArray(b.vehicleTypes) && b.vehicleTypes.length ? b.vehicleTypes : ['car'], about: b.about, phone: b.phone || '', logoUrl: b.logoUrl || '', coverUrl: b.coverUrl || '', coverPosition: b.coverPosition || '50% 50%', gallery: b.gallery || [], socials: b.socials || {}, warranty: b.warranty || '', acceptUrgent: !!b.acceptUrgent, certifications: b.certifications || [], avgRating: rating.avg, reviewCount: rating.count, fastResponder: isFastResponder(b.id), mechanicName: owner ? owner.name : '' };
+  return { id: b.id, name: b.name, city: b.city, state: b.state, serviceCities: b.serviceCities || [], services: b.services, vehicleTypes: Array.isArray(b.vehicleTypes) && b.vehicleTypes.length ? b.vehicleTypes : ['car'], about: b.about, phone: b.phone || '', logoUrl: b.logoUrl || '', coverUrl: b.coverUrl || '', coverPosition: b.coverPosition || '50% 50%', gallery: b.gallery || [], socials: b.socials || {}, warranty: b.warranty || '', acceptUrgent: !!b.acceptUrgent, certifications: b.certifications || [], prices: b.prices || [], avgRating: rating.avg, reviewCount: rating.count, fastResponder: isFastResponder(b.id), mechanicName: owner ? owner.name : '' };
 }
 function businessRating(businessId) {
   const revs = reviewsStore.read().filter(r => r.businessId === businessId);
@@ -459,6 +460,23 @@ async function sendSms(to, body) {
     return { sent: true };
   } catch (e) { return { sent: false, reason: 'error' }; }
 }
+// Set prices: one price per service, kept only for services the mechanic
+// currently offers. A price on a service rides onto one-to-one quote
+// requests for that service.
+function cleanPrices(prices, services) {
+  if (!Array.isArray(prices)) return [];
+  const out = [];
+  for (const p of prices.slice(0, 30)) {
+    if (!p || !SERVICES.includes(p.service)) continue;
+    if (!services.includes(p.service)) continue;
+    const v = Math.round(Number(p.price) * 100) / 100;
+    if (!Number.isFinite(v) || v <= 0 || v > 1000000) continue;
+    if (out.some(x => x.service === p.service)) continue;
+    out.push({ service: p.service, price: v });
+  }
+  return out;
+}
+
 function latestPromotion(businessId) {
   const all = promotionsStore.read().filter(x => x.businessId === businessId);
   all.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
@@ -541,7 +559,7 @@ const server = http.createServer(async (req, res) => {
       users.push(user); usersStore.write(users);
       if (role === 'owner') {
         try {
-          const rows = requestsStore.read();
+      const rows = requestsStore.read();
           let claimed = false;
           const claimedRows = [];
           rows.forEach(r => { if (!r.ownerId && r.phone === user.phone) { r.ownerId = user.id; r.ownerName = user.name; delete r.guest; claimed = true; claimedRows.push(r); } });
@@ -944,7 +962,7 @@ const server = http.createServer(async (req, res) => {
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Only mobile mechanic accounts have a business page.' });
       if (mechanicFrozen(user)) return frozenError(res);
-      const { name, city, state, serviceCities, services, about, phone, logoUrl, coverUrl, coverPosition, socials, warranty, acceptUrgent, certifications, vehicleTypes } = await parseBody(req);
+      const { name, city, state, serviceCities, services, about, phone, logoUrl, coverUrl, coverPosition, socials, warranty, acceptUrgent, certifications, vehicleTypes, prices } = await parseBody(req);
       if (!name || !city || !state || !Array.isArray(services) || services.length === 0)
         return sendJson(res, 400, { error: 'Business name, city, state, and at least one service are required.' });
       const cleanServices = services.filter(s => SERVICES.includes(s));
@@ -969,7 +987,7 @@ const server = http.createServer(async (req, res) => {
         const v = String(socials[k] || '').trim().slice(0, 300);
         if (v) cleanSocials[k] = v;
       }
-      const fields = { name: String(name).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), serviceCities: cleanCities, services: cleanServices, vehicleTypes: cleanTypes, about: String(about || ''), phone: String(phone || '').trim(), socials: cleanSocials, warranty: String(warranty || '').trim().slice(0, 2000), acceptUrgent: acceptUrgent === true, certifications: cleanCertifications(certifications) };
+      const fields = { name: String(name).trim(), city: String(city).trim(), state: String(state).trim().toUpperCase(), serviceCities: cleanCities, services: cleanServices, vehicleTypes: cleanTypes, about: String(about || ''), phone: String(phone || '').trim(), socials: cleanSocials, warranty: String(warranty || '').trim().slice(0, 2000), acceptUrgent: acceptUrgent === true, certifications: cleanCertifications(certifications), ...(prices !== undefined ? { prices: cleanPrices(prices, cleanServices) } : {}) };
       const cpm = String(coverPosition || '').trim().match(/^(\d{1,3}(?:\.\d+)?)% (\d{1,3}(?:\.\d+)?)%$/);
       if (cpm) fields.coverPosition = Math.min(100, Math.max(0, Math.round(parseFloat(cpm[1])))) + '% ' + Math.min(100, Math.max(0, Math.round(parseFloat(cpm[2])))) + '%';
       if (typeof logoUrl === 'string' && logoUrl.startsWith('/uploads/')) fields.logoUrl = logoUrl;
@@ -1050,7 +1068,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/requests' && req.method === 'POST') {
       const user = getSessionUser(req);
       if (user && user.role !== 'owner') return sendJson(res, 403, { error: 'Only vehicle owner accounts can request quotes.' });
-      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip, businessId, vehicleType, vehicleYear, vehicleMake, vehicleModel, name } = await parseBody(req);
+      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip, businessId, vehicleType, vehicleYear, vehicleMake, vehicleModel, name, fromProfile } = await parseBody(req);
       const e164 = normalizePhone(phone);
       if (!city || !state || !SERVICES.includes(service) || !vehicle || !description || !e164)
         return sendJson(res, 400, { error: 'City, state, service, vehicle, a description, and a valid 10-digit phone number are required.' });
@@ -1071,8 +1089,9 @@ const server = http.createServer(async (req, res) => {
         cleanVinValue = cleanVin(vin);
         if (!cleanVinValue) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
       }
+      const setPrice = (fromProfile === true && targetBiz && Array.isArray(targetBiz.prices)) ? (targetBiz.prices.find(pr => pr.service === service) || {}).price : null;
       const rows = requestsStore.read();
-      const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : String(name || '').trim().slice(0, 100), guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vehicleType: vt, vehicleYear: String(vehicleYear || '').slice(0, 10), vehicleMake: String(vehicleMake || '').slice(0, 60), vehicleModel: String(vehicleModel || '').slice(0, 60), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, createdAt: new Date().toISOString() };
+      const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : String(name || '').trim().slice(0, 100), guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vehicleType: vt, vehicleYear: String(vehicleYear || '').slice(0, 10), vehicleMake: String(vehicleMake || '').slice(0, 60), vehicleModel: String(vehicleModel || '').slice(0, 60), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, ...(setPrice != null ? { setPrice } : {}), createdAt: new Date().toISOString() };
       rows.push(row); requestsStore.write(rows);
       const recipients = targetBiz ? [targetBiz] : businessesStore.read().filter(b => requestMatchesBusiness(row, b));
       // A request sitting silently in the inbox is not a notification.
@@ -1157,7 +1176,7 @@ const server = http.createServer(async (req, res) => {
           const samePhone = phone && pr.phone && pr.phone === phone;
           const sameOwner = ownerId && pr.ownerId && pr.ownerId === ownerId;
           if (!samePhone && !sameOwner) continue;
-          jobs.push({ service: pr.service, vehicle: pr.vehicle, date: pr.date || (pr.createdAt || '').slice(0, 10), total: q.total != null ? q.total : q.price, paid: myTickets.some(t => t.requestId === pr.id && t.type === 'receipt'), createdAt: pr.createdAt || '' });
+          jobs.push({ service: pr.service, vehicle: pr.vehicle, date: pr.date || (pr.createdAt || '').slice(0, 10), total: q.total != null ? q.total : q.price, paid: myTickets.some(t => t.requestId === pr.id && t.type === 'receipt'), ticketId: (myTickets.find(t => t.requestId === pr.id) || {}).id || null, createdAt: pr.createdAt || '' });
         }
         const wantName = normName(ownerName);
         if (wantName) {
@@ -1165,7 +1184,7 @@ const server = http.createServer(async (req, res) => {
             if (t.requestId || (t.type !== 'invoice' && t.type !== 'receipt')) continue;
             if (normName(t.customerName) !== wantName) continue;
             const svc = (t.items || []).map(it => it.desc).filter(Boolean).join(', ') || t.laborDesc || 'Service';
-            jobs.push({ service: svc, vehicle: t.vehicle || '', date: (t.createdAt || '').slice(0, 10), total: t.total, paid: t.type === 'receipt', createdAt: t.createdAt || '' });
+            jobs.push({ service: svc, vehicle: t.vehicle || '', date: (t.createdAt || '').slice(0, 10), total: t.total, paid: t.type === 'receipt', ticketId: t.id, createdAt: t.createdAt || '' });
           }
         }
         jobs.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
@@ -1190,11 +1209,53 @@ const server = http.createServer(async (req, res) => {
                ...(jobTicket.laborAmount > 0 ? [{ desc: 'Labor' + (jobTicket.laborDesc ? ' — ' + jobTicket.laborDesc : ''), amount: jobTicket.laborAmount }] : []),
                ...(jobTicket.taxAmount > 0 ? [{ desc: 'Tax (' + jobTicket.taxRate + '%)', amount: jobTicket.taxAmount }] : [])]
             : (q.items || []).map(it => ({ desc: it.desc, amount: it.amount != null ? it.amount : it.price }));
-          return { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, ownerId: r.ownerId || null, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, ticketTotal: jobTicket ? jobTicket.total : null, lines, hasTicket: myTickets.some(t => t.requestId === r.id), ticketId: jobTicket ? jobTicket.id : null, paid: myTickets.some(t => t.requestId === r.id && t.type === 'receipt'), pendingFollowUp: quotes.find(q2 => q2.requestId === r.id && q2.businessId === biz.id && q2.status === 'pending' && q2.followUp === true) || null, history, returning: history.length > 0 };
+          return { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, ownerId: r.ownerId || null, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, ticketTotal: jobTicket ? jobTicket.total : null, lines, hasTicket: myTickets.some(t => t.requestId === r.id), ticketId: jobTicket ? jobTicket.id : null, address: jobTicket ? (jobTicket.jobAddress || '') : '', paid: myTickets.some(t => t.requestId === r.id && t.type === 'receipt'), pendingFollowUp: quotes.find(q2 => q2.requestId === r.id && q2.businessId === biz.id && q2.status === 'pending' && q2.followUp === true) || null, history, returning: history.length > 0 };
         })
         .filter(Boolean)
         .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       return sendJson(res, 200, { requests: inbox, booked });
+    }
+
+
+    // ---------- Calendar: the mechanic's upcoming-jobs list ----------
+    // Booked jobs appear automatically (from the inbox); manual entries
+    // here cover appointments set by phone, e.g. after a quote request.
+    if (p === '/api/calendar' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const biz = myBusiness(user.id);
+      if (!biz) return sendJson(res, 200, { entries: [] });
+      const entries = calendarStore.read().filter(e => e.businessId === biz.id).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      return sendJson(res, 200, { entries });
+    }
+    if (p === '/api/calendar' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
+      const biz = myBusiness(user.id);
+      if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
+      const { date, title, notes } = await parseBody(req);
+      const d = String(date || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || isNaN(new Date(d + 'T00:00:00Z').getTime())) return sendJson(res, 400, { error: 'Pick a valid date.' });
+      if (!title || !String(title).trim()) return sendJson(res, 400, { error: 'A job title is required.' });
+      const entries = calendarStore.read();
+      const entry = { id: crypto.randomUUID(), businessId: biz.id, date: d, title: String(title).trim().slice(0, 120), notes: String(notes || '').trim().slice(0, 500), createdAt: new Date().toISOString() };
+      entries.push(entry); calendarStore.write(entries);
+      return sendJson(res, 200, { entry });
+    }
+    const calDel = p.match(/^\/api\/calendar\/([0-9a-f-]+)$/);
+    if (calDel && req.method === 'DELETE') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const biz = myBusiness(user.id);
+      const entries = calendarStore.read();
+      const idx = entries.findIndex(e => e.id === calDel[1] && biz && e.businessId === biz.id);
+      if (idx === -1) return sendJson(res, 404, { error: 'Not found.' });
+      entries.splice(idx, 1); calendarStore.write(entries);
+      return sendJson(res, 200, {});
     }
 
     // ---------- Quotes ----------
@@ -1656,7 +1717,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (p.startsWith('/uploads/') && req.method === 'GET') {
       const fname = path.basename(p);
-      if (!/^[0-9a-f-]+\-(logo|cover|gallery\-[0-9a-f]+|photo)\.(jpg|png|webp|gif)$/.test(fname)) { res.writeHead(404); return res.end('Not found'); }
+      if (!/^[0-9a-f-]+\-(logo|cover|gallery\-[0-9a-f]+|photo|photo\-[0-9a-f]+)\.(jpg|png|webp|gif)$/.test(fname)) { res.writeHead(404); return res.end('Not found'); }
       const file = path.join(DATA_DIR, 'uploads', fname);
       if (!fs.existsSync(file)) { res.writeHead(404); return res.end('Not found'); }
       return serveFile(res, file);
@@ -1784,6 +1845,60 @@ const server = http.createServer(async (req, res) => {
       Object.assign(t, clean, { updatedAt: new Date().toISOString() });
       ticketsStore.write(tickets);
       return sendJson(res, 200, { ticket: t });
+    }
+
+    // Ticket photos: attached by the mechanic, saved on the ticket, and
+    // shown on both ticket views and in the shared/printed document.
+    // Receipts are final, so no photos are added to or removed from them.
+    const ticketPhoto = p.match(/^\/api\/tickets\/([0-9a-f-]+)\/photo$/);
+    if (ticketPhoto && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
+      const tickets = ticketsStore.read();
+      const t = tickets.find(x => x.id === ticketPhoto[1] && x.mechanicId === user.id);
+      if (!t) return sendJson(res, 404, { error: 'Not found.' });
+      if (t.type === 'receipt') return sendJson(res, 400, { error: 'Paid receipts cannot be edited.' });
+      let parts;
+      try { parts = await parseMultipart(req); } catch (e) { return sendJson(res, 400, { error: 'Upload failed.' }); }
+      const filePart = parts.find(x => x.filename);
+      if (!filePart) return sendJson(res, 400, { error: 'Choose a photo to upload.' });
+      const allowed = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
+      const ext = allowed[filePart.contentType];
+      if (!ext) return sendJson(res, 400, { error: 'Only JPG, PNG, WebP or GIF images.' });
+      if (filePart.data.length > 5 * 1024 * 1024) return sendJson(res, 400, { error: 'Image must be under 5 MB.' });
+      const existing = Array.isArray(t.photos) ? t.photos.filter(u => typeof u === 'string' && u.startsWith('/uploads/')) : [];
+      if (existing.length >= 12) return sendJson(res, 400, { error: 'At most 12 photos per ticket.' });
+      const dir = path.join(DATA_DIR, 'uploads');
+      fs.mkdirSync(dir, { recursive: true });
+      const fname = t.id + '-photo-' + crypto.randomBytes(8).toString('hex') + '.' + ext;
+      fs.writeFileSync(path.join(dir, fname), filePart.data);
+      t.photos = [...existing, '/uploads/' + fname];
+      t.updatedAt = new Date().toISOString();
+      ticketsStore.write(tickets);
+      return sendJson(res, 200, { photos: t.photos });
+    }
+    if (ticketPhoto && req.method === 'DELETE') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
+      const { url } = await parseBody(req);
+      const tickets = ticketsStore.read();
+      const t = tickets.find(x => x.id === ticketPhoto[1] && x.mechanicId === user.id);
+      if (!t) return sendJson(res, 404, { error: 'Not found.' });
+      if (t.type === 'receipt') return sendJson(res, 400, { error: 'Paid receipts cannot be edited.' });
+      if (!Array.isArray(t.photos) || !t.photos.includes(url)) return sendJson(res, 404, { error: 'Not found.' });
+      t.photos = t.photos.filter(u => u !== url);
+      t.updatedAt = new Date().toISOString();
+      ticketsStore.write(tickets);
+      const fname = path.basename(String(url || ''));
+      if (/^[0-9a-f-]+-photo-[0-9a-f]+\.(jpg|png|webp|gif)$/.test(fname)) {
+        const f = path.join(DATA_DIR, 'uploads', fname);
+        if (fs.existsSync(f)) fs.unlinkSync(f);
+      }
+      return sendJson(res, 200, { photos: t.photos });
     }
     if (p === '/api/tickets/me' && req.method === 'GET') {
       const user = getSessionUser(req);

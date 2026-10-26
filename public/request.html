@@ -33,6 +33,7 @@
   <form id="form">
     <label for="service">Service</label>
     <select id="service" required></select>
+    <div id="direct-price" class="muted" style="margin-top:6px"></div>
     <div id="diag-symptoms" hidden>
       <label>What symptoms are you having? (select all that apply)</label>
       <div class="chips" id="symptom-chips">
@@ -117,6 +118,7 @@
           const allHref = '/request' + (keep.toString() ? '?' + keep.toString() : '');
           document.getElementById('direct-all').href = allHref;
           window._directBizId = directBizId;
+          window._directPrices = bd.business.prices || [];
         }
       } catch (e) { /* fall through to broadcast */ }
     }
@@ -132,6 +134,13 @@
       descLabel.textContent = isDiag ? 'Describe what is going on (optional)' : 'What is going on with the vehicle?';
     };
     sel.addEventListener('change', window._refreshDiag);
+    window._refreshDirectPrice = function () {
+      const box = document.getElementById('direct-price');
+      const pr = (window._directPrices || []).find(p => p.service === sel.value);
+      box.textContent = pr ? 'Set price for ' + pr.service + ': $' + Number(pr.price).toFixed(2) + ' — this price will be attached to your request.' : '';
+    };
+    sel.addEventListener('change', window._refreshDirectPrice);
+    window._refreshDirectPrice();
     chipInputs.forEach(i => i.addEventListener('change', window._refreshDiag));
     const symParam = qp.get('symptoms');
     const preSymptoms = symParam ? symParam.split('|') : (Array.isArray(pre.symptoms) ? pre.symptoms : []);
@@ -211,7 +220,7 @@
       if (picked.length) descVal = 'Symptoms: ' + picked.join(', ') + '.' + (descVal ? '\n' + descVal : '');
       if (!descVal) { err.textContent = 'Please pick a symptom or describe what is going on.'; return; }
     }
-    const body = { name: document.getElementById('guest-name').value.trim(), service: svc, vehicle: veh, vehicleType: window._reqVeh ? window._reqVeh.type : 'car', vehicleYear: (() => { const g = window._reqVeh ? window._reqVeh.get() : null; return g ? g.year : ''; })(), vehicleMake: (() => { const g = window._reqVeh ? window._reqVeh.get() : null; return g ? g.make : ''; })(), vehicleModel: (() => { const g = window._reqVeh ? window._reqVeh.get() : null; return g ? g.model : ''; })(), vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: descVal, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: window._isUrgent === true, zip: document.getElementById('zip').value, businessId: window._directBizId || undefined };
+    const body = { name: document.getElementById('guest-name').value.trim(), service: svc, vehicle: veh, vehicleType: window._reqVeh ? window._reqVeh.type : 'car', vehicleYear: (() => { const g = window._reqVeh ? window._reqVeh.get() : null; return g ? g.year : ''; })(), vehicleMake: (() => { const g = window._reqVeh ? window._reqVeh.get() : null; return g ? g.make : ''; })(), vehicleModel: (() => { const g = window._reqVeh ? window._reqVeh.get() : null; return g ? g.model : ''; })(), vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: descVal, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: window._isUrgent === true, zip: document.getElementById('zip').value, businessId: window._directBizId || undefined, fromProfile: window._directBizId ? true : undefined };
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { err.textContent = d.error || 'Something went wrong.'; return; }

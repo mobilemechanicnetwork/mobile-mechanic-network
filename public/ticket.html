@@ -20,6 +20,8 @@
   td.num,th.num{text-align:right}
   .total{text-align:right;font-size:1.3rem;font-weight:700;margin:8px 0}
   .notes{background:#f8fafc;border-radius:8px;padding:12px;font-size:.95rem;margin-top:12px}
+  .photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  .photos img{width:100%;height:110px;object-fit:cover;border-radius:8px}
   .disc{background:#f8fafc;border-radius:8px;padding:12px;font-size:.9rem;color:#475569;margin-top:12px}
   .paid{text-align:center;font-weight:700;color:#15803d;font-size:1.1rem;margin:14px 0 4px}
   .foot{margin-top:28px;padding-top:12px;border-top:1px solid #e2e8f0;color:#64748b;font-size:.85rem;text-align:center}
@@ -198,6 +200,44 @@ function bindSend() {
   };
   const bt = document.getElementById('btn-send-text'); if (bt) bt.onclick = () => run({ text: true });
 }
+
+function photoCardHtml() {
+  const photos = T.photos || [];
+  return `<div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px">
+    <h3 style="margin:0 0 6px">Photos</h3>
+    <p class="muted" style="margin:0 0 8px">Attach photos to this ticket. They save on the ticket, show in service history, and print/share with the ticket.</p>
+    <p><input type="file" id="photo-file" accept="image/jpeg,image/png,image/webp,image/gif"> <button type="button" id="btn-photo-upload">Upload photo</button></p>
+    <div class="err" id="photo-msg"></div>
+    ${photos.length ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px">${photos.map(u => `<div><img src="${esc(u)}" alt="" style="width:100%;height:110px;object-fit:cover;border-radius:8px"><button type="button" class="decline" data-delphoto="${esc(u)}" style="margin-top:4px">Remove</button></div>`).join('')}</div>` : '<p class="muted">No photos yet.</p>'}
+  </div>`;
+}
+function bindPhotos() {
+  const up = document.getElementById('btn-photo-upload');
+  if (up) up.onclick = async () => {
+    const f = document.getElementById('photo-file').files[0];
+    const msg = document.getElementById('photo-msg');
+    if (!f) { msg.textContent = 'Choose a photo first.'; return; }
+    msg.textContent = '';
+    const fd = new FormData(); fd.append('file', f);
+    try {
+      const r = await fetch('/api/tickets/' + T.id + '/photo', { method: 'POST', body: fd });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Upload failed.');
+      location.reload();
+    } catch (e) { msg.textContent = e.message; }
+  };
+  document.querySelectorAll('[data-delphoto]').forEach(b => {
+    b.onclick = async () => {
+      if (!confirm('Remove this photo from the ticket?')) return;
+      try {
+        const r = await fetch('/api/tickets/' + T.id + '/photo', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: b.dataset.delphoto }) });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || 'Remove failed.');
+        location.reload();
+      } catch (e) { alert(e.message); }
+    };
+  });
+}
 function renderActions() {
   const box = document.getElementById('ticket-actions');
   if (!T) { box.innerHTML = ''; return; }
@@ -246,11 +286,13 @@ function renderActions() {
   }
   html += notesSectionHtml();
   html += commentsSectionHtml();
+  html += photoCardHtml();
   html += '</div>';
   html += sendHtml();
   box.innerHTML = html;
   bindNotes();
   bindComments();
+  bindPhotos();
   bindSend();
   const editForm = document.getElementById('edit-form');
   if (editForm) {
@@ -386,6 +428,7 @@ function renderActions() {
       ${t.notes ? `<div class="notes"><strong>Notes:</strong> ${esc(t.notes)}</div>` : ''}
       ${t.warranty ? `<div class="notes"><strong>Warranty:</strong> ${esc(t.warranty)}</div>` : ''}
       ${t.comments ? `<div class="notes"><strong>Additional comments:</strong> ${esc(t.comments)}</div>` : ''}
+      ${(t.photos || []).length ? `<h3 style="margin-top:16px">Photos</h3><div class="photos">${t.photos.map(u => `<img src="${esc(u)}" alt="">`).join('')}</div>` : ''}
       ${t.type === 'estimate' ? `<div class="disc">This is an estimate only and is not a final invoice. The work and price listed above are what is quoted. No additional charges will be added without your approval.</div>` : ''}
       <div class="foot">Prepared by ${esc(b ? b.name : '')}${b && b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network${t.type === 'receipt' ? '<br>This receipt confirms payment received in full for the services listed above.' : ''}</div>`;
     document.title = t.type.charAt(0).toUpperCase() + t.type.slice(1) + ' — ' + (b ? b.name : '');
