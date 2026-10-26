@@ -83,8 +83,8 @@
       <label><input type="radio" name="role" value="mechanic"><span>Mobile mechanic</span></label>
     </div>
     <div id="mech-promo" hidden style="margin:12px 0;padding:14px;border:1px solid #2563eb;border-radius:10px;background:#eff6ff">
-      <strong>Mobile mechanics: your first 90 days are free.</strong>
-      <div class="muted" style="margin-top:6px">No payment information needed during the free trial. After 90 days it's $49.99/month or $400/year. Your account simply pauses until a payment method is added. Cancel anytime.</div>
+      <strong>Mobile mechanics: your first 60 days are free.</strong>
+      <div class="muted" style="margin-top:6px">No payment information needed during the free trial. After 60 days it's $39.99/month or $400/year. Your account simply pauses until a payment method is added. Cancel anytime.</div>
     </div>
     <label for="rg-name">Full name</label>
     <input id="rg-name" type="text" required autocomplete="name">
@@ -114,7 +114,7 @@
     const login = !tabRegister.classList.contains('active');
     const mechanic = document.querySelector('input[name="role"]:checked').value === 'mechanic';
     pageSub.textContent = login ? 'Log in, or create your free account.'
-      : mechanic ? 'Create your account — first 90 days free.'
+      : mechanic ? 'Create your account — first 60 days free.'
       : 'Create your free account.';
   }
   function show(which) {

@@ -1169,7 +1169,7 @@ async function loadBilling() {
       ? b.plans.map(p => `<div class="card"><strong>${p.label}</strong><div style="margin-top:8px"><button class="primary" data-plan="${p.id}">Choose ${p.id === 'yearly' ? 'yearly' : 'monthly'}</button></div></div>`).join('')
       : '<p class="muted">Billing information not required until promo ends.</p>';
     box.innerHTML = `${note}<div class="card"><div>${statusLine}</div>
-      <p class="muted">Your first 90 days are free, no payment information needed. After the trial it's $49.99/month or $400/year. If no payment method is on file when the trial ends, your account pauses until one is added. Cancel anytime. Cards are handled through Stripe's secure checkout.</p></div>${plans}`;
+      <p class="muted">Your first 60 days are free, no payment information needed. After the trial it's $39.99/month or $400/year. If no payment method is on file when the trial ends, your account pauses until one is added. Cancel anytime. Cards are handled through Stripe's secure checkout.</p></div>${plans}`;
     box.querySelectorAll('[data-plan]').forEach(btn => {
       btn.onclick = async () => {
         try {

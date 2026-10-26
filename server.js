@@ -232,11 +232,11 @@ function startSession(res, status, user, payload) {
 }
 function myBusiness(userId) { return businessesStore.read().find(b => b.userId === userId) || null; }
 
-// Backfill the 90-day trial for mechanic accounts created before trials existed.
+// Backfill the 60-day trial for mechanic accounts created before trials existed.
 function ensureTrial(user) {
   if (!user || user.role !== 'mechanic' || user.trialEndsAt) return false;
   const base = user.createdAt ? new Date(user.createdAt).getTime() : Date.now();
-  user.trialEndsAt = new Date(base + 90 * 24 * 3600 * 1000).toISOString();
+  user.trialEndsAt = new Date(base + 60 * 24 * 3600 * 1000).toISOString();
   if (!user.billingStatus) user.billingStatus = 'trialing';
   const users = usersStore.read();
   const ix = users.findIndex(u => u.id === user.id);
@@ -483,7 +483,7 @@ function latestPromotion(businessId) {
   const p = all[0];
   return p ? { title: p.title, description: p.description, validUntil: p.validUntil } : null;
 }
-// A mechanic is frozen when the 90-day trial is over and no active subscription exists.
+// A mechanic is frozen when the 60-day trial is over and no active subscription exists.
 // Frozen mechanics are hidden from search, get no requests, and cannot write —
 // but they can always sign in and reach the Billing tab to add payment.
 function mechanicFrozen(user) {
@@ -493,7 +493,7 @@ function mechanicFrozen(user) {
   return Date.now() > new Date(user.trialEndsAt).getTime();
 }
 function frozenError(res) {
-  return sendJson(res, 402, { error: 'Your 90-day free trial has ended. Add a payment method on the Billing tab to reactivate your account.', frozen: true });
+  return sendJson(res, 402, { error: 'Your 60-day free trial has ended. Add a payment method on the Billing tab to reactivate your account.', frozen: true });
 }
 
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.json': 'application/json' };
@@ -556,7 +556,7 @@ const server = http.createServer(async (req, res) => {
       const user = makeUser({ name: String(name).trim(), email: String(email).trim(), password: String(password), role });
       user.phone = e164;
       if (role === 'mechanic') {
-        user.trialEndsAt = new Date(Date.now() + 90 * 24 * 3600 * 1000).toISOString();
+        user.trialEndsAt = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString();
         user.billingStatus = 'trialing';
       }
       users.push(user); usersStore.write(users);
@@ -2258,7 +2258,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { ticket: t });
     }
 
-    // ---------- Billing (90-day free trial, then Stripe subscription) ----------
+    // ---------- Billing (60-day free trial, then Stripe subscription) ----------
     const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
     const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
     const STRIPE_PRICE_MONTHLY = process.env.STRIPE_PRICE_MONTHLY || '';
@@ -2294,7 +2294,7 @@ const server = http.createServer(async (req, res) => {
         trialEndsAt: user.trialEndsAt || null,
         daysLeft,
         plans: [
-          { id: 'monthly', label: '$49.99 / month' },
+          { id: 'monthly', label: '$39.99 / month' },
           { id: 'yearly', label: '$400 / year' },
         ],
       });
