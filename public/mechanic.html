@@ -370,7 +370,6 @@ window.viewBookedJob = async () => {
 window.viewRequest = async () => {
   try { await loadInbox(); } catch (e) {}
   document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('inbox'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
-window.viewTicket = (tid) => { document.querySelector('[data-tab="tickets"]').click(); setTimeout(() => { const el = document.getElementById('ticket-' + tid); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
 // Keep the unread count live: the number next to Notifications updates
 // without reloading the portal, and refreshes when the tab is reopened.
 async function refreshNotifBadge() {
@@ -411,7 +410,7 @@ async function loadInbox() {
     <p>${esc(b.description)}</p>
     ${historyBlock(b)}
     <p><strong>Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}</strong></p>
-    <p>${b.hasTicket ? (b.ticketId ? `<button type="button" class="ghost" onclick="viewTicket('${b.ticketId}')">View ticket →</button>` : '<span class="ok">Ticket created</span>') : `<button type="button" class="primary" onclick="bookedToTicket('${b.id}')">Create ticket from quote</button>`}</p>
+    <p>${b.hasTicket ? (b.ticketId ? `<a href="/ticket?id=${b.ticketId}" target="_blank">View ticket →</a>` : '<span class="ok">Ticket created</span>') : `<button type="button" class="primary" onclick="bookedToTicket('${b.id}')">Create ticket from quote</button>`}</p>
     ${b.paid ? '<p><span class="ok">Paid</span></p>' : b.pendingFollowUp ? `<p class="ok">Additional work quoted $${esc(b.pendingFollowUp.total != null ? b.pendingFollowUp.total : b.pendingFollowUp.price)} (pending customer approval).</p><p><button type="button" class="ghost" onclick="textFollowUp('${b.id}')">Text quote from my phone</button></p>` : `
     <div id="qb-${b.id}">
       <p style="margin:8px 0 4px"><strong>Quote additional work</strong> <span class="muted">— the customer must accept it before it is added to the invoice</span></p>
