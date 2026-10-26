@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 
-const SERVICES = ['Diagnostics', 'Brakes', 'Battery & starting', 'Oil & maintenance', 'Pre-purchase inspection', 'Other'];
+const SERVICES = ['Diagnostics', 'Brakes', 'Battery & starting', 'Oil & maintenance', 'Pre-purchase inspection', 'Complete vehicle inspection', 'Other'];
 
 // VIN: 17 chars, letters I/O/Q never used. Returns the cleaned VIN or null.
 function cleanVin(v) {
@@ -1595,7 +1595,9 @@ const server = http.createServer(async (req, res) => {
       if (mechanicFrozen(user)) return frozenError(res);
       const biz = myBusiness(user.id);
       if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
-      const { customerName, customerPhone, vehicle, vin, mileage, categories, generalNotes } = await parseBody(req);
+      const { customerName, customerPhone, vehicle, vin, mileage, categories, generalNotes, kind } = await parseBody(req);
+      if (kind !== undefined && kind !== 'ppi' && kind !== 'complete')
+        return sendJson(res, 400, { error: 'Unknown inspection type.' });
       if (!customerName || !String(customerName).trim() || !vehicle || !String(vehicle).trim())
         return sendJson(res, 400, { error: 'Customer name and vehicle are required.' });
       let cleanVinValue = '';
@@ -1606,6 +1608,7 @@ const server = http.createServer(async (req, res) => {
       const rows = ppiStore.read();
       const row = {
         id: crypto.randomUUID(), shareToken: crypto.randomBytes(16).toString('hex'),
+        kind: kind === 'complete' ? 'complete' : 'ppi',
         businessId: biz.id, mechanicId: user.id,
         customerName: String(customerName).trim(), customerPhone: String(customerPhone || '').trim().slice(0, 30),
         vehicle: String(vehicle).trim().slice(0, 120), vin: cleanVinValue,
@@ -1622,7 +1625,7 @@ const server = http.createServer(async (req, res) => {
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
       const mine = ppiStore.read().filter(r => r.mechanicId === user.id)
-        .map(r => ({ id: r.id, shareToken: r.shareToken, customerName: r.customerName, vehicle: r.vehicle, createdAt: r.createdAt }))
+        .map(r => ({ id: r.id, shareToken: r.shareToken, kind: r.kind || 'ppi', customerName: r.customerName, vehicle: r.vehicle, createdAt: r.createdAt }))
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       return sendJson(res, 200, { reports: mine });
     }

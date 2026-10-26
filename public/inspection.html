@@ -60,6 +60,9 @@ const dotColor = { red: '#dc2626', yellow: '#eab308', green: '#16a34a' };
     const r = await fetch('/api/ppi/public?id=' + encodeURIComponent(qp.get('id') || '') + '&token=' + encodeURIComponent(qp.get('token') || ''));
     if (!r.ok) throw new Error('Report not found.');
     const { report: t, business: b } = await r.json();
+    const isPrev = t.kind === 'complete';
+    const kindLabel = isPrev ? 'Complete Vehicle Inspection' : 'Pre-Purchase Inspection';
+    document.title = kindLabel + ' — Mobile Mechanic Network';
     const hasBands = (t.categories || []).some(c => c.key === 'tires' || c.key === 'brakes');
     const cats = (t.categories || []).map(c => {
       const details = Object.entries(c.detail || {}).map(([k, v]) => {
@@ -83,7 +86,7 @@ const dotColor = { red: '#dc2626', yellow: '#eab308', green: '#16a34a' };
         <div><h1>${esc(b ? b.name : 'Mobile mechanic')}</h1>
         <div class="sub">${b ? esc(b.city) + ', ' + esc(b.state) : ''}${b && b.phone ? ' · ' + esc(b.phone) : ''}</div></div>
       </div>
-      <div class="type">Pre-Purchase Inspection</div>
+      <div class="type">${kindLabel}</div>
       <div class="meta">
         <div><span>Customer</span>${esc(t.customerName)}</div>
         <div><span>Date</span>${esc(new Date(t.createdAt).toLocaleDateString())}</div>
@@ -94,7 +97,7 @@ const dotColor = { red: '#dc2626', yellow: '#eab308', green: '#16a34a' };
       ${hasBands ? `<p style="font-size:.85rem;color:#475569"><span style="${dotCss}background:#dc2626"></span>Replace <span style="${dotCss}background:#eab308;margin-left:10px"></span>Suggest soon <span style="${dotCss}background:#16a34a;margin-left:10px"></span>Good</p>` : ''}
       ${cats || '<p>No inspection items recorded.</p>'}
       ${t.generalNotes ? `<div class="notes"><strong>Inspector notes:</strong> ${esc(t.generalNotes)}</div>` : ''}
-      <div class="disclaimer"><strong>Please read:</strong> This pre-purchase inspection is informational only. It is not a recommendation to buy or not buy this vehicle. It describes the concerns this vehicle is presenting now, or may present soon, based on a visual inspection at the time of service. Neither Mobile Mechanic Network nor the inspecting mechanic is liable for any buying decision.</div>
+      ${isPrev ? `<div class="disclaimer"><strong>Please read:</strong> This complete vehicle inspection is informational only. It describes the concerns this vehicle is presenting now, or may present soon, based on a visual inspection at the time of service. It is meant to help you stay informed about your vehicle, keep up with your vehicle's routine maintenance, and catch concerns before they become major issues or breakdowns — including before a major trip. It does not promise the vehicle will not develop problems later.</div>` : `<div class="disclaimer"><strong>Please read:</strong> This pre-purchase inspection is informational only. It is not a recommendation to buy or not buy this vehicle. It describes the concerns this vehicle is presenting now, or may present soon, based on a visual inspection at the time of service. Neither Mobile Mechanic Network nor the inspecting mechanic is liable for any buying decision.</div>`}
       <div class="foot">Prepared by ${esc(b ? b.name : '')} · via Mobile Mechanic Network</div>`;
   } catch (e) { box.innerHTML = '<p>' + esc(e.message) + '</p>'; }
 })();
