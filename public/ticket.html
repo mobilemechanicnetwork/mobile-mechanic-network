@@ -82,21 +82,9 @@ function addItemRow(desc, qty, price) {
   row.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" style="flex:3" aria-label="Line description"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" style="flex:1;max-width:70px" aria-label="Quantity"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" style="flex:1;max-width:110px" aria-label="Price"><button type="button" class="ghost" onclick="this.parentElement.remove()">✕</button>`;
   w.appendChild(row);
 }
-// Details are edited on the ticket itself: Edit details turns the
-// Job address, VIN, Mileage, and Payment type lines into inputs in place.
-window.editDetails = () => {
-  const swap = (id, val, placeholder) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.outerHTML = `<input id="${id}-in" value="${esc(val || '')}" placeholder="${placeholder}"${id === 'dt-mile' ? ' inputmode="numeric"' : ''}>`;
-  };
-  swap('dt-job', T.jobAddress || '', 'Job address');
-  swap('dt-vin', T.vin || '', 'VIN');
-  swap('dt-mile', (T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : T.mileage, 'Mileage');
-  swap('dt-pm', T.paymentMethod || '', 'e.g. cash, card, check');
-  const btn = document.getElementById('btn-edit-details');
-  if (btn) btn.outerHTML = `<span id="details-edit-btns" class="noprint"><button type="button" class="editbtn" onclick="saveDetails()">Save details</button> <button type="button" class="editbtn" style="background:#fff;color:#0f172a;border:1px solid #e2e8f0" onclick="location.reload()">Cancel</button> <span class="err" id="details-msg"></span></span>`;
-};
+// Details are editable directly on the ticket itself: the Job address,
+// VIN, Mileage, and Payment type lines are inputs as soon as the ticket
+// opens, and Save details at the top saves them.
 window.saveDetails = async () => {
   const msg = document.getElementById('details-msg');
   if (msg) msg.textContent = '';
@@ -277,7 +265,7 @@ function renderActions() {
     const taxRow = (t.taxAmount > 0) ? `<tr><td>Tax (${esc(t.taxRate)}%)</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.taxAmount)}</td></tr>` : '';
     const subRow = (isNew && (t.laborAmount > 0 || t.taxAmount > 0)) ? `<tr><td>Parts subtotal</td><td class="num"></td><td class="num"></td><td class="num">${money(t.subtotal)}</td></tr>` : '';
     box.innerHTML = `
-      <div class="noprint" style="text-align:right;margin-bottom:8px"><button type="button" class="editbtn" id="btn-edit-details" onclick="editDetails()">Edit details</button></div>
+      <div class="noprint" style="text-align:right;margin-bottom:8px"><button type="button" class="editbtn" onclick="saveDetails()">Save details</button> <button type="button" class="editbtn" style="background:#fff;color:#0f172a;border:1px solid #e2e8f0" onclick="location.reload()">Cancel</button> <span class="err" id="details-msg"></span></div>
       <div class="head">
         ${b && b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
         <div><h1>${esc(b ? b.name : 'Mobile mechanic')}</h1>
@@ -288,10 +276,10 @@ function renderActions() {
         <div><span>Customer</span>${esc(t.customerName)}</div>
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
         <div><span>Vehicle</span>${esc(t.vehicle || '—')}</div>
-        <div class="${t.jobAddress ? '' : 'empty-line'}"><span>Job address</span><span id="dt-job">${esc(t.jobAddress || '—')}</span></div>
-        <div class="${t.vin ? '' : 'empty-line'}"><span>VIN</span><span id="dt-vin">${esc(t.vin || '—')}</span></div>
-        <div class="${(t.mileage !== '' && t.mileage != null) ? '' : 'empty-line'}"><span>Mileage</span><span id="dt-mile">${(t.mileage !== '' && t.mileage != null) ? Number(t.mileage).toLocaleString('en-US') + ' mi' : '—'}</span></div>
-        <div class="${t.paymentMethod ? '' : 'empty-line'}"><span>Payment type</span><span id="dt-pm">${esc(t.paymentMethod || '—')}</span></div>
+        <div class="${t.jobAddress ? '' : 'empty-line'}"><span>Job address</span><input id="dt-job-in" value="${esc(t.jobAddress || '')}" placeholder="Job address"></div>
+        <div class="${t.vin ? '' : 'empty-line'}"><span>VIN</span><input id="dt-vin-in" value="${esc(t.vin || '')}" placeholder="VIN"></div>
+        <div class="${(t.mileage !== '' && t.mileage != null) ? '' : 'empty-line'}"><span>Mileage</span><input id="dt-mile-in" value="${(t.mileage !== '' && t.mileage != null) ? t.mileage : ''}" placeholder="Mileage" inputmode="numeric"></div>
+        <div class="${t.paymentMethod ? '' : 'empty-line'}"><span>Payment type</span><input id="dt-pm-in" value="${esc(t.paymentMethod || '')}" placeholder="e.g. cash, card, check"></div>
         <div><span>Ticket</span>#${esc(t.id.slice(0, 8))}</div>
         ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}${t.paymentMethod ? ' via ' + esc(t.paymentMethod) : ''}</div>` : ''}
       </div>
