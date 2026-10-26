@@ -1229,7 +1229,8 @@ const server = http.createServer(async (req, res) => {
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
       const biz = myBusiness(user.id);
       if (!biz) return sendJson(res, 200, { entries: [] });
-      const entries = calendarStore.read().filter(e => e.businessId === biz.id).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      const tickets = ticketsStore.read();
+      const entries = calendarStore.read().filter(e => e.businessId === biz.id && !(e.ticketId && tickets.some(t => t.id === e.ticketId && t.type === 'receipt'))).sort((a, b) => String(a.date).localeCompare(String(b.date)));
       return sendJson(res, 200, { entries });
     }
     if (p === '/api/calendar' && req.method === 'POST') {
@@ -1239,12 +1240,20 @@ const server = http.createServer(async (req, res) => {
       if (mechanicFrozen(user)) return frozenError(res);
       const biz = myBusiness(user.id);
       if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
-      const { date, title, notes } = await parseBody(req);
+      const { date, title, notes, ticketId } = await parseBody(req);
+      let ticket = null;
+      if (ticketId) {
+        ticket = ticketsStore.read().find(x => x.id === ticketId);
+        if (!ticket || ticket.businessId !== biz.id) return sendJson(res, 400, { error: 'Ticket not found.' });
+        if (ticket.type === 'receipt') return sendJson(res, 400, { error: 'Paid tickets can\'t be added to the calendar.' });
+        const existing = calendarStore.read().find(e => e.businessId === biz.id && e.ticketId === ticketId);
+        if (existing) return sendJson(res, 200, { entry: existing });
+      }
       const d = String(date || '').trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || isNaN(new Date(d + 'T00:00:00Z').getTime())) return sendJson(res, 400, { error: 'Pick a valid date.' });
       if (!title || !String(title).trim()) return sendJson(res, 400, { error: 'A job title is required.' });
       const entries = calendarStore.read();
-      const entry = { id: crypto.randomUUID(), businessId: biz.id, date: d, title: String(title).trim().slice(0, 120), notes: String(notes || '').trim().slice(0, 500), createdAt: new Date().toISOString() };
+      const entry = { id: crypto.randomUUID(), businessId: biz.id, date: d, title: String(title).trim().slice(0, 120), notes: String(notes || '').trim().slice(0, 500), createdAt: new Date().toISOString(), ...(ticket ? { ticketId: ticket.id } : {}) };
       entries.push(entry); calendarStore.write(entries);
       return sendJson(res, 200, { entry });
     }
@@ -2205,7 +2214,8 @@ const server = http.createServer(async (req, res) => {
       const t = ticketsStore.read().find(x => x.id === url.searchParams.get('id'));
       if (!t || !user || t.mechanicId !== user.id) return sendJson(res, 404, { error: 'Not found.' });
       const biz = businessesStore.read().find(b => b.id === t.businessId);
-      return sendJson(res, 200, { ticket: t, business: biz ? publicBusiness(biz) : null });
+      const reqRow = t.requestId ? requestsStore.read().find(r => r.id === t.requestId) : null;
+      return sendJson(res, 200, { ticket: t, business: biz ? publicBusiness(biz) : null, requestDate: reqRow ? (reqRow.date || '') : '' });
     }
     // Customer view of their own job's ticket. Owner-only: the ticket must
     // belong to a request owned by the signed-in user. Mechanic actions

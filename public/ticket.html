@@ -200,6 +200,51 @@ function bindSend() {
   };
   const bt = document.getElementById('btn-send-text'); if (bt) bt.onclick = () => run({ text: true });
 }
+function calendarCardHtml() {
+  return `<div class="card" style="margin-top:14px"><h3 style="margin:0 0 6px">Calendar</h3>
+  <div id="cal-state"><p class="muted" style="margin:0">Loading calendar status…</p></div>
+  <div class="ok" id="cal-msg" style="margin-top:8px"></div><div class="err" id="cal-err"></div></div>`;
+}
+async function bindCalendar() {
+  const state = document.getElementById('cal-state');
+  const msg = document.getElementById('cal-msg'), err = document.getElementById('cal-err');
+  if (!state) return;
+  let entry = null;
+  try {
+    const r = await fetch('/api/calendar');
+    const d = await r.json();
+    entry = (d.entries || []).find(e => e.ticketId === T.id) || null;
+  } catch (e) { entry = null; }
+  const title = [T.customerName, T.vehicle].filter(Boolean).join(' — ');
+  const render = () => {
+    if (entry) {
+      state.innerHTML = `<p style="margin:0">On your calendar for <strong>${esc(entry.date)}</strong>.</p><p style="margin:8px 0 0"><button type="button" class="ghost" id="btn-cal-remove">Remove from calendar</button></p>`;
+      document.getElementById('btn-cal-remove').onclick = async () => {
+        msg.textContent = ''; err.textContent = '';
+        try {
+          const r = await fetch('/api/calendar/' + entry.id, { method: 'DELETE' });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(d.error || 'Remove failed.');
+          entry = null; msg.textContent = 'Removed from calendar.'; render();
+        } catch (e) { err.textContent = e.message; }
+      };
+    } else {
+      state.innerHTML = `<p class="muted" style="margin:0 0 8px">Add this job to your calendar.</p><p style="margin:0;display:flex;gap:8px;flex-wrap:wrap;align-items:end"><label style="margin:0">Date <input type="date" id="cal-ticket-date"></label><button type="button" id="btn-cal-add">Add to calendar</button></p>`;
+      const di = document.getElementById('cal-ticket-date');
+      if (window._requestDate) di.value = window._requestDate;
+      document.getElementById('btn-cal-add').onclick = async () => {
+        msg.textContent = ''; err.textContent = '';
+        const date = di.value || '';
+        if (!date) { err.textContent = 'Pick a date first.'; return; }
+        try {
+          const d = await api('/api/calendar', { date, title, notes: T.label ? ('Ticket ' + T.label) : '', ticketId: T.id });
+          entry = d.entry; msg.textContent = 'Added to calendar.'; render();
+        } catch (e) { err.textContent = e.message; }
+      };
+    }
+  };
+  render();
+}
 
 function photoCardHtml() {
   const photos = T.photos || [];
@@ -290,12 +335,14 @@ function renderActions() {
   html += commentsSectionHtml();
   html += photoCardHtml();
   html += '</div>';
+  html += calendarCardHtml();
   html += sendHtml();
   box.innerHTML = html;
   bindNotes();
   bindComments();
   bindPhotos();
   bindSend();
+  bindCalendar();
   const editForm = document.getElementById('edit-form');
   if (editForm) {
     document.getElementById('btn-edit').onclick = () => {
@@ -382,7 +429,7 @@ function renderActions() {
     const r = await fetch('/api/ticket?id=' + encodeURIComponent(id || ''));
     if (!r.ok) throw new Error('Ticket not found.');
     const d = await r.json();
-    T = d.ticket; B = d.business;
+    T = d.ticket; B = d.business; window._requestDate = d.requestDate || '';
     try { const ib = await (await fetch('/api/requests/inbox')).json(); const bk = (ib.booked || []).find(x => x.ticketId === T.id); window._pendingFu = !!(bk && bk.pendingFollowUp); } catch (e) { window._pendingFu = false; }
     const t = T, b = B;
     const isNew = t.items && t.items.length && t.items[0].qty !== undefined;
