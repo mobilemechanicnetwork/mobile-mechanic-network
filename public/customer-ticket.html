@@ -37,6 +37,7 @@
 <body>
 <div class="actions noprint"><a href="/dashboard">← Back to dashboard</a> &nbsp; <button onclick="window.print()">Print / Save as PDF</button></div>
 <div class="page" id="ticket"><p>Loading…</p></div>
+<div id="addr-form" class="noprint"></div>
 <div id="approval" class="noprint"></div>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -66,6 +67,22 @@ window.actAll = (action) => act(action, null);
     const d = await r.json();
     T = d.ticket; TOT = d.totals;
     const t = T, b = d.business;
+    document.getElementById('addr-form').innerHTML = `<div class="card" style="border:0">
+      <h2 style="margin:0 0 6px;font-size:1.1rem">Where is the vehicle?</h2>
+      <p class="muted" style="margin:0 0 10px">Add the repair location here. You do not have to give your full address when you request a quote.</p>
+      <label>Job address</label><input id="cust-addr" placeholder="e.g. 123 Main St, Slidell, LA, or the store or workplace where the vehicle is" value="${esc(t.jobAddress || '')}" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box">
+      <p style="margin:10px 0 0"><button onclick="saveAddr()">Save address</button> <span class="err" id="addr-msg"></span></p></div>`;
+    window.saveAddr = async () => {
+      const msg = document.getElementById('addr-msg');
+      msg.textContent = '';
+      try {
+        const r = await fetch('/api/job-ticket/' + T.id + '/address', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobAddress: document.getElementById('cust-addr').value }) });
+        const dd = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(dd.error || 'Could not save.');
+        msg.style.color = '#15803d'; msg.textContent = 'Saved.';
+        setTimeout(() => location.reload(), 600);
+      } catch (e) { msg.style.color = '#dc2626'; msg.textContent = e.message; }
+    };
     if (t.type === 'invoice' && t.estimateStatus === 'pending' && TOT) {
       appr.innerHTML = `<div class="card">
         <h2 style="margin:0 0 8px">Estimate for additional work — needs your approval</h2>

@@ -1874,6 +1874,24 @@ const server = http.createServer(async (req, res) => {
       const totals = (t.type === 'invoice' && t.estimateStatus === 'pending') ? invoiceTotalsAfter(t, t.estimateLines || []) : null;
       return sendJson(res, 200, { ticket: t, business: biz ? publicBusiness(biz) : null, totals });
     }
+    // Customer sets the repair location on their own booked ticket.
+    // Address is never required at quote-request time; it is only added
+    // here, once the job is approved, by the customer or the mechanic.
+    const jobTicketAddr = p.match(/^\/api\/job-ticket\/([0-9a-f-]+)\/address$/);
+    if (jobTicketAddr && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const tickets = ticketsStore.read();
+      const t = tickets.find(x => x.id === jobTicketAddr[1]);
+      if (!t || !t.requestId || (t.type !== 'invoice' && t.type !== 'receipt')) return sendJson(res, 404, { error: 'Not found.' });
+      const row = requestsStore.read().find(x => x.id === t.requestId);
+      if (!row || row.ownerId !== user.id) return sendJson(res, 404, { error: 'Not found.' });
+      const body = await parseBody(req);
+      t.jobAddress = String(body.jobAddress || '').trim().slice(0, 200);
+      t.updatedAt = new Date().toISOString();
+      ticketsStore.write(tickets);
+      return sendJson(res, 200, { ticket: t });
+    }
 
     // ---------- Billing (90-day free trial, then Stripe subscription) ----------
     const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
