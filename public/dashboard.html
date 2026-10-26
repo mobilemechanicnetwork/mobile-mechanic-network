@@ -32,6 +32,8 @@
 
   <section id="owner" hidden>
     <p><a href="/request"><button type="button">Request quotes</button></a> <a href="/mechanics"><button type="button" class="ghost">Find a mobile mechanic</button></a></p>
+    <h2>Repair history</h2>
+    <div id="my-requests"></div>
     <h2>My info</h2>
     <div class="card">
       <div id="o-view">
@@ -77,8 +79,6 @@
       <p><button type="button" onclick="sendRecentRequest()">Send quote request</button></p>
       <div class="err" id="rq-err"></div><div class="ok" id="rq-ok"></div>
     </div>
-    <h2>Repair history</h2>
-    <div id="my-requests"></div>
   </section>
 
   <section id="help">
@@ -195,7 +195,7 @@
     });
     if (!d.requests.length) { box.innerHTML = '<p class="muted">No repair history yet. Send your first request and mechanics in your area can quote it.</p>'; return; }
     const pill = r => r.paid ? '<span style="color:#dc2626">Completed</span>' : r.status === 'accepted' ? '<span style="color:#16a34a">Booked</span>' : r.status === 'open' ? '<span style="color:#16a34a">Active</span>' : `<span class="muted">${r.status}</span>`;
-    box.innerHTML = d.requests.map(r => `<div class="card">
+    box.innerHTML = [...d.requests].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).map(r => `<div class="card">
       <div style="display:flex;gap:12px;align-items:center">
       ${(() => { const e = histExtra[r.id]; if (!e || !e.gv || !e.gv.photoUrl) return ''; const st = e.gv.photoKind === 'logo' ? 'width:72px;height:72px;object-fit:contain;background:#ffffff;padding:6px;box-sizing:border-box;border-radius:10px;flex:none' : 'width:72px;height:72px;object-fit:cover;border-radius:10px;flex:none'; return `<img src="${esc(e.gv.photoUrl)}" alt="" style="${st}">`; })()}
       <div style="text-align:left;flex:1">
