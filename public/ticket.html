@@ -84,10 +84,13 @@ function addItemRow(desc, qty, price) {
 }
 // Details are editable directly on the ticket itself: the Job address,
 // VIN, Mileage, and Payment type lines are inputs as soon as the ticket
-// opens, and Save details at the top saves them.
+// opens, and each one auto-saves when it is filled in.
+// Details auto-save: filling a field and moving on (or pressing Enter)
+// saves it immediately, with no Save button and no page reload, so the
+// mechanic can keep filling the next field.
 window.saveDetails = async () => {
   const msg = document.getElementById('details-msg');
-  if (msg) msg.textContent = '';
+  if (msg) { msg.textContent = ''; }
   try {
     let body;
     if (T.type === 'receipt') {
@@ -98,8 +101,9 @@ window.saveDetails = async () => {
     const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || 'Could not save.');
-    location.reload();
-  } catch (e) { if (msg) msg.textContent = e.message; else alert(e.message); }
+    if (d.ticket) T = d.ticket;
+    if (msg) { msg.style.color = '#15803d'; msg.textContent = 'Saved.'; }
+  } catch (e) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = e.message; } else alert(e.message); }
 };
 window.mechEst = async (action, line) => {
   const verb = action === 'accept' ? 'approved' : 'denied';
@@ -265,7 +269,7 @@ function renderActions() {
     const taxRow = (t.taxAmount > 0) ? `<tr><td>Tax (${esc(t.taxRate)}%)</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.taxAmount)}</td></tr>` : '';
     const subRow = (isNew && (t.laborAmount > 0 || t.taxAmount > 0)) ? `<tr><td>Parts subtotal</td><td class="num"></td><td class="num"></td><td class="num">${money(t.subtotal)}</td></tr>` : '';
     box.innerHTML = `
-      <div class="noprint" style="text-align:right;margin-bottom:8px"><button type="button" class="editbtn" onclick="saveDetails()">Save details</button> <span class="err" id="details-msg"></span></div>
+      <div class="noprint" style="text-align:right;margin-bottom:8px;min-height:1.2em"><span id="details-msg"></span></div>
       <div class="head">
         ${b && b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
         <div><h1>${esc(b ? b.name : 'Mobile mechanic')}</h1>
@@ -293,6 +297,12 @@ function renderActions() {
       ${t.type === 'estimate' ? `<div class="disc">This is an estimate only and is not a final invoice. The work and price listed above are what is quoted. No additional charges will be added without your approval.</div>` : ''}
       <div class="foot">Prepared by ${esc(b ? b.name : '')}${b && b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network${t.type === 'receipt' ? '<br>This receipt confirms payment received in full for the services listed above.' : ''}</div>`;
     document.title = t.type.charAt(0).toUpperCase() + t.type.slice(1) + ' — ' + (b ? b.name : '');
+    ['dt-job-in', 'dt-vin-in', 'dt-mile-in', 'dt-pm-in'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('change', saveDetails);
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') el.blur(); });
+    });
     renderActions();
   } catch (e) { box.innerHTML = '<p>' + esc(e.message) + '</p>'; }
 })();
