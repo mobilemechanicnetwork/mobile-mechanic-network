@@ -287,6 +287,44 @@ function cleanTicketBody(body, type) {
   };
 }
 // Build an invoice from an accepted quote. Returns the ticket object or null.
+// Ticket numbers are sequential per business, starting at 1, in the
+// order tickets were created, shown as the shop's abbreviation plus the
+// number (Alternative Auto -> AA-1). Both are assigned at creation and
+// stored on the ticket, so a printed ticket always matches the portal
+// record even if the shop later renames itself.
+function businessAbbrev(name) {
+  const words = String(name || '').match(/[A-Za-z0-9]+/g) || [];
+  let abbr = words.map(w => w[0].toUpperCase()).join('');
+  if (abbr.length < 2) abbr = String(name || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase();
+  if (abbr.length > 4) abbr = abbr.slice(0, 4);
+  return abbr || 'SHOP';
+}
+function nextTicketNumber(businessId, tickets) {
+  const list = tickets || ticketsStore.read();
+  const nums = list.filter(t => t.businessId === businessId && Number.isFinite(Number(t.number))).map(t => Number(t.number));
+  return (nums.length ? Math.max(...nums) : 0) + 1;
+}
+// One-time backfill for tickets created before numbering existed: they
+// get numbers in createdAt order, after any number already assigned, so
+// no existing ticket is ever renumbered.
+function backfillTicketNumbers() {
+  const tickets = ticketsStore.read();
+  const businesses = businessesStore.read();
+  let changed = false;
+  const byBiz = {};
+  tickets.forEach(t => { (byBiz[t.businessId] = byBiz[t.businessId] || []).push(t); });
+  Object.values(byBiz).forEach(list => {
+    list.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+    let next = Math.max(0, ...list.filter(t => Number.isFinite(Number(t.number))).map(t => Number(t.number)));
+    const biz = businesses.find(b => b.id === list[0].businessId);
+    const abbr = businessAbbrev(biz ? biz.name : '');
+    list.forEach(t => {
+      if (!Number.isFinite(Number(t.number))) { t.number = ++next; changed = true; }
+      if (!t.label) { t.label = abbr + '-' + t.number; changed = true; }
+    });
+  });
+  if (changed) ticketsStore.write(tickets);
+}
 function ticketFromAcceptedQuote(quote, row) {
   const r2 = n => Math.round(n * 100) / 100;
   let items = (quote.items || [])
@@ -297,7 +335,8 @@ function ticketFromAcceptedQuote(quote, row) {
   if (!items.length) return null;
   const subtotal = r2(items.reduce((s, it) => s + it.qty * it.price, 0));
   const biz = businessesStore.read().find(b => b.id === quote.businessId);
-  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', mileage: '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, total: subtotal, createdAt: new Date().toISOString() };
+  const number = nextTicketNumber(quote.businessId);
+  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', number, label: businessAbbrev(biz ? biz.name : '') + '-' + number, customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', mileage: '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, total: subtotal, createdAt: new Date().toISOString() };
 }
 // Total a customer would owe if they approve extra lines on an invoice.
 // Uses the exact rounding the acceptance handlers use, so the total the
@@ -1594,7 +1633,8 @@ const server = http.createServer(async (req, res) => {
       if (clean.error) return sendJson(res, 400, { error: clean.error });
       if (!clean.warranty && biz.warranty) clean.warranty = String(biz.warranty).slice(0, 2000);
       const tickets = ticketsStore.read();
-      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, ...clean, createdAt: new Date().toISOString() };
+      const number = nextTicketNumber(biz.id, tickets);
+      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, number, label: businessAbbrev(biz.name) + '-' + number, ...clean, createdAt: new Date().toISOString() };
       tickets.push(ticket); ticketsStore.write(tickets);
       return sendJson(res, 201, { ticket });
     }
@@ -2206,4 +2246,5 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+backfillTicketNumbers();
 server.listen(PORT, () => console.log(`Mobile Mechanic Network site running on http://localhost:${PORT}`));

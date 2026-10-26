@@ -116,7 +116,7 @@ window.actAll = (action) => act(action, null);
         ${t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : ''}
         ${t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : ''}
         ${(t.mileage !== '' && t.mileage != null) ? `<div><span>Mileage</span>${Number(t.mileage).toLocaleString('en-US')} mi</div>` : ''}
-        <div><span>Ticket</span>#${esc(t.id.slice(0, 8))}</div>
+        <div><span>Ticket</span>${t.label ? esc(t.label) : '#' + esc(t.id.slice(0, 8))}</div>
         ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}${t.paymentMethod ? ' via ' + esc(t.paymentMethod) : ''}</div>` : ''}
       </div>
       <table>${headRow}${itemRows}${subRow}${laborRow}${taxRow}</table>

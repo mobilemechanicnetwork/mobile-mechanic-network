@@ -814,7 +814,7 @@ async function loadTickets() {
   $('ticket-list').innerHTML = d.tickets.length ? d.tickets.map(t => `<div class="card" id="ticket-${t.id}">
     ${t.customerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(t.customerName)}</div>` : ''}
     <h3>${ticketBadge(t)} — $${esc(t.total)}</h3>
-    <div class="muted">${t.vehicle ? esc(t.vehicle) + ' · ' : ''}${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() + (t.paymentMethod ? ' via ' + esc(t.paymentMethod) : '') : ''}</div>
+    <div class="muted">${t.label ? 'Ticket ' + esc(t.label) + ' · ' : ''}${t.vehicle ? esc(t.vehicle) + ' · ' : ''}${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() + (t.paymentMethod ? ' via ' + esc(t.paymentMethod) : '') : ''}</div>
     <p><a href="/ticket?id=${t.id}" target="_blank">View ticket →</a></p>
   </div>`).join('') : '<p class="muted">No tickets yet.</p>';
 }

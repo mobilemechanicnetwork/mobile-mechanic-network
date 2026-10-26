@@ -320,7 +320,7 @@ function renderActions() {
         <div class="${t.vin ? '' : 'empty-line'}"><span>VIN</span><input id="dt-vin-in" value="${esc(t.vin || '')}" placeholder="VIN"></div>
         <div class="${(t.mileage !== '' && t.mileage != null) ? '' : 'empty-line'}"><span>Mileage</span><input id="dt-mile-in" value="${(t.mileage !== '' && t.mileage != null) ? t.mileage : ''}" placeholder="Mileage" inputmode="numeric"></div>
         <div class="${t.paymentMethod ? '' : 'empty-line'}"><span>Payment type</span><input id="dt-pm-in" value="${esc(t.paymentMethod || '')}" placeholder="e.g. cash, card, check"></div>
-        <div><span>Ticket</span>#${esc(t.id.slice(0, 8))}</div>
+        <div><span>Ticket</span>${t.label ? esc(t.label) : '#' + esc(t.id.slice(0, 8))}</div>
         ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}${t.paymentMethod ? ' via ' + esc(t.paymentMethod) : ''}</div>` : ''}
       </div>
       <table>${headRow}${itemRows}${subRow}${laborRow}${taxRow}</table>
