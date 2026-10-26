@@ -249,8 +249,7 @@
       <div style="margin:12px 0"><strong>Send to customer</strong>
       <label style="display:block;margin-top:6px"><input type="checkbox" id="t-send-text" checked> Text it to the customer</label>
       <label style="display:block"><input type="checkbox" id="t-send-share" checked> Share the PDF from my phone (opens the ticket)</label>
-      <label style="display:block"><input type="checkbox" id="t-send-notify" checked> Notify them in their dashboard</label>
-      <p class="muted" style="margin:4px 0 0">Texts need a phone number above and texting set up; dashboard notices reach customers with an account.</p></div>
+      <p class="muted" style="margin:4px 0 0">Texts need a phone number above and texting set up. Customers with an account are also notified in their dashboard automatically.</p></div>
       <button class="primary" type="submit">Create ticket</button>
       <button class="ghost" type="button" id="t-cancel">Cancel</button>
       <div class="err" id="t-err"></div><div class="ok" id="t-ok"></div>
@@ -841,7 +840,7 @@ function resetTicketForm() {
   window._cardVins = {};
   $('t-type').disabled = false;
   document.querySelector('#ticket-form button[type="submit"]').textContent = 'Create ticket';
-  $('t-customer').value = ''; if ($('t-phone')) $('t-phone').value = ''; if ($('t-send-text')) $('t-send-text').checked = true; if ($('t-send-share')) $('t-send-share').checked = true; if ($('t-send-notify')) $('t-send-notify').checked = true; if (window._tVeh) window._tVeh.reset(); $('t-vin').value = ''; $('t-mileage').value = ''; $('t-notes').value = ''; $('t-warranty').value = '';
+  $('t-customer').value = ''; if ($('t-phone')) $('t-phone').value = ''; if ($('t-send-text')) $('t-send-text').checked = true; if ($('t-send-share')) $('t-send-share').checked = true; if (window._tVeh) window._tVeh.reset(); $('t-vin').value = ''; $('t-mileage').value = ''; $('t-notes').value = ''; $('t-warranty').value = '';
   $('t-labor-desc').value = ''; $('t-labor').value = ''; $('t-taxrate').value = '';
   $('t-items').innerHTML = ''; addItemRow('', '', '');
   updateVinRequired(); refreshVehicleList();
@@ -967,7 +966,7 @@ $('ticket-form').onsubmit = async (e) => {
   if (!tVeh) { $('t-err').textContent = 'Please pick the vehicle year, make, and model.'; return; }
   const rows = [...document.querySelectorAll('#t-items .itemrow')];
   const items = rows.map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value }; });
-  const payload = { type: $('t-type').value, customerName: $('t-customer').value, phone: $('t-phone') ? $('t-phone').value : '', vehicle: tVeh, vin: $('t-vin').value, mileage: $('t-mileage').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, notes: $('t-notes').value, warranty: $('t-warranty').value, sendText: $('t-send-text') ? $('t-send-text').checked : false, sendNotify: $('t-send-notify') ? $('t-send-notify').checked : false };
+  const payload = { type: $('t-type').value, customerName: $('t-customer').value, phone: $('t-phone') ? $('t-phone').value : '', vehicle: tVeh, vin: $('t-vin').value, mileage: $('t-mileage').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, notes: $('t-notes').value, warranty: $('t-warranty').value, sendText: $('t-send-text') ? $('t-send-text').checked : false };
   try {
     const d = await post('/api/tickets', payload);
     let msg = 'Ticket created.';
@@ -976,7 +975,7 @@ $('ticket-form').onsubmit = async (e) => {
       else if (d.sent.text === 'no-phone') msg += ' Text skipped: no phone number.';
       else if (d.sent.text === 'twilio-not-configured') msg += ' Text not sent yet: texting is not set up.';
       else if (d.sent.text !== 'skipped') msg += ' Text failed to send.';
-      if (payload.sendNotify) msg += d.sent.notified ? ' Dashboard notice sent.' : ' No dashboard notice (no account found).';
+      msg += d.sent.notified ? ' Dashboard notice sent.' : ' No dashboard notice (customer has no account).';
     }
     $('t-ok').textContent = msg;
     if ($('t-send-share') ? $('t-send-share').checked : true) window.open('/ticket?id=' + d.ticket.id, '_blank');

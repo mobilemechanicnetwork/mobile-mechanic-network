@@ -40,10 +40,10 @@
 </style>
 </head>
 <body>
-<div class="actions noprint"><a href="/mechanic">← Back to mechanic portal</a> &nbsp; <button onclick="window.print()">Print / Save as PDF</button> <button onclick="window.print()">Share PDF</button></div>
-<p class="noprint" style="text-align:center;color:#64748b;font-size:.9rem;margin:0 16px">To share the PDF from your phone: tap Share PDF, then tap Share in the print preview and pick Messages, Mail, or another app.</p>
 <div class="page" id="ticket"><p>Loading…</p></div>
 <div id="ticket-actions" class="noprint"></div>
+<div class="actions noprint"><a href="/mechanic">← Back to mechanic portal</a> &nbsp; <button onclick="window.print()">Print / Save as PDF</button> <button onclick="window.print()">Share PDF</button></div>
+<p class="noprint" style="text-align:center;color:#64748b;font-size:.9rem;margin:0 16px">To share the PDF from your phone: tap Share PDF, then tap Share in the print preview and pick Messages, Mail, or another app.</p>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money = n => '$' + Number(n).toFixed(2);
@@ -179,8 +179,8 @@ function bindNotes() {
 }
 function sendHtml() {
   return `<div class="card" style="margin-top:14px"><h3 style="margin:0 0 6px">Send to customer</h3>
-  <p class="muted" style="margin:0 0 8px">Text it, share the PDF, or notify them in their dashboard.</p>
-  <p style="margin:0;display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="btn-send-text">Text to customer</button> <button type="button" id="btn-send-notify">Notify in dashboard</button> <button type="button" onclick="window.print()">Share PDF</button></p>
+  <p class="muted" style="margin:0 0 8px">Text it or share the PDF. Customers with an account are also notified in their dashboard automatically.</p>
+  <p style="margin:0;display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="btn-send-text">Text to customer</button> <button type="button" onclick="window.print()">Share PDF</button></p>
   <div class="ok" id="send-msg" style="margin-top:8px"></div><div class="err" id="send-err"></div></div>`;
 }
 function bindSend() {
@@ -192,12 +192,11 @@ function bindSend() {
       const d = await api('/api/tickets/' + T.id + '/send', body);
       const parts = [];
       if (body.text) parts.push(d.sent.text === 'sent' ? 'Text sent.' : d.sent.text === 'no-phone' ? 'Text skipped: no phone on file.' : d.sent.text === 'twilio-not-configured' ? 'Text not sent yet: texting is not set up.' : 'Text failed to send.');
-      if (body.notify) parts.push(d.sent.notified ? 'Dashboard notice sent.' : 'No dashboard notice: no account found.');
+      parts.push(d.sent.notified ? 'Dashboard notice sent.' : 'No dashboard notice: customer has no account.');
       msg.textContent = parts.join(' ');
     } catch (e) { err.textContent = e.message; }
   };
   const bt = document.getElementById('btn-send-text'); if (bt) bt.onclick = () => run({ text: true });
-  const bn = document.getElementById('btn-send-notify'); if (bn) bn.onclick = () => run({ notify: true });
 }
 function renderActions() {
   const box = document.getElementById('ticket-actions');

@@ -1676,10 +1676,10 @@ const server = http.createServer(async (req, res) => {
           const r = await sendSms(phoneE164, `Mobile Mechanic Network: ${biz.name} sent you a ${type} for ${ticket.vehicle} — $${Number(ticket.total).toFixed(2)}. Ticket ${ticket.label}.`);
           sent.text = r.sent ? 'sent' : (r.reason || 'failed');
         } else if (body.sendText) sent.text = 'no-phone';
-        if (body.sendNotify) {
-          const owner = ownerByPhone(phoneE164);
-          sent.notified = pushOwnerNote(owner ? owner.id : null, { type: 'ticket_received', title: `${biz.name} sent you a ${type}`, vehicle: ticket.vehicle || '', total: ticket.total, ticketId: ticket.id, ticketLabel: ticket.label || '', businessName: biz.name || '' });
-        }
+        // Dashboard notices are automatic, not a button: any customer
+        // with an account gets one whenever a ticket is created for them.
+        const owner = ownerByPhone(phoneE164);
+        sent.notified = pushOwnerNote(owner ? owner.id : null, { type: 'ticket_received', title: `${biz.name} sent you a ${type}`, vehicle: ticket.vehicle || '', total: ticket.total, ticketId: ticket.id, ticketLabel: ticket.label || '', businessName: biz.name || '' });
       } catch (e) {}
       return sendJson(res, 201, { ticket, sent });
     }
@@ -1702,10 +1702,10 @@ const server = http.createServer(async (req, res) => {
           const r = await sendSms(phoneE164, `Mobile Mechanic Network: ${biz ? biz.name : 'Your mechanic'} sent you a ${t.type} for ${t.vehicle} — $${Number(t.total).toFixed(2)}. Ticket ${t.label || ''}.`);
           sent.text = r.sent ? 'sent' : (r.reason || 'failed');
         } else if (body.text) sent.text = 'no-phone';
-        if (body.notify) {
-          const owner = row && row.ownerId ? usersStore.read().find(u => u.id === row.ownerId) : ownerByPhone(phoneE164);
-          sent.notified = pushOwnerNote(owner ? owner.id : null, { type: 'ticket_received', title: `${biz ? biz.name : 'Your mechanic'} sent you a ${t.type}`, vehicle: t.vehicle || '', total: t.total, ticketId: t.id, ticketLabel: t.label || '', businessName: biz ? biz.name : '' });
-        }
+        // Dashboard notices are automatic: sending a ticket to a customer
+        // with an account notifies them there too, no button needed.
+        const owner = row && row.ownerId ? usersStore.read().find(u => u.id === row.ownerId) : ownerByPhone(phoneE164);
+        sent.notified = pushOwnerNote(owner ? owner.id : null, { type: 'ticket_received', title: `${biz ? biz.name : 'Your mechanic'} sent you a ${t.type}`, vehicle: t.vehicle || '', total: t.total, ticketId: t.id, ticketLabel: t.label || '', businessName: biz ? biz.name : '' });
       } catch (e) {}
       return sendJson(res, 200, { sent });
     }
