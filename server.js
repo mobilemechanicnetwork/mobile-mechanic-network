@@ -1043,14 +1043,47 @@ const server = http.createServer(async (req, res) => {
       if (!biz) return sendJson(res, 200, { requests: [], booked: [], needsBusiness: true });
       const quotes = quotesStore.read();
       const myTickets = ticketsStore.read().filter(t => t.mechanicId === user.id);
-      const inbox = requestsStore.read()
+      const allRequests = requestsStore.read();
+      const normName = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      // Service history with THIS mechanic only, newest first. Platform
+      // jobs: this business's accepted quotes, matched by customer phone
+      // or owner account. Walk-in tickets: no phone on file, so matched
+      // by customer name; only billed work (invoice/receipt), never
+      // estimates, and never a quote job's own ticket (it carries a
+      // requestId and is already counted via its accepted quote).
+      const historyFor = (phone, ownerId, ownerName, excludeId) => {
+        const jobs = [];
+        for (const q of quotes) {
+          if (q.businessId !== biz.id || q.status !== 'accepted') continue;
+          const pr = allRequests.find(r => r.id === q.requestId);
+          if (!pr || pr.id === excludeId) continue;
+          const samePhone = phone && pr.phone && pr.phone === phone;
+          const sameOwner = ownerId && pr.ownerId && pr.ownerId === ownerId;
+          if (!samePhone && !sameOwner) continue;
+          jobs.push({ service: pr.service, vehicle: pr.vehicle, date: pr.date || (pr.createdAt || '').slice(0, 10), total: q.total != null ? q.total : q.price, paid: myTickets.some(t => t.requestId === pr.id && t.type === 'receipt'), createdAt: pr.createdAt || '' });
+        }
+        const wantName = normName(ownerName);
+        if (wantName) {
+          for (const t of myTickets) {
+            if (t.requestId || (t.type !== 'invoice' && t.type !== 'receipt')) continue;
+            if (normName(t.customerName) !== wantName) continue;
+            const svc = (t.items || []).map(it => it.desc).filter(Boolean).join(', ') || t.laborDesc || 'Service';
+            jobs.push({ service: svc, vehicle: t.vehicle || '', date: (t.createdAt || '').slice(0, 10), total: t.total, paid: t.type === 'receipt', createdAt: t.createdAt || '' });
+          }
+        }
+        jobs.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+        return jobs;
+      };
+      const inbox = allRequests
         .filter(r => r.status === 'open' && requestMatchesBusiness(r, biz))
-        .map(r => ({ ...r, myQuote: quotes.find(q => q.requestId === r.id && q.businessId === biz.id) || null }));
-      const booked = requestsStore.read()
+        .map(r => { const history = historyFor(r.phone, r.ownerId, r.ownerName, r.id); return { ...r, myQuote: quotes.find(q => q.requestId === r.id && q.businessId === biz.id) || null, history, returning: history.length > 0 }; });
+      const booked = allRequests
         .filter(r => r.status === 'accepted')
         .map(r => {
           const q = quotes.find(q => q.requestId === r.id && q.businessId === biz.id && q.status === 'accepted');
-          return q ? { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, hasTicket: myTickets.some(t => t.requestId === r.id), paid: myTickets.some(t => t.requestId === r.id && t.type === 'receipt'), pendingFollowUp: quotes.find(q2 => q2.requestId === r.id && q2.businessId === biz.id && q2.status === 'pending' && q2.followUp === true) || null } : null;
+          if (!q) return null;
+          const history = historyFor(r.phone, r.ownerId, r.ownerName, r.id);
+          return { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, ownerId: r.ownerId || null, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, hasTicket: myTickets.some(t => t.requestId === r.id), paid: myTickets.some(t => t.requestId === r.id && t.type === 'receipt'), pendingFollowUp: quotes.find(q2 => q2.requestId === r.id && q2.businessId === biz.id && q2.status === 'pending' && q2.followUp === true) || null, history, returning: history.length > 0 };
         })
         .filter(Boolean);
       return sendJson(res, 200, { requests: inbox, booked });

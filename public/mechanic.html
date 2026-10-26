@@ -365,6 +365,23 @@ window.viewBookedJob = () => { document.querySelector('[data-tab="requests"]').c
 window.viewRequest = () => { document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('inbox'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
 $('notif-clear').onclick = async () => { await post('/api/notifications/clear', {}); loadNotifications(false); };
 
+/* ---------- Customer badges + service history ---------- */
+function customerBadge(r) {
+  return (r.history && r.history.length)
+    ? '<span style="background:#dcfce7;color:#15803d;font-weight:700;font-size:.75rem;padding:2px 8px;border-radius:6px">Returning customer</span>'
+    : '<span style="background:#f1f5f9;color:#475569;font-weight:700;font-size:.75rem;padding:2px 8px;border-radius:6px">New customer</span>';
+}
+function historyButton(r) {
+  return (r.history && r.history.length)
+    ? `<button type="button" class="ghost" style="margin-left:8px" onclick="toggleHist('${r.id}')">Service history (${r.history.length})</button>`
+    : '';
+}
+function historyBlock(r) {
+  if (!r.history || !r.history.length) return '';
+  return `<div id="hist-${r.id}" hidden style="margin:8px 0;padding:10px;background:#f8fafc;border-radius:10px"><strong>Service history with you</strong>${r.history.map(h => `<div class="muted">${esc(h.service)} — ${esc(h.vehicle)}${h.date ? ' · ' + esc(h.date) : ''}${h.total != null ? ' · $' + Number(h.total).toFixed(2) : ''} · ${h.paid ? 'Paid' : 'Booked'}</div>`).join('')}</div>`;
+}
+window.toggleHist = (id) => { const el = $('hist-' + id); if (el) el.hidden = !el.hidden; };
+
 /* ---------- Requests inbox ---------- */
 async function loadInbox() {
   const inbox = await api('/api/requests/inbox');
@@ -375,8 +392,9 @@ async function loadInbox() {
   if (!inbox.requests.length) { box.innerHTML = '<p class="muted">No open requests match your area and services right now.</p>'; return; }
   inbox.requests.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
   box.innerHTML = inbox.requests.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
-    ${r.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(r.ownerName)}</div>` : ''}${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)}${r.phone ? ` · <a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · <a href="sms:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
+    ${r.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(r.ownerName)}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(r)}${historyButton(r)}</div>${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)}${r.phone ? ` · <a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · <a href="sms:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>
     <p>${esc(r.description)}</p>
+    ${historyBlock(r)}
     ${r.myQuote ? (r.myQuote.status === 'declined' ? `<p>You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (<span style="color:#dc2626;font-weight:700">denied</span>).</p>` : `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p>${r.myQuote.status === 'pending' ? `<p><button type="button" class="ghost" onclick="textQuote('${r.id}')">Text quote from my phone</button></p>` : ''}`) : `
     <div id="qb-${r.id}">
       <p style="margin:8px 0 4px"><strong>Build your itemized quote</strong> <span class="muted">— sent under your business name</span></p>
@@ -391,7 +409,9 @@ async function loadInbox() {
   const bk = $('booked');
   bk.innerHTML = (inbox.booked && inbox.booked.length) ? inbox.booked.map(b => `<div class="card">
     <strong>${esc(b.service)}</strong> — ${esc(b.vehicle)}${b.vin ? ' · VIN ' + esc(b.vin) : ''} <span class="ok">Booked</span><div class="muted">${esc(b.city)}, ${esc(b.state)} · ${esc(b.ownerName)} · <a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(b.phone) : b.phone)}</a>${b.phone ? ` · <a href="sms:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${b.date ? ' · Needed by ' + esc(b.date) : ''}</div>
+    <div style="margin:2px 0 6px">${customerBadge(b)}${historyButton(b)}</div>
     <p>${esc(b.description)}</p>
+    ${historyBlock(b)}
     <p><strong>Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}</strong></p>
     <p>${b.hasTicket ? '<span class="ok">Ticket created</span>' : `<button type="button" class="primary" onclick="bookedToTicket('${b.id}')">Create ticket from quote</button>`}</p>
     ${b.paid ? '<p><span class="ok">Paid</span></p>' : b.pendingFollowUp ? `<p class="ok">Additional work quoted $${esc(b.pendingFollowUp.total != null ? b.pendingFollowUp.total : b.pendingFollowUp.price)} (pending customer approval).</p><p><button type="button" class="ghost" onclick="textFollowUp('${b.id}')">Text quote from my phone</button></p>` : `
