@@ -68,6 +68,8 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;
         ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}${t.paymentMethod ? ' via ' + esc(t.paymentMethod) : ''}</div>` : ''}
       </div>
       <table>${headRow}${itemRows}${subRow}${laborRow}${taxRow}</table>
+      ${(t.estimateLines && t.estimateLines.length && t.estimateStatus === 'pending') ? `<h3 style="margin-top:16px">Estimate — awaiting approval</h3><table><tr><th>Description</th><th class="num">Amount</th></tr>${t.estimateLines.map(l => `<tr><td>${esc(l.desc)}</td><td class="num">${money(l.price)}</td></tr>`).join('')}</table><div class="muted">These lines are not yet on the invoice. They join it only if the customer approves.</div>` : ''}
+      ${(t.deniedLines && t.deniedLines.length) ? `<h3 style="margin-top:16px">Denied repairs (not performed, not charged)</h3><table><tr><th>Description</th><th class="num">Amount</th></tr>${t.deniedLines.map(l => `<tr><td>${esc(l.desc)}</td><td class="num">${money(l.price)}</td></tr>`).join('')}</table><div class="muted">The customer declined these repairs. They are not included in the total.</div>` : ''}
       <div class="total">${t.type === 'estimate' ? 'Estimated total' : 'Total'}: ${money(t.total)}</div>
       ${t.type === 'receipt' && t.paidAt ? `<div class="total">Balance due: $0.00</div><div class="paid">Paid in full. Thank you for your business.</div>` : ''}
       ${t.notes ? `<div class="notes"><strong>Notes:</strong> ${esc(t.notes)}</div>` : ''}

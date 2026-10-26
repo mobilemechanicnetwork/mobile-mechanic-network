@@ -1019,10 +1019,12 @@ const server = http.createServer(async (req, res) => {
       const tickets = ticketsStore.read();
       const mine = requestsStore.read().filter(r => r.ownerId === user.id).map(r => {
         const reqBiz = r.businessId ? businessesStore.read().find(b => b.id === r.businessId) : null;
+        const pendEst = tickets.find(t => t.requestId === r.id && t.type === 'invoice' && t.estimateStatus === 'pending');
         return {
           ...r,
           reviewed: reviews.some(x => x.requestId === r.id),
           paid: tickets.some(t => t.requestId === r.id && t.type === 'receipt'),
+          pendingEstimate: pendEst ? { ticketId: pendEst.id, lines: pendEst.estimateLines || [], total: Math.round((pendEst.estimateLines || []).reduce((s, l) => s + Number(l.price || 0), 0) * 100) / 100 } : null,
           businessName: reqBiz ? reqBiz.name : '',
           businessCity: reqBiz ? `${reqBiz.city}, ${reqBiz.state}` : '',
           businessLogo: reqBiz && reqBiz.logoUrl ? reqBiz.logoUrl : '',
@@ -1083,7 +1085,7 @@ const server = http.createServer(async (req, res) => {
           const q = quotes.find(q => q.requestId === r.id && q.businessId === biz.id && q.status === 'accepted');
           if (!q) return null;
           const history = historyFor(r.phone, r.ownerId, r.ownerName, r.id);
-          return { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, ownerId: r.ownerId || null, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, hasTicket: myTickets.some(t => t.requestId === r.id), paid: myTickets.some(t => t.requestId === r.id && t.type === 'receipt'), pendingFollowUp: quotes.find(q2 => q2.requestId === r.id && q2.businessId === biz.id && q2.status === 'pending' && q2.followUp === true) || null, history, returning: history.length > 0 };
+          return { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, ownerName: r.ownerName, ownerId: r.ownerId || null, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, hasTicket: myTickets.some(t => t.requestId === r.id), ticketId: (myTickets.find(t => t.requestId === r.id) || {}).id || null, paid: myTickets.some(t => t.requestId === r.id && t.type === 'receipt'), pendingFollowUp: quotes.find(q2 => q2.requestId === r.id && q2.businessId === biz.id && q2.status === 'pending' && q2.followUp === true) || null, history, returning: history.length > 0 };
         })
         .filter(Boolean);
       return sendJson(res, 200, { requests: inbox, booked });
@@ -1128,6 +1130,8 @@ const server = http.createServer(async (req, res) => {
       const quotes = quotesStore.read();
       if (quotes.some(q => q.requestId === requestId && q.businessId === biz.id && q.status === 'pending'))
         return sendJson(res, 409, { error: 'You already quoted this request.' });
+      if (ticketsStore.read().some(t => t.requestId === requestId && t.type === 'invoice' && t.estimateStatus === 'pending'))
+        return sendJson(res, 409, { error: 'An estimate is already awaiting approval for this job.' });
       const quote = { id: crypto.randomUUID(), requestId, businessId: biz.id, mechanicId: user.id, items: cleanItems, notes: String(notes || '').slice(0, 1000), total, price: total, message: String(message || ''), status: 'pending', followUp, createdAt: new Date().toISOString() };
       quotes.push(quote); quotesStore.write(quotes);
       return sendJson(res, 201, { quote });
@@ -1202,7 +1206,21 @@ const server = http.createServer(async (req, res) => {
           notificationsStore.write(notes);
         } catch (e) {}
         return sendJson(res, 200, { quote, requestStatus: row.status, ticket: autoTicket, mechanicNotified });
-      } else quote.status = 'declined';
+      } else {
+        quote.status = 'declined';
+        // A declined follow-up quote is denied extra work: keep it on the
+        // job's invoice as denied repairs so the receipt shows it, never
+        // charged. (Initial-quote declines have no invoice yet: skipped.)
+        if (quote.followUp) {
+          const tickets = ticketsStore.read();
+          const inv = tickets.find(x => x.requestId === row.id && x.businessId === quote.businessId && x.type === 'invoice');
+          if (inv) {
+            const dl = (quote.items || []).map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), price: Math.round(Math.max(0, Number(it.amount) || 0) * 100) / 100 })).filter(l => l.desc && l.price > 0);
+            if (!dl.length && Number(quote.total) > 0) dl.push({ desc: row.service, price: Math.round(Number(quote.total) * 100) / 100 });
+            if (dl.length) { inv.deniedLines = [...(inv.deniedLines || []), ...dl]; ticketsStore.write(tickets); }
+          }
+        }
+      }
       quotesStore.write(quotes); requestsStore.write(rows);
       return sendJson(res, 200, { quote, requestStatus: row.status });
     }
@@ -1622,6 +1640,7 @@ const server = http.createServer(async (req, res) => {
       const t = tickets.find(x => x.id === ticketPaid[1] && x.mechanicId === user.id);
       if (!t) return sendJson(res, 404, { error: 'Not found.' });
       if (t.type !== 'invoice') return sendJson(res, 400, { error: 'Only invoices can be marked as paid.' });
+      if (t.estimateStatus === 'pending') return sendJson(res, 400, { error: 'An estimate is still awaiting customer approval, so this invoice cannot be marked paid yet.' });
       const { paymentMethod, vin, mileage } = await parseBody(req);
       const pm = String(paymentMethod || '').trim().slice(0, 50);
       if (!pm) return sendJson(res, 400, { error: 'Say how it was paid (cash, card, check, etc.).' });
@@ -1637,6 +1656,9 @@ const server = http.createServer(async (req, res) => {
       } else if (t.mileage === '' || t.mileage == null) {
         return sendJson(res, 400, { error: 'A vehicle mileage is required before this invoice can be marked paid.' });
       }
+      // An unsent draft was never customer-facing: it drops off at payment.
+      // Denied lines stay on the ticket and show on the receipt.
+      if (t.estimateStatus === 'draft') { t.estimateLines = []; t.estimateStatus = 'none'; }
       t.type = 'receipt'; t.paidAt = new Date().toISOString(); t.paymentMethod = pm;
       ticketsStore.write(tickets);
       // Review prompt: text the customer a review link when a job tied to a request is paid.
@@ -1651,6 +1673,99 @@ const server = http.createServer(async (req, res) => {
         }
       }
       return sendJson(res, 200, { ticket: t, smsSent });
+    }
+    // ---------- Ticket estimate lines (extra work on a booked job) ----------
+    // An accepted quote's lines stay invoiced. The mechanic can add extra
+    // lines at the bottom of the same repair order as an estimate, send it
+    // for a second customer approval, and approved lines join the invoice.
+    // Denied lines are kept as a permanent record and show on the receipt
+    // as denied repairs, never charged: the mechanic is paid only for
+    // accepted work (the original quote plus any approved additions).
+    const cleanEstimateLines = (lines) => {
+      const out = [];
+      if (Array.isArray(lines)) for (const it of lines.slice(0, 50)) {
+        const desc = String((it && it.desc) || '').trim().slice(0, 200);
+        const price = Math.round(Number(it && (it.price ?? it.amount)) * 100) / 100;
+        if (desc && price > 0) out.push({ desc, price });
+      }
+      return out;
+    };
+    const estimateRoute = p.match(/^\/api\/tickets\/([0-9a-f-]+)\/estimate(\/(send|accept|decline))?$/);
+    if (estimateRoute && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const tickets = ticketsStore.read();
+      const t = tickets.find(x => x.id === estimateRoute[1]);
+      if (!t) return sendJson(res, 404, { error: 'Not found.' });
+      const action = estimateRoute[3] || 'save';
+      if (action === 'accept' || action === 'decline') {
+        // Customer decision on a pending estimate, per line or whole.
+        // Body {line: n} decides one line; no line decides the whole
+        // remaining estimate. Decided lines leave the estimate: approved
+        // lines join the invoice, denied lines join the denied record.
+        // Undecided lines stay pending until the customer decides them.
+        if (!t.requestId) return sendJson(res, 400, { error: 'This ticket has no job to approve.' });
+        const row = requestsStore.read().find(r => r.id === t.requestId);
+        if (!row || row.ownerId !== user.id) return sendJson(res, 403, { error: 'That is not your job.' });
+        if (t.type !== 'invoice' || t.estimateStatus !== 'pending') return sendJson(res, 400, { error: 'No estimate is awaiting approval on this job.' });
+        if (tickets.some(x => x.requestId === t.requestId && x.type === 'receipt')) return sendJson(res, 400, { error: 'This job is already paid.' });
+        const lines = t.estimateLines || [];
+        const body = await parseBody(req);
+        let lineIdx = body.line;
+        if (lineIdx !== undefined && lineIdx !== null) {
+          lineIdx = Number(lineIdx);
+          if (!Number.isInteger(lineIdx) || lineIdx < 0 || lineIdx >= lines.length) return sendJson(res, 400, { error: 'That estimate line no longer exists.' });
+        } else lineIdx = null;
+        const acted = lineIdx === null ? lines : [lines[lineIdx]];
+        const remaining = lineIdx === null ? [] : lines.filter((_, i) => i !== lineIdx);
+        if (action === 'accept') {
+          const r2 = n => Math.round(n * 100) / 100;
+          t.items = [...(t.items || []), ...acted.map(l => ({ desc: l.desc, qty: 1, price: l.price }))];
+          const parts = r2(t.items.reduce((s, it) => s + it.qty * it.price, 0));
+          t.subtotal = parts;
+          t.taxAmount = r2(r2(parts + (t.laborAmount || 0)) * (t.taxRate || 0) / 100);
+          t.total = r2(parts + (t.laborAmount || 0) + t.taxAmount);
+          t.estimateLines = remaining; t.estimateStatus = remaining.length ? 'pending' : 'none';
+        } else {
+          t.deniedLines = [...(t.deniedLines || []), ...acted];
+          t.estimateLines = remaining; t.estimateStatus = remaining.length ? 'pending' : 'none';
+        }
+        ticketsStore.write(tickets);
+        // Notify the mechanic, same pattern as a quote acceptance: the
+        // mechanic is the one waiting on this decision.
+        try {
+          const notes = notificationsStore.read();
+          notes.push({ id: crypto.randomUUID(), userId: t.mechanicId, type: action === 'accept' ? 'estimate_accepted' : 'estimate_declined', title: `Customer ${action === 'accept' ? 'approved' : 'denied'} your estimate${lineIdx === null ? '' : ' line'}`, service: row.service, vehicle: row.vehicle || '', total: acted.reduce((s, l) => s + Number(l.price || 0), 0), customerName: row.ownerName || '', customerPhone: row.phone || '', requestId: row.id, ticketId: t.id, read: false, createdAt: new Date().toISOString() });
+          notificationsStore.write(notes);
+        } catch (e) {}
+        try {
+          const mechUser = usersStore.read().find(u => u.id === t.mechanicId);
+          const biz = businessesStore.read().find(b => b.id === t.businessId);
+          const to = (mechUser && mechUser.phone) || (biz && biz.phone) || '';
+          if (to) await sendSms(to, `Mobile Mechanic Network: ${row.ownerName || 'A customer'} ${action === 'accept' ? 'approved' : 'denied'} your estimate${lineIdx === null ? '' : ' line'} for ${row.service} (${row.vehicle}). See it here: https://mobilemechanicsinmyarea.com/mechanic`);
+        } catch (e) {}
+        return sendJson(res, 200, { ticket: t });
+      }
+      // Mechanic save/send.
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
+      if (t.mechanicId !== user.id) return sendJson(res, 404, { error: 'Not found.' });
+      if (t.type !== 'invoice' || !t.requestId) return sendJson(res, 400, { error: 'Estimates can only be added to an unpaid invoice from an accepted quote.' });
+      if (t.estimateStatus === 'pending') return sendJson(res, 409, { error: 'An estimate is already awaiting approval for this job.' });
+      const body = await parseBody(req);
+      const lines = cleanEstimateLines(body.lines);
+      if (action === 'send') {
+        if (!lines.length) return sendJson(res, 400, { error: 'Add at least one estimate line before sending.' });
+        if (tickets.some(x => x.requestId === t.requestId && x.type === 'receipt')) return sendJson(res, 400, { error: 'This job is already paid.' });
+        if (quotesStore.read().some(q => q.requestId === t.requestId && q.businessId === t.businessId && q.status === 'pending' && q.followUp === true))
+          return sendJson(res, 409, { error: 'A quote is already awaiting approval for this job.' });
+        t.estimateLines = lines; t.estimateStatus = 'pending';
+      } else {
+        // Save draft (empty lines clears the draft).
+        t.estimateLines = lines; t.estimateStatus = lines.length ? 'draft' : 'none';
+      }
+      ticketsStore.write(tickets);
+      return sendJson(res, 200, { ticket: t });
     }
     if (p === '/api/tickets/customers' && req.method === 'GET') {
       const user = getSessionUser(req);

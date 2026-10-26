@@ -218,6 +218,12 @@
         ${q.status === 'pending' ? '<p class="muted">This price covers exactly what is listed. Nothing extra gets added without your approval.</p>' : ''}
         ${q.status === 'pending' && (r.status === 'open' || q.followUp) ? `<button onclick="actQuote('${q.id}','accept')">Accept</button> <button class="decline" onclick="actQuote('${q.id}','decline')">Decline</button>` : ''}
       </div>`).join('') : '<p class="muted">No quotes yet.</p>'}
+      ${r.pendingEstimate ? `<div class="card" style="border-color:#2563eb">
+        <strong>Estimate for additional work — needs your approval</strong>
+        <p class="muted">These lines are extra work on top of your accepted quote. Approve or deny each line: approved lines join your invoice, denied lines do not, and denied lines will show on your receipt as denied repairs.</p>
+        <div style="margin:10px 0">${r.pendingEstimate.lines.map((l, i) => `<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #e2e8f0;align-items:center"><span>${esc(l.desc)} — $${Number(l.price).toFixed(2)}</span><span style="white-space:nowrap"><button onclick="actEst('${r.pendingEstimate.ticketId}','accept',${i})">Approve</button> <button class="decline" onclick="actEst('${r.pendingEstimate.ticketId}','decline',${i})">Deny</button></span></div>`).join('')}<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;font-weight:700"><span>Estimate total</span><span>$${Number(r.pendingEstimate.total).toFixed(2)}</span></div></div>
+        <p><button onclick="actEst('${r.pendingEstimate.ticketId}','accept')">Approve all</button> <button class="decline" onclick="actEst('${r.pendingEstimate.ticketId}','decline')">Deny all</button></p>
+      </div>` : ''}
       ${r.paid && !r.reviewed ? `<div class="card" id="rev-${r.id}">
         <strong>How was the work?</strong>
         <div class="stars" id="stars-${r.id}">${[1, 2, 3, 4, 5].map(n => `<span data-n="${n}" onclick="setStars('${r.id}',${n})">☆</span>`).join('')}</div>
@@ -368,6 +374,7 @@
     } catch (ex) { $('h-err').textContent = ex.message; }
   };
   window.actQuote = async (id, action) => { try { await post(`/api/quotes/${id}/${action}`, {}); loadOwner(); } catch (e) { alert(e.message); } };
+  window.actEst = async (tid, action, line) => { const body = (line === undefined || line === null) ? {} : { line }; try { await post(`/api/tickets/${tid}/estimate/${action}`, body); loadOwner(); } catch (e) { alert(e.message); } };
   const starVals = {};
   window.setStars = (rid, n) => { starVals[rid] = n; document.querySelectorAll(`#stars-${rid} span`).forEach(s => { s.textContent = Number(s.dataset.n) <= n ? '★' : '☆'; }); };
   window.sendReview = async (rid) => {
