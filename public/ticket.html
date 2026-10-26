@@ -179,8 +179,8 @@ function bindNotes() {
 }
 function sendHtml() {
   return `<div class="card" style="margin-top:14px"><h3 style="margin:0 0 6px">Send to customer</h3>
-  <p class="muted" style="margin:0 0 8px">Text it or share the PDF. Customers with an account are also notified in their dashboard automatically.</p>
-  <p style="margin:0;display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="btn-send-text">Text to customer</button> <button type="button" onclick="window.print()">Share PDF</button></p>
+  <p class="muted" style="margin:0 0 8px">Text it to the customer. Customers with an account are also notified in their dashboard automatically. For the PDF, use Share PDF below.</p>
+  <p style="margin:0;display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="btn-send-text">Text to customer</button></p>
   <div class="ok" id="send-msg" style="margin-top:8px"></div><div class="err" id="send-err"></div></div>`;
 }
 function bindSend() {
@@ -202,7 +202,9 @@ function renderActions() {
   const box = document.getElementById('ticket-actions');
   if (!T) { box.innerHTML = ''; return; }
   if (T.type === 'receipt') {
-    box.innerHTML = `<div class="card"><p class="muted" style="margin:0">Paid in full. This receipt cannot be edited.</p></div>` + sendHtml();
+    // No separate paid note: the receipt document itself already says
+    // "Paid in full" with a $0.00 balance.
+    box.innerHTML = sendHtml();
     bindSend();
     return;
   }
@@ -374,7 +376,7 @@ function renderActions() {
         ${t.type === 'receipt' ? ((t.mileage !== '' && t.mileage != null) ? `<div><span>Mileage</span>${Number(t.mileage).toLocaleString('en-US')} mi</div>` : '') : `<div class="${(t.mileage !== '' && t.mileage != null) ? '' : 'empty-line'}"><span>Mileage</span><input id="dt-mile-in" value="${(t.mileage !== '' && t.mileage != null) ? t.mileage : ''}" placeholder="Mileage" inputmode="numeric"></div>`}
         ${t.type === 'receipt' ? (t.paymentMethod ? `<div><span>Payment type</span>${esc(t.paymentMethod)}</div>` : '') : `<div class="${t.paymentMethod ? '' : 'empty-line'}"><span>Payment type</span><input id="dt-pm-in" value="${esc(t.paymentMethod || '')}" placeholder="e.g. cash, card, check"></div>`}
         <div><span>Ticket</span>${t.label ? esc(t.label) : '#' + esc(t.id.slice(0, 8))}</div>
-        ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}${t.paymentMethod ? ' via ' + esc(t.paymentMethod) : ''}</div>` : ''}
+        ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}</div>` : ''}
       </div>
       <table>${headRow}${itemRows}${subRow}${laborRow}${taxRow}</table>
       ${(t.estimateLines && t.estimateLines.length && t.estimateStatus === 'pending') ? `<h3 style="margin-top:16px">Estimate — awaiting approval</h3><table><tr><th>Description</th><th class="num">Amount</th></tr>${t.estimateLines.map(l => `<tr><td>${esc(l.desc)}</td><td class="num">${money(l.price)}</td></tr>`).join('')}</table><div class="muted">These lines are not yet on the invoice. They join it only if the customer approves.</div>` : ''}
