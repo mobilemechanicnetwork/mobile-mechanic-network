@@ -59,6 +59,8 @@
     <input id="state" required maxlength="2">
     <label for="zip">ZIP code (optional)</label>
     <input id="zip" inputmode="numeric" maxlength="10" placeholder="e.g. 70460">
+    <label for="vehicle-location">Where is the vehicle? <span class="muted">(if you are not sure, write "contact for exact location")</span></label>
+    <input id="vehicle-location" required placeholder="e.g. home, work, or where it is parked">
     <label for="description" id="description-label">What is going on with the vehicle?</label>
     <textarea id="description" rows="4" required></textarea>
     <label for="date">When do you need it? (optional)</label>
@@ -156,6 +158,7 @@
     if (get('state')) document.getElementById('state').value = get('state');
     if (get('date')) document.getElementById('date').value = get('date');
     if (get('zip')) document.getElementById('zip').value = get('zip');
+    if (get('vehicleLocation')) document.getElementById('vehicle-location').value = get('vehicleLocation');
     const v = await (await fetch('/api/vehicles/me')).json().catch(() => ({}));
     if (v.vehicles && v.vehicles.length) {
       const sel = document.getElementById('my-vehicles-select');
@@ -219,7 +222,8 @@
       if (picked.length) descVal = 'Symptoms: ' + picked.join(', ') + '.' + (descVal ? '\n' + descVal : '');
       if (!descVal) { err.textContent = 'Please pick a symptom or describe what is going on.'; return; }
     }
-    const body = { name: document.getElementById('guest-name').value.trim(), service: svc, vehicle: veh, vehicleType: window._reqVeh ? window._reqVeh.type : 'car', vehicleYear: (() => { const g = window._reqVeh ? window._reqVeh.get() : null; return g ? g.year : ''; })(), vehicleMake: (() => { const g = window._reqVeh ? window._reqVeh.get() : null; return g ? g.make : ''; })(), vehicleModel: (() => { const g = window._reqVeh ? window._reqVeh.get() : null; return g ? g.model : ''; })(), vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: descVal, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: window._isUrgent === true, zip: document.getElementById('zip').value, businessId: window._directBizId || undefined, fromProfile: window._directBizId ? true : undefined };
+    if (!document.getElementById('vehicle-location').value.trim()) { err.textContent = 'Please tell us where the vehicle is, or write "contact for exact location".'; return; }
+    const body = { name: document.getElementById('guest-name').value.trim(), service: svc, vehicle: veh, vehicleType: window._reqVeh ? window._reqVeh.type : 'car', vehicleYear: (() => { const g = window._reqVeh ? window._reqVeh.get() : null; return g ? g.year : ''; })(), vehicleMake: (() => { const g = window._reqVeh ? window._reqVeh.get() : null; return g ? g.make : ''; })(), vehicleModel: (() => { const g = window._reqVeh ? window._reqVeh.get() : null; return g ? g.model : ''; })(), vin: document.getElementById('vin').value, city: document.getElementById('city').value, state: document.getElementById('state').value, description: descVal, phone: document.getElementById('phone').value, date: document.getElementById('date').value, urgent: window._isUrgent === true, zip: document.getElementById('zip').value, vehicleLocation: document.getElementById('vehicle-location').value.trim(), businessId: window._directBizId || undefined, fromProfile: window._directBizId ? true : undefined };
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { err.textContent = d.error || 'Something went wrong.'; return; }
