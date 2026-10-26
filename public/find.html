@@ -110,7 +110,8 @@ const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABE
 (async () => {
   if (window.CityAC) window.CityAC.attach($('f-city'), { stateInput: $('f-state') });
   if (window.VehiclePicker) window._findVeh = VehiclePicker.attach({ year: 'f-year', make: 'f-make', model: 'f-model', type: 'f-type' });
-  const d = await (await fetch('/api/services')).json();
+  let d = { services: [] };
+  try { d = await (await fetch('/api/services')).json(); } catch (e) { const err = document.createElement('p'); err.style.color = '#dc2626'; err.textContent = 'Could not load services. Please reload the page.'; $('f-service').after(err); }
   const prompt = document.createElement('option');
   prompt.value = '';
   prompt.textContent = 'Select a service';
@@ -118,8 +119,9 @@ const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABE
   prompt.selected = true;
   $('f-service').appendChild(prompt);
   d.services.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; $('f-service').appendChild(o); });
-  const tomorrow = new Date(Date.now() + 86400000);
-  $('f-date').value = tomorrow.toISOString().slice(0, 10);
+  // No default date: a prefilled tomorrow sends the wrong urgency
+  // when the customer doesn't notice it. The field is required, so
+  // the form prompts for a date instead.
   const isUrgent = new URLSearchParams(location.search).get('urgent') === '1';
   if (isUrgent) {
     $('urgent-banner').hidden = false;
@@ -259,7 +261,7 @@ $('find-form').onsubmit = async (e) => {
       desc = $('f-desc').value.trim();
     }
     sessionStorage.setItem('mmn_find', JSON.stringify({
-      phone: q.phone, city: q.city, state: q.state, zip: q.zip, date: q.date,
+      name: q.name, phone: q.phone, city: q.city, state: q.state, zip: q.zip, date: q.date,
       vehicle: q.vehicle, symptoms: q.symptoms, moreinfo: q.moreinfo,
       service: svc, vehicleType: window._findVeh ? window._findVeh.type : 'car',
       vehicleYear: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? g.year : ''; })(),
@@ -342,6 +344,8 @@ $('req-send').onclick = async () => {
     urgent: new URLSearchParams(location.search).get('urgent') === '1',
     zip: $('f-zip').value.trim(),
   };
+  const sentKey = JSON.stringify(body);
+  if (window._lastSent === sentKey) { errEl.textContent = 'This request was already sent.'; return; }
   const btn = $('req-send');
   btn.disabled = true;
   btn.textContent = 'Sending…';
@@ -349,6 +353,7 @@ $('req-send').onclick = async () => {
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { errEl.textContent = d.error || 'Something went wrong.'; btn.disabled = false; btn.textContent = 'Send quote request'; return; }
+    window._lastSent = sentKey;
     const me = await (await fetch('/api/me')).json().catch(() => ({}));
     const isGuest = !me.user;
     $('req-done-msg').textContent = d.mechanicsNotified > 0

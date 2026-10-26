@@ -69,7 +69,7 @@ window.actAll = (action) => act(action, null);
     const d = await r.json();
     T = d.ticket; TOT = d.totals;
     const t = T, b = d.business;
-    document.getElementById('addr-form').innerHTML = t.type === 'receipt' ? '' : `<div class="card" style="border:0">
+    document.getElementById('addr-form').innerHTML = !(t.type === 'invoice' && t.requestId) ? '' : `<div class="card" style="border:0">
       <h2 style="margin:0 0 6px;font-size:1.1rem">Where is the vehicle?</h2>
       <p class="muted" style="margin:0 0 10px">Add the repair location here. You do not have to give your full address when you request a quote.</p>
       <label>Job address</label><input id="cust-addr" placeholder="e.g. 123 Main St, Slidell, LA, or the store or workplace where the vehicle is" value="${esc(t.jobAddress || '')}" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box">
@@ -133,7 +133,7 @@ window.actAll = (action) => act(action, null);
       ${t.type === 'estimate' ? `<div class="disc">This is an estimate only and is not a final invoice. The work and price listed above are what is quoted. No additional charges will be added without your approval.</div>` : ''}
       <div class="foot">Prepared by ${esc(b ? b.name : '')}${b && b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network${t.type === 'receipt' ? '<br>This receipt confirms payment received in full for the services listed above.' : ''}</div>`;
     document.title = t.type.charAt(0).toUpperCase() + t.type.slice(1) + ' — ' + (b ? b.name : '');
-  } catch (e) { box.innerHTML = '<p>' + esc(e.message) + ' <a href="/dashboard">Back to dashboard</a></p>'; }
+  } catch (e) { box.innerHTML = '<p>' + esc(e.message) + (e.message.indexOf('Please sign in') === 0 ? ' If you create an account with the same phone number as the request, this ticket will be waiting in your dashboard. <a href="/account">Create a free account</a> · ' : ' ') + '<a href="/dashboard">Back to dashboard</a></p>'; }
 })();
 </script>
 </body>

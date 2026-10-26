@@ -32,7 +32,7 @@
   <p><a href="/security">Security</a> · <span id="adminLink"></span><button type="button" class="ghost" id="logout">Log out</button></p>
 
   <section id="owner" hidden>
-    <p><a href="/request"><button type="button">Request quotes</button></a> <a href="/mechanics"><button type="button" class="ghost">Find a mobile mechanic</button></a></p>
+    <p><button type="button" onclick="location.href='/request'">Request quotes</button> <button type="button" class="ghost" onclick="location.href='/mechanics'">Find a mobile mechanic</button></p>
     <h2>Notifications <span id="notif-count" class="muted" style="font-size:1rem"></span></h2>
     <div id="notif-list"><p class="muted">Loading…</p></div>
     <p><button type="button" class="ghost" id="notif-read">Mark all read</button> <button type="button" class="ghost" id="notif-clear">Clear all</button></p>
@@ -146,13 +146,14 @@
         if (n.vehicle) bits.push(esc(n.vehicle));
         if (n.total != null) bits.push('$' + Number(n.total).toFixed(2));
         bits.push(new Date(n.createdAt).toLocaleDateString());
-        return `<div class="card" style="${n.read ? '' : 'border-left:4px solid #2563eb'}"><strong>${esc(n.title)}</strong><div class="muted">${bits.join(' · ')}</div>${n.requestId ? `<p style="margin:8px 0 0"><button type="button" class="ghost" onclick="(document.getElementById('job-${n.requestId}') || document.getElementById('open-jobs')).scrollIntoView()">View job →</button></p>` : ''}</div>`;
+        return `<div class="card" style="${n.read ? '' : 'border-left:4px solid #2563eb'}"><strong>${esc(n.title)}</strong><div class="muted">${bits.join(' · ')}</div>${n.requestId ? `<p style="margin:8px 0 0"><button type="button" class="ghost" onclick="(document.getElementById('job-${n.requestId}') || document.getElementById('open-jobs')).scrollIntoView()">View job →</button></p>` : ''}${n.ticketId ? `<p style="margin:8px 0 0"><a href="/job-ticket?id=${n.ticketId}">View ticket →</a></p>` : ''}</div>`;
       }).join('') : '<p class="muted">No notifications yet. New quotes, estimates, and tickets from your mechanics will show up here.</p>';
     } catch (e) { $('notif-list').innerHTML = '<p class="muted">Notifications could not be loaded.</p>'; }
   }
   $('notif-read').onclick = async () => { await post('/api/notifications/read', {}); loadOwnerNotifications(); };
   $('notif-clear').onclick = async () => { await post('/api/notifications/clear', {}); loadOwnerNotifications(); };
-  async function loadOwner() {
+  async function loadOwner() { try { await loadOwnerInner(); } catch (e) { const box = document.getElementById('open-jobs'); if (box) box.innerHTML = '<p style="color:#dc2626">Could not load your dashboard. <button type="button" class="ghost" onclick="loadOwner()">Try again</button></p>'; } }
+  async function loadOwnerInner() {
     loadOwnerNotifications();
     const me = await api('/api/me');
     if (me.user.isAdmin) $('adminLink').innerHTML = '<a href="/admin">Admin</a> · ';
@@ -245,7 +246,7 @@
       ${(() => { const e = histExtra[r.id]; if (!e || !e.gv || !e.gv.photoUrl) return ''; const st = e.gv.photoKind === 'logo' ? 'width:72px;height:72px;object-fit:contain;background:#ffffff;padding:6px;box-sizing:border-box;border-radius:10px;flex:none' : 'width:72px;height:72px;object-fit:cover;border-radius:10px;flex:none'; return `<img src="${esc(e.gv.photoUrl)}" alt="" style="${st}">`; })()}
       <div style="text-align:left;flex:1">
       <strong>${r.service}</strong> — ${r.vehicle}<div class="muted">${r.city}, ${r.state} · ${new Date(r.createdAt).toLocaleDateString()}${r.date ? ' · Needed by ' + r.date : ''} · ${pill(r)}</div>
-      ${r.setPrice != null ? `<div style="margin-top:4px"><strong>Set price for this job: $${Number(r.setPrice).toFixed(2)}</strong> <span class="muted">— from the mechanic's set price list. They will call to set up the appointment.</span></div>` : ''}
+      ${r.setPrice != null && r.status === 'open' ? `<div style="margin-top:4px"><strong>Set price for this job: $${Number(r.setPrice).toFixed(2)}</strong> <span class="muted">— from the mechanic's set price list. They will call to set up the appointment.</span></div>` : ''}
       ${(() => { const e = histExtra[r.id]; const m = e && e.mech; if (!m || !m.name) return ''; return `<div style="margin-top:6px">${m.logo ? `<img src="${esc(m.logo)}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:6px">` : ''}<span class="muted">${m.label}</span> <strong>${esc(m.name)}</strong>${m.city ? ` <span class="muted">(${esc(m.city)})</span>` : ''}${m.phone ? ` · <a href="tel:${esc(m.phone.replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(m.phone) : m.phone)}</a>` : ''}</div>`; })()}
       </div>
       </div>
@@ -375,7 +376,7 @@
     const reqs = window._ownerRequests || [];
     const latest = reqs.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
     if (latest) { $('rq-city').value = latest.city || ''; $('rq-state').value = latest.state || ''; }
-    $('rq-date').value = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    $('rq-date').value = '';
     $('rq-desc').value = ''; $('rq-err').textContent = ''; $('rq-ok').textContent = '';
     $('recent-req').hidden = false;
     $('recent-req').scrollIntoView({ behavior: 'smooth', block: 'start' });

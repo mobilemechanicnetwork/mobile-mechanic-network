@@ -163,7 +163,7 @@
       <label>Other cities you serve</label><div id="b-cities"></div><p class="muted" style="font-size:.82rem;margin:4px 0 0">Requests are only sent to you for cities you serve. Your base city is always included.</p>
       <label>Services you offer</label>
       <div class="checks" id="b-services"></div>
-      <label style="margin-top:10px">Set prices <span class="muted">(optional — shown on your profile, and attached to quote requests for that service)</span></label>
+      <label style="margin-top:10px">Set prices <span class="muted">(optional — shown on your profile, and attached to one-to-one requests that come through your profile)</span></label>
       <div id="b-prices"></div>
       <label style="margin-top:10px">Vehicle types you service</label>
       <div class="checks" id="b-vtypes">
@@ -202,7 +202,7 @@
 
   <section class="tab" id="tab-promos">
     <h2>Promotions</h2>
-    <p class="muted">Specials and deals shown on your public listing.</p>
+    <p class="muted">Specials and deals shown on your public listing. Only your latest promotion shows publicly.</p>
     <form id="promo-form">
       <label for="p-title">Title</label><input id="p-title" required maxlength="120" placeholder="$20 off brake jobs">
       <label for="p-desc">Description</label><textarea id="p-desc" rows="2" required maxlength="500"></textarea>
@@ -446,7 +446,7 @@ async function loadInbox() {
 function renderInbox() {
   const inbox = window._inboxData || {};
   const box = $('inbox');
-  if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Publish your business page to start receiving requests in your area.</p>'; return; }
+  if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Save your business page to start receiving requests in your area.</p>'; return; }
   const q = (document.getElementById('req-search').value || '').trim().toLowerCase();
   const qDigits = q.replace(/\D/g, '');
   const matchReq = r => !q || (r.ownerName || '').toLowerCase().includes(q) || (r.service || '').toLowerCase().includes(q) || (r.vehicle || '').toLowerCase().includes(q) || (r.city || '').toLowerCase().includes(q) || (qDigits && String(r.phone || '').replace(/\D/g, '').includes(qDigits));
@@ -496,12 +496,16 @@ function renderCalendar() {
   for (const b of booked) rows.push({ date: b.date || '', kind: 'booked', title: (b.ownerName ? b.ownerName + ' — ' : '') + b.service + ' — ' + b.vehicle, phone: b.phone, address: b.address || '', ticketId: b.ticketId || null, createdAt: b.createdAt || '' });
   for (const e of (window._calManual || [])) rows.push({ date: e.date || '', kind: 'manual', id: e.id, title: e.title, notes: e.notes || '', createdAt: e.createdAt || '' });
   const dated = rows.filter(r => r.date).sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.createdAt).localeCompare(String(b.createdAt)));
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = dated.filter(r => r.date >= today);
+  const past = dated.filter(r => r.date < today);
   const undated = rows.filter(r => !r.date);
   const rowHtml = r => `<div class="card">
     <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><strong>${esc(r.title)}</strong>${r.date ? `<span class="muted">${new Date(r.date + 'T00:00:00').toLocaleDateString()}</span>` : ''}</div>
     ${r.kind === 'booked' ? `<div class="muted" style="margin-top:4px">${r.phone ? `<a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · ` : ''}${r.address ? esc(r.address) + ' · ' : ''}<span class="ok">Booked</span></div>${r.ticketId ? `<p style="margin:8px 0 0"><a href="/ticket?id=${r.ticketId}" target="_blank">View ticket →</a></p>` : ''}` : `<div class="muted" style="margin-top:4px">${esc(r.notes)}</div><p style="margin:8px 0 0"><button type="button" class="danger" onclick="delCalEntry('${r.id}')">Delete</button></p>`}
   </div>`;
-  box.innerHTML = (dated.length ? `<h3>Upcoming</h3>` + dated.map(rowHtml).join('') : '<p class="muted">No upcoming jobs with a date yet.</p>')
+  box.innerHTML = (upcoming.length ? `<h3>Upcoming</h3>` + upcoming.map(rowHtml).join('') : '<p class="muted">No upcoming jobs with a date yet.</p>')
+    + (past.length ? `<h3>Past</h3>` + past.map(rowHtml).join('') : '')
     + (undated.length ? `<h3>Booked jobs with no date set</h3>` + undated.map(rowHtml).join('') : '');
 }
 window.delCalEntry = async (id) => {
@@ -1349,7 +1353,7 @@ function renderPpiCats(existing, cats, kind) {
       <input type="file" accept="image/*" onchange="ppiPhoto(this, ${i})" style="margin-bottom:4px">
     </div>`;
   }).join('');
-  PPI_CATS.forEach((c, i) => { renderPpiThumbs(i); });
+  CATS.forEach((c, i) => { renderPpiThumbs(i); });
 }
 function ppiShareUrl(r) { return location.origin + '/inspection.html?id=' + r.id + '&token=' + r.shareToken; }
 async function loadPpiList() {
@@ -1358,22 +1362,27 @@ async function loadPpiList() {
     $('ppi-list').innerHTML = d.reports.length ? d.reports.map(r => `<div class="card">
       <strong>${esc(r.vehicle)}</strong> — ${esc(r.customerName)} <span class="muted">${r.kind === 'complete' ? 'Complete vehicle inspection' : 'Pre-purchase'} · ${esc(new Date(r.createdAt).toLocaleDateString())}</span><br>
       <button type="button" class="ghost" onclick="window.open('${ppiShareUrl(r)}','_blank')">View report</button>
+      <button type="button" class="ghost" onclick="ppiCopy('${ppiShareUrl(r)}')">Copy link</button>
       <button type="button" class="ghost" onclick="ppiEdit('${r.id}')">Edit</button>
+      <button type="button" class="ghost" onclick="ppiDel('${r.id}')">Delete</button>
     </div>`).join('') : '<p class="muted">No inspections yet.</p>';
   } catch (e) { $('ppi-list').innerHTML = '<p class="err">' + esc(e.message) + '</p>'; }
 }
+window.ppiCopy = async (url) => { try { await navigator.clipboard.writeText(url); alert('Link copied.'); } catch (_) { alert(url); } };
+window.ppiDel = async (id) => { if (!confirm('Delete this inspection report? The customer link will stop working.')) return; try { await api('/api/ppi/' + id, { method: 'DELETE' }); loadPpiList(); } catch (e) { alert(e.message); } };
 window.ppiEdit = async (id) => {
   try {
     const { report: r } = await api('/api/ppi/' + id);
     ppiEditingId = id;
     ppiPhotos = {};
     ppiBands = {};
+    const EC = ppiCatsFor(r.kind || 'ppi');
     (r.categories || []).forEach(c => {
-      const idx = PPI_CATS.findIndex(x => x.key === c.key);
+      const idx = EC.findIndex(x => x.key === c.key);
       if (idx < 0) return;
       if (Array.isArray(c.photos) && c.photos.length) ppiPhotos[idx] = [...c.photos];
       if (c.bands && typeof c.bands === 'object') for (const [k, v] of Object.entries(c.bands)) {
-        const fj = PPI_CATS[idx].fields.findIndex(f => f.k === k);
+        const fj = EC[idx].fields.findIndex(f => f.k === k);
         if (fj >= 0 && ['red', 'yellow', 'green'].includes(v)) ppiBands[idx + '-' + fj] = v;
       }
     });
@@ -1478,20 +1487,21 @@ async function loadStats() {
     document.querySelector('[data-tab="billing"]').click();
     $('frozen-billing').onclick = () => document.querySelector('[data-tab="billing"]').click();
   }
-  await loadServices();
+  const safe = async fn => { try { await fn(); } catch (e) { console.error(e); } };
+  await safe(loadServices);
   if (window.CityAC) { window.cityChips = window.CityAC.chips(document.getElementById('b-cities')); }
   else { window.cityChips = { get: () => [], set: () => {} }; }
-  await loadProfile();
-  await loadInbox();
-  await loadNotifications(false);
+  await safe(loadProfile);
+  await safe(loadInbox);
+  await safe(() => loadNotifications(false));
   renderPvView();
-  await loadPromos();
-  await loadTickets();
-  await loadCustomers();
-  await loadStats();
-  await loadPpiList();
-  await loadBilling();
-  await loadCustomerCache();
+  await safe(loadPromos);
+  await safe(loadTickets);
+  await safe(loadCustomers);
+  await safe(loadStats);
+  await safe(loadPpiList);
+  await safe(loadBilling);
+  await safe(loadCustomerCache);
   addItemRow('', '');
   if (window.PhoneFmt) { window.PhoneFmt.attach($('b-phone')); window.PhoneFmt.attach($('ppi-phone')); }
 })();

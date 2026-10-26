@@ -539,6 +539,9 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const p = url.pathname;
   if (req.method === 'GET' && !p.startsWith('/api/') && !p.startsWith('/uploads/')) logVisit(req, p);
+  if (req.method === 'GET' && p === '/terms') { res.writeHead(302, { Location: '/#terms' }); return res.end(); }
+  if (req.method === 'GET' && p === '/contact') { res.writeHead(302, { Location: '/#contact' }); return res.end(); }
+  if (req.method === 'GET' && p === '/privacy') { res.writeHead(302, { Location: '/#privacy' }); return res.end(); }
   try {
     // ---------- Accounts ----------
     if (p === '/api/register' && req.method === 'POST') {
@@ -1250,6 +1253,7 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
       const biz = myBusiness(user.id);
       const entries = calendarStore.read();
       const idx = entries.findIndex(e => e.id === calDel[1] && biz && e.businessId === biz.id);
@@ -1656,6 +1660,16 @@ const server = http.createServer(async (req, res) => {
       ppiStore.write(rows);
       return sendJson(res, 200, { report: row });
     }
+    if (ppiOne && req.method === 'DELETE') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const rows = ppiStore.read();
+      const idx = rows.findIndex(r => r.id === ppiOne[1] && r.mechanicId === user.id);
+      if (idx === -1) return sendJson(res, 404, { error: 'Not found.' });
+      rows.splice(idx, 1); ppiStore.write(rows);
+      return sendJson(res, 200, {});
+    }
     if (p === '/api/ppi/public' && req.method === 'GET') {
       const id = String(url.searchParams.get('id') || ''), token = String(url.searchParams.get('token') || '');
       const row = ppiStore.read().find(r => r.id === id && r.shareToken === token);
@@ -1840,9 +1854,12 @@ const server = http.createServer(async (req, res) => {
       if (t.type === 'invoice') {
         // Invoices are locked: the accepted price never changes. Only
         // customer-approved follow-up quotes add lines, never edits.
+        // Legacy tickets store {desc, amount} with no qty/price and may lack
+        // labor/tax fields; normalize the stored side so unchanged old
+        // invoices don't trip the lock when only details change.
         const sameItems = (clean.items || []).length === (t.items || []).length &&
-          (clean.items || []).every((it, i) => t.items[i] && it.desc === t.items[i].desc && Number(it.qty) === Number(t.items[i].qty) && Number(it.price) === Number(t.items[i].price));
-        if (!sameItems || clean.laborAmount !== t.laborAmount || clean.taxRate !== t.taxRate)
+          (clean.items || []).every((it, i) => t.items[i] && it.desc === t.items[i].desc && Number(it.qty) === Number(t.items[i].qty ?? 1) && Number(it.price) === Number(t.items[i].price ?? t.items[i].amount ?? 0));
+        if (!sameItems || clean.laborAmount !== Number(t.laborAmount ?? 0) || clean.taxRate !== Number(t.taxRate ?? 0))
           return sendJson(res, 400, { error: 'Invoice prices are locked. Additional work needs customer approval first.' });
       }
       Object.assign(t, clean, { updatedAt: new Date().toISOString() });

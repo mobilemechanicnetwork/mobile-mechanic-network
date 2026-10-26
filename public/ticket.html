@@ -275,7 +275,9 @@ function renderActions() {
         ${(T.phoneApprovals || []).length ? `<p class="muted" style="margin:6px 0 0">Recorded by phone: ${(T.phoneApprovals || []).map(pa => `${pa.action === 'accept' ? 'approved' : 'denied'} ${pa.lines.join(', ')} (${money(pa.total)}) on ${new Date(pa.at).toLocaleDateString()}`).join('; ')}</p>` : ''}
       </div>`;
     } else {
-      if (T.requestId) {
+      if (T.requestId && window._pendingFu) {
+        html += `<p class="muted" style="margin:0 0 8px">A follow-up quote is already pending for this job. You can add estimate lines once the customer has decided on it.</p>`;
+      } else if (T.requestId) {
         html += `<h3 style="margin:0 0 6px">Add lines as an estimate</h3><p class="muted" style="margin:0 0 8px">Extra work, sent for customer approval. Approved lines join the invoice; denied lines are never charged.</p>
         <div id="est-rows"></div>
         <button type="button" class="ghost" id="btn-add-est">Add line</button> <button type="button" class="ghost" id="btn-save-est">Save draft</button> <button type="button" id="btn-send-est">Send estimate for approval</button>
@@ -300,7 +302,7 @@ function renderActions() {
       document.getElementById('ed-customer').value = T.customerName || '';
       document.getElementById('ed-vehicle').value = T.vehicle || '';
       document.getElementById('edit-items').innerHTML = '';
-      (T.items || []).forEach(it => addItemRow(it.desc, it.qty, it.price));
+      (T.items || []).forEach(it => addItemRow(it.desc, it.qty ?? 1, it.price ?? it.amount));
       if (!(T.items || []).length) addItemRow('', '', '');
       document.getElementById('ed-labor-desc').value = T.laborDesc || '';
       document.getElementById('ed-labor').value = T.laborAmount || '';
@@ -335,10 +337,7 @@ function renderActions() {
     };
     document.getElementById('btn-convert').onclick = async () => {
       let vin = T.vin || '';
-      if (!vin) {
-        vin = prompt('Enter the 17-character VIN (required on invoices):') || '';
-        if (!vin.trim()) return;
-      }
+      if (!vin) { const el = document.getElementById('dt-vin-in'); if (el) el.focus(); alert('Enter the 17-character VIN in the ticket details above, then try again.'); return; }
       if (!confirm('Convert this estimate to an invoice?')) return;
       try { await api('/api/tickets/' + T.id + '/convert', { vin }); location.reload(); }
       catch (e) { alert(e.message); }
@@ -365,17 +364,11 @@ function renderActions() {
   if (paidBtn) {
     paidBtn.onclick = async () => {
       let vin = T.vin || '';
-      if (!vin) {
-        vin = prompt('Enter the 17-character VIN (required before marking paid):') || '';
-        if (!vin.trim()) return;
-      }
+      if (!vin) { const el = document.getElementById('dt-vin-in'); if (el) el.focus(); alert('Enter the 17-character VIN in the ticket details above, then try again.'); return; }
       let mileage = (T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : String(T.mileage);
-      if (!mileage) {
-        mileage = prompt('Enter the odometer reading in miles (required before marking paid):') || '';
-        if (!mileage.trim()) return;
-      }
-      const pm = T.paymentMethod || prompt('How was this paid? (cash, card, check, etc.)') || '';
-      if (!pm.trim()) return;
+      if (!mileage) { const el = document.getElementById('dt-mile-in'); if (el) el.focus(); alert('Enter the odometer reading in the ticket details above, then try again.'); return; }
+      const pm = T.paymentMethod || '';
+      if (!pm.trim()) { const el = document.getElementById('dt-pm-in'); if (el) el.focus(); alert('Enter how it was paid in the ticket details above, then try again.'); return; }
       if (!confirm('Mark this invoice as paid via ' + pm.trim() + '? It will become a receipt.')) return;
       try { await api('/api/tickets/' + T.id + '/paid', { paymentMethod: pm.trim(), vin, mileage }); location.reload(); }
       catch (e) { alert(e.message); }
@@ -390,6 +383,7 @@ function renderActions() {
     if (!r.ok) throw new Error('Ticket not found.');
     const d = await r.json();
     T = d.ticket; B = d.business;
+    try { const ib = await (await fetch('/api/requests/inbox')).json(); const bk = (ib.booked || []).find(x => x.ticketId === T.id); window._pendingFu = !!(bk && bk.pendingFollowUp); } catch (e) { window._pendingFu = false; }
     const t = T, b = B;
     const isNew = t.items && t.items.length && t.items[0].qty !== undefined;
     const itemRows = (t.items || []).map(i => isNew
