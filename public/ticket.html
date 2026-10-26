@@ -39,8 +39,8 @@
 <body>
 <div class="actions noprint"><a href="/mechanic">← Back to mechanic portal</a> &nbsp; <button onclick="window.print()">Print / Save as PDF</button> <button onclick="window.print()">Share PDF</button></div>
 <p class="noprint" style="text-align:center;color:#64748b;font-size:.9rem;margin:0 16px">To share the PDF from your phone: tap Share PDF, then tap Share in the print preview and pick Messages, Mail, or another app.</p>
-<div id="ticket-actions" class="noprint"></div>
 <div class="page" id="ticket"><p>Loading…</p></div>
+<div id="ticket-actions" class="noprint"></div>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money = n => '$' + Number(n).toFixed(2);
