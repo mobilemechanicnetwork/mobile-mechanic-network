@@ -359,6 +359,109 @@ function ticketFromAcceptedQuote(quote, row) {
   const number = nextTicketNumber(quote.businessId);
   return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', number, label: businessAbbrev(biz ? biz.name : '') + '-' + number, customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', mileage: '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, jobAddress: String(row.vehicleLocation || '').slice(0, 200), total: subtotal, createdAt: new Date().toISOString() };
 }
+// Normalized lines for per-line quote decisions: the quoted items, or a
+// single synthetic line (service + total) when the quote has no items.
+// Mirrors the filtering ticketFromAcceptedQuote applies, so decisions and
+// the built ticket always agree on which lines exist.
+function quoteDecisionLines(quote, row) {
+  const lines = (quote.items || [])
+    .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), amount: Math.round(Math.max(0, Number(it.amount) || 0) * 100) / 100 }))
+    .filter(l => l.desc && l.amount > 0);
+  if (!lines.length && Number(quote.total) > 0)
+    lines.push({ desc: row.service, amount: Math.round(Number(quote.total) * 100) / 100 });
+  return lines;
+}
+// Complete a quote acceptance. approvedItems/deniedItems are per-line
+// decision subsets (normalized {desc, amount} lines); null means the whole
+// quote (the dashboard Accept path). Denied lines land on the ticket's
+// denied record so the receipt shows them, never charged. Returns
+// {ticket, mechanicNotified}.
+async function finalizeQuoteAccept(quotes, rows, quote, row, approvedItems, deniedItems) {
+  const isFollowUp = row.status === 'accepted' && quote.followUp === true;
+  const qForBuild = approvedItems ? { ...quote, items: approvedItems } : quote;
+  const partial = deniedItems && deniedItems.length > 0;
+  const acceptedTotal = approvedItems
+    ? Math.round(approvedItems.reduce((s, l) => s + Number(l.amount || 0), 0) * 100) / 100
+    : (quote.total != null ? quote.total : quote.price);
+  quote.status = 'accepted';
+  let autoTicket = null;
+  if (isFollowUp) {
+    // Additional work the customer approved: append it to the job's
+    // invoice. Existing lines never change price; only approved
+    // additions land on the invoice.
+    const tickets = ticketsStore.read();
+    const r2 = n => Math.round(n * 100) / 100;
+    const inv = tickets.find(t => t.requestId === row.id && t.businessId === quote.businessId && t.type === 'invoice');
+    const newLines = (qForBuild.items || [])
+      .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), qty: 1, price: r2(Math.max(0, Number(it.amount) || 0)) }))
+      .filter(it => it.desc && it.price > 0);
+    if (!newLines.length && !approvedItems && Number(quote.total) > 0) newLines.push({ desc: row.service, qty: 1, price: r2(Number(quote.total)) });
+    if (inv) {
+      inv.items = [...(inv.items || []), ...newLines];
+      const parts = r2(inv.items.reduce((s, it) => s + it.qty * it.price, 0));
+      inv.subtotal = parts;
+      inv.taxAmount = r2(r2(parts + (inv.laborAmount || 0)) * (inv.taxRate || 0) / 100);
+      inv.total = r2(parts + (inv.laborAmount || 0) + inv.taxAmount + (inv.expensesTotal || 0));
+      if (partial) inv.deniedLines = [...(inv.deniedLines || []), ...deniedItems.map(l => ({ desc: l.desc, price: l.amount }))];
+      ticketsStore.write(tickets); autoTicket = inv;
+    } else {
+      const built = ticketFromAcceptedQuote(qForBuild, row);
+      if (built) { if (partial) built.deniedLines = deniedItems.map(l => ({ desc: l.desc, price: l.amount })); tickets.push(built); ticketsStore.write(tickets); autoTicket = built; }
+    }
+  } else {
+    row.status = 'accepted';
+    quotes.forEach(q => { if (q.requestId === row.id && q.id !== quote.id && q.status === 'pending') q.status = 'declined'; });
+    // An accepted quote becomes the invoice directly: no estimate step.
+    const built = ticketFromAcceptedQuote(qForBuild, row);
+    if (built) { if (partial) built.deniedLines = deniedItems.map(l => ({ desc: l.desc, price: l.amount })); const tickets = ticketsStore.read(); tickets.push(built); ticketsStore.write(tickets); autoTicket = built; }
+  }
+  quotesStore.write(quotes); requestsStore.write(rows);
+  // Notify the mechanic: an acceptance is only useful if the
+  // mechanic hears about it. SMS when Twilio is configured; the
+  // accept itself never fails because of a text.
+  let mechanicNotified = false;
+  try {
+    const mechUser = usersStore.read().find(u => u.id === quote.mechanicId);
+    const biz = businessesStore.read().find(b => b.id === quote.businessId);
+    const to = (mechUser && mechUser.phone) || (biz && biz.phone) || '';
+    if (to) {
+      const d = String(row.phone || '').replace(/\D/g, '');
+      const c = d.length === 11 && d[0] === '1' ? d.slice(1) : d;
+      const custPhone = c.length === 10 ? `(${c.slice(0, 3)}) ${c.slice(3, 6)}-${c.slice(6)}` : (row.phone || '');
+      const sms = await sendSms(to, `Mobile Mechanic Network: ${row.ownerName || 'A customer'} accepted ${partial ? 'part of ' : ''}your ${isFollowUp ? 'additional ' : ''}quote for ${row.service} (${row.vehicle}) \u2014 $${Number(acceptedTotal).toFixed(2)}. Customer phone: ${custPhone}. See it here: https://mobilemechanicsinmyarea.com/mechanic`);
+      mechanicNotified = sms.sent === true;
+    }
+  } catch (e) {}
+  // In-portal notification for the mechanic, so the acceptance is
+  // waiting on their profile even before they open a text.
+  try {
+    const notes = notificationsStore.read();
+    notes.push({ id: crypto.randomUUID(), userId: quote.mechanicId, type: 'quote_accepted', title: `${row.ownerName || 'A customer'} accepted ${partial ? 'part of ' : ''}your ${isFollowUp ? 'additional ' : ''}quote`, service: row.service, vehicle: row.vehicle || '', total: acceptedTotal, customerName: row.ownerName || '', customerPhone: row.phone || '', ticketId: autoTicket ? autoTicket.id : null, requestId: row.id, quoteId: quote.id, read: false, createdAt: new Date().toISOString() });
+    notificationsStore.write(notes);
+  } catch (e) {}
+  return { ticket: autoTicket, mechanicNotified };
+}
+// Complete a quote decline. deniedItems is the per-line subset when every
+// line was denied on the quote page; null means the whole quote (the
+// dashboard Decline path).
+function finalizeQuoteDecline(quotes, rows, quote, row, deniedItems) {
+  quote.status = 'declined';
+  // A declined follow-up quote is denied extra work: keep it on the
+  // job's invoice as denied repairs so the receipt shows it, never
+  // charged. (Initial-quote declines have no invoice yet: skipped.)
+  if (quote.followUp) {
+    const tickets = ticketsStore.read();
+    const inv = tickets.find(x => x.requestId === row.id && x.businessId === quote.businessId && x.type === 'invoice');
+    if (inv) {
+      const dl = deniedItems
+        ? deniedItems.map(l => ({ desc: l.desc, price: l.amount }))
+        : (quote.items || []).map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), price: Math.round(Math.max(0, Number(it.amount) || 0) * 100) / 100 })).filter(l => l.desc && l.price > 0);
+      if (!deniedItems && !dl.length && Number(quote.total) > 0) dl.push({ desc: row.service, price: Math.round(Number(quote.total) * 100) / 100 });
+      if (dl.length) { inv.deniedLines = [...(inv.deniedLines || []), ...dl]; ticketsStore.write(tickets); }
+    }
+  }
+  quotesStore.write(quotes); requestsStore.write(rows);
+}
 // Total a customer would owe if they approve extra lines on an invoice.
 // Uses the exact rounding the acceptance handlers use, so the total the
 // customer sees before approving is the total they get after approving.
@@ -1391,80 +1494,52 @@ const server = http.createServer(async (req, res) => {
       const isFollowUp = row.status === 'accepted' && quote.followUp === true;
       if (quote.status !== 'pending' || (row.status !== 'open' && !isFollowUp)) return sendJson(res, 400, { error: 'That quote can no longer be changed.' });
       if (quoteAction[2] === 'accept') {
-        quote.status = 'accepted';
-        let autoTicket = null;
-        if (isFollowUp) {
-          // Additional work the customer approved: append it to the job's
-          // invoice. Existing lines never change price; only approved
-          // additions land on the invoice.
-          const tickets = ticketsStore.read();
-          const r2 = n => Math.round(n * 100) / 100;
-          const inv = tickets.find(t => t.requestId === row.id && t.businessId === quote.businessId && t.type === 'invoice');
-          const newLines = (quote.items || [])
-            .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), qty: 1, price: r2(Math.max(0, Number(it.amount) || 0)) }))
-            .filter(it => it.desc && it.price > 0);
-          if (!newLines.length && Number(quote.total) > 0) newLines.push({ desc: row.service, qty: 1, price: r2(Number(quote.total)) });
-          if (inv) {
-            inv.items = [...(inv.items || []), ...newLines];
-            const parts = r2(inv.items.reduce((s, it) => s + it.qty * it.price, 0));
-            inv.subtotal = parts;
-            inv.taxAmount = r2(r2(parts + (inv.laborAmount || 0)) * (inv.taxRate || 0) / 100);
-            inv.total = r2(parts + (inv.laborAmount || 0) + inv.taxAmount + (inv.expensesTotal || 0));
-            ticketsStore.write(tickets); autoTicket = inv;
-          } else {
-            const built = ticketFromAcceptedQuote(quote, row);
-            if (built) { tickets.push(built); ticketsStore.write(tickets); autoTicket = built; }
-          }
-        } else {
-          row.status = 'accepted';
-          quotes.forEach(q => { if (q.requestId === row.id && q.id !== quote.id && q.status === 'pending') q.status = 'declined'; });
-          // An accepted quote becomes the invoice directly: no estimate step.
-          const built = ticketFromAcceptedQuote(quote, row);
-          if (built) { const tickets = ticketsStore.read(); tickets.push(built); ticketsStore.write(tickets); autoTicket = built; }
-        }
-        quotesStore.write(quotes); requestsStore.write(rows);
-        // Notify the mechanic: an acceptance is only useful if the
-        // mechanic hears about it. SMS when Twilio is configured; the
-        // accept itself never fails because of a text.
-        let mechanicNotified = false;
-        try {
-          const mechUser = usersStore.read().find(u => u.id === quote.mechanicId);
-          const biz = businessesStore.read().find(b => b.id === quote.businessId);
-          const to = (mechUser && mechUser.phone) || (biz && biz.phone) || '';
-          if (to) {
-            const d = String(row.phone || '').replace(/\D/g, '');
-            const c = d.length === 11 && d[0] === '1' ? d.slice(1) : d;
-            const custPhone = c.length === 10 ? `(${c.slice(0, 3)}) ${c.slice(3, 6)}-${c.slice(6)}` : (row.phone || '');
-            const total = quote.total != null ? quote.total : quote.price;
-            const sms = await sendSms(to, `Mobile Mechanic Network: ${row.ownerName || 'A customer'} accepted your ${isFollowUp ? 'additional ' : ''}quote for ${row.service} (${row.vehicle}) — $${Number(total).toFixed(2)}. Customer phone: ${custPhone}. See it here: https://mobilemechanicsinmyarea.com/mechanic`);
-            mechanicNotified = sms.sent === true;
-          }
-        } catch (e) {}
-        // In-portal notification for the mechanic, so the acceptance is
-        // waiting on their profile even before they open a text.
-        try {
-          const notes = notificationsStore.read();
-          notes.push({ id: crypto.randomUUID(), userId: quote.mechanicId, type: 'quote_accepted', title: `${row.ownerName || 'A customer'} accepted your ${isFollowUp ? 'additional ' : ''}quote`, service: row.service, vehicle: row.vehicle || '', total: quote.total != null ? quote.total : quote.price, customerName: row.ownerName || '', customerPhone: row.phone || '', ticketId: autoTicket ? autoTicket.id : null, requestId: row.id, quoteId: quote.id, read: false, createdAt: new Date().toISOString() });
-          notificationsStore.write(notes);
-        } catch (e) {}
-        return sendJson(res, 200, { quote, requestStatus: row.status, ticket: autoTicket, mechanicNotified });
-      } else {
-        quote.status = 'declined';
-        // A declined follow-up quote is denied extra work: keep it on the
-        // job's invoice as denied repairs so the receipt shows it, never
-        // charged. (Initial-quote declines have no invoice yet: skipped.)
-        if (quote.followUp) {
-          const tickets = ticketsStore.read();
-          const inv = tickets.find(x => x.requestId === row.id && x.businessId === quote.businessId && x.type === 'invoice');
-          if (inv) {
-            const dl = (quote.items || []).map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), price: Math.round(Math.max(0, Number(it.amount) || 0) * 100) / 100 })).filter(l => l.desc && l.price > 0);
-            if (!dl.length && Number(quote.total) > 0) dl.push({ desc: row.service, price: Math.round(Number(quote.total) * 100) / 100 });
-            if (dl.length) { inv.deniedLines = [...(inv.deniedLines || []), ...dl]; ticketsStore.write(tickets); }
-          }
-        }
+        const out = await finalizeQuoteAccept(quotes, rows, quote, row, null, null);
+        return sendJson(res, 200, { quote, requestStatus: row.status, ticket: out.ticket, mechanicNotified: out.mechanicNotified });
       }
-      quotesStore.write(quotes); requestsStore.write(rows);
+      finalizeQuoteDecline(quotes, rows, quote, row, null);
       return sendJson(res, 200, { quote, requestStatus: row.status });
+    }
+
+    // ---------- Per-line quote decisions (quote page) ----------
+    // The customer approves or denies each line. The quote stays pending
+    // until every line is decided; only then does the job book, with the
+    // accepted lines only, and denied lines recorded as denied repairs.
+    // A decision can be changed while any line is still undecided.
+    const quoteDecide = p.match(/^\/api\/quotes\/([0-9a-f-]+)\/lines$/);
+    if (quoteDecide && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      const quotes = quotesStore.read();
+      const quote = quotes.find(q => q.id === quoteDecide[1]);
+      if (!quote) return sendJson(res, 404, { error: 'Quote not found.' });
+      const rows = requestsStore.read();
+      const row = rows.find(r => r.id === quote.requestId);
+      if (!row || row.ownerId !== user.id) return sendJson(res, 403, { error: 'That is not your request.' });
+      const isFollowUp = row.status === 'accepted' && quote.followUp === true;
+      if (quote.status !== 'pending' || (row.status !== 'open' && !isFollowUp)) return sendJson(res, 400, { error: 'That quote can no longer be changed.' });
+      const body = await parseBody(req);
+      const lines = quoteDecisionLines(quote, row);
+      const idx = Number(body.index);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= lines.length) return sendJson(res, 400, { error: 'That line does not exist.' });
+      if (body.decision !== 'approved' && body.decision !== 'denied') return sendJson(res, 400, { error: 'Choose approve or deny for a line.' });
+      const decisions = Array.isArray(quote.lineDecisions) ? [...quote.lineDecisions] : [];
+      while (decisions.length < lines.length) decisions.push(null);
+      decisions[idx] = body.decision;
+      quote.lineDecisions = decisions;
+      const decided = decisions.filter(Boolean).length;
+      if (decided < lines.length) {
+        quotesStore.write(quotes);
+        return sendJson(res, 200, { quote, decided, lineCount: lines.length, booked: false });
+      }
+      const approved = lines.filter((l, i) => decisions[i] === 'approved');
+      const denied = lines.filter((l, i) => decisions[i] === 'denied');
+      if (!approved.length) {
+        finalizeQuoteDecline(quotes, rows, quote, row, denied);
+        return sendJson(res, 200, { quote, decided, lineCount: lines.length, booked: false, declined: true });
+      }
+      const out = await finalizeQuoteAccept(quotes, rows, quote, row, approved, denied);
+      return sendJson(res, 200, { quote, ticket: out.ticket, decided, lineCount: lines.length, booked: true, mechanicNotified: out.mechanicNotified });
     }
 
     // ---------- Mechanic notifications ----------
@@ -2264,7 +2339,8 @@ const server = http.createServer(async (req, res) => {
       const isOwner = user.role === 'owner' && row.ownerId === user.id;
       if (!isMechanic && !isOwner) return sendJson(res, 404, { error: 'Not found.' });
       const b = businessesStore.read().find(x => x.id === q.businessId);
-      return sendJson(res, 200, { quote: q, request: row, business: b ? publicBusiness(b) : null });
+      const inv = ticketsStore.read().find(t => t.requestId === row.id && t.businessId === q.businessId && (t.type === 'invoice' || t.type === 'receipt'));
+      return sendJson(res, 200, { quote: q, request: row, business: b ? publicBusiness(b) : null, isOwner, ticketId: inv ? inv.id : null });
     }
     // Customer sets the repair location on their own booked ticket.
     // Address is never required at quote-request time; it is only added

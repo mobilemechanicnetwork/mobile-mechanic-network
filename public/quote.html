@@ -25,6 +25,10 @@
   .actions{text-align:center;margin:16px 0}
   .actions button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:11px 24px;font-size:1rem;cursor:pointer}
   .muted{color:#64748b;font-size:.9rem}
+  .linebtn{background:#fff;color:#0f172a;border:1px solid #cbd5e1;border-radius:8px;padding:6px 14px;font-size:.9rem;cursor:pointer}
+  .linebtn.sel-a{background:#16a34a;color:#fff;border-color:#16a34a;font-weight:700}
+  .linebtn.sel-d{background:#dc2626;color:#fff;border-color:#dc2626;font-weight:700}
+  .linebtn:disabled{opacity:.6}
   @media print{ .actions,.noprint{display:none} body{background:#fff} .page{box-shadow:none;margin:0;max-width:none} }
 </style>
 </head>
@@ -33,7 +37,7 @@
 <p class="noprint" style="text-align:center;color:#64748b;font-size:.9rem;margin:0 16px">To share the PDF from your phone: tap Share PDF, then tap Share in the print preview and pick Messages, Mail, or another app.</p>
 <div class="page" id="quote"><p>Loading…</p></div>
 <script>
-const esc = s => String(s == null ? '' : s).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money = n => '$' + Number(n).toFixed(2);
 const fmtPhone = p => {
   const d = String(p || '').replace(/\D/g, '');
@@ -41,17 +45,31 @@ const fmtPhone = p => {
   if (d.length === 11 && d[0] === '1') return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
   return p || '';
 };
-(async () => {
-  const id = new URLSearchParams(location.search).get('id') || '';
-  const box = document.getElementById('quote');
+const qid = new URLSearchParams(location.search).get('id') || '';
+const box = document.getElementById('quote');
+document.addEventListener('click', async e => {
+  const b = e.target.closest && e.target.closest('[data-line-decide]');
+  if (!b) return;
+  const parts = b.getAttribute('data-line-decide').split(':');
+  const errEl = document.getElementById('decide-err');
+  b.disabled = true;
+  try {
+    const r = await fetch('/api/quotes/' + encodeURIComponent(qid) + '/lines', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ index: Number(parts[0]), decision: parts[1] }) });
+    const dd = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(dd.error || 'Could not save that choice.');
+    await load();
+  } catch (err) { if (errEl) errEl.textContent = err.message; b.disabled = false; }
+});
+async function load() {
   let d;
   try {
-    const r = await fetch('/api/quote?id=' + encodeURIComponent(id));
+    const r = await fetch('/api/quote?id=' + encodeURIComponent(qid));
     d = await r.json().catch(() => ({}));
     if (r.status === 401) { box.innerHTML = '<p>Please <a href="/account">sign in</a> to view this quote.</p>'; return; }
     if (!r.ok || !d.quote) throw new Error(d.error || 'Quote not found.');
   } catch (e) { box.innerHTML = '<p>' + esc(e.message) + '</p>'; return; }
   const q = d.quote, row = d.request || {}, b = d.business || {};
+  const isOwner = !!d.isOwner, ticketId = d.ticketId || null;
   const total = q.total != null ? q.total : q.price;
   const status = q.status === 'accepted' ? '<span style="color:#16a34a;font-weight:700">Accepted</span>'
     : q.status === 'declined' ? '<span style="color:#dc2626;font-weight:700">Denied</span>'
@@ -65,7 +83,42 @@ const fmtPhone = p => {
   if (row.date) meta.push(`<div><span>Needed by</span>${esc(row.date)}</div>`);
   meta.push(`<div><span>Quoted on</span>${new Date(q.createdAt).toLocaleDateString()}</div>`);
   meta.push(`<div><span>Status</span>${status}</div>`);
-  const items = (q.items && q.items.length) ? `<table><tr><th>Work</th><th class="num">Amount</th></tr>${q.items.map(i => `<tr><td>${esc(i.desc)}</td><td class="num">${money(i.amount)}</td></tr>`).join('')}</table>` : '';
+  // Display rows keep every quoted line; each priced row maps to a server
+  // decision index (di), unpriced rows need no decision. When no priced
+  // row exists but the quote has a total, the server's single synthetic
+  // line (service + total) is the only decidable line.
+  const rawRows = (q.items || []).map(i => ({ desc: String(i.desc || '').trim().slice(0, 200), amount: Math.round(Math.max(0, Number(i.amount) || 0) * 100) / 100 }));
+  let nIdx = -1;
+  let rowsWithIdx = rawRows.map(r => { const priced = r.desc && r.amount > 0; if (priced) nIdx++; return { ...r, di: priced ? nIdx : -1 }; });
+  if (nIdx === -1 && Number(q.total) > 0) rowsWithIdx = [{ desc: row.service, amount: Math.round(Number(q.total) * 100) / 100, di: 0 }];
+  const lines = rowsWithIdx.filter(r => r.di >= 0);
+  const dec = q.lineDecisions && q.lineDecisions.length ? q.lineDecisions
+    : (q.status === 'accepted' ? lines.map(() => 'approved') : q.status === 'declined' ? lines.map(() => 'denied') : lines.map(() => null));
+  const decided = dec.filter(Boolean).length;
+  const approvedSum = lines.reduce((s, l, i) => s + (dec[i] === 'approved' ? l.amount : 0), 0);
+  const deniedCount = dec.filter(x => x === 'denied').length;
+  const approvedCount = dec.filter(x => x === 'approved').length;
+  const decCell = r => {
+    if (!isOwner) return '';
+    if (r.di < 0) return q.status === 'pending' ? '<td class="noprint"><span class="muted">Included</span></td>' : '<td class="noprint"></td>';
+    const i = r.di;
+    if (q.status !== 'pending') return `<td class="noprint">${dec[i] === 'approved' ? '<span style="color:#16a34a;font-weight:700">Approved</span>' : dec[i] === 'denied' ? '<span style="color:#dc2626;font-weight:700">Denied</span>' : ''}</td>`;
+    return `<td class="noprint"><button class="linebtn${dec[i] === 'approved' ? ' sel-a' : ''}" data-line-decide="${i}:approved">Approve</button> <button class="linebtn${dec[i] === 'denied' ? ' sel-d' : ''}" data-line-decide="${i}:denied">Deny</button></td>`;
+  };
+  const items = rowsWithIdx.length ? `<table><tr><th>Work</th><th class="num">Amount</th>${isOwner ? '<th class="noprint">Decision</th>' : ''}</tr>${rowsWithIdx.map(r => `<tr><td>${esc(r.desc)}</td><td class="num">${money(r.amount)}</td>${decCell(r)}</tr>`).join('')}</table>` : '';
+  const displayTotal = (q.status === 'accepted' && deniedCount > 0) ? approvedSum : total;
+  let decideBlock = '';
+  if (isOwner && lines.length && q.status === 'pending') {
+    decideBlock = `<div class="noprint" style="margin:12px 0">
+      <p class="muted">${decided} of ${lines.length} lines decided. The job books once every line is decided. You can change a choice until then.</p>
+      ${decided ? `<p>Accepted so far: <strong>${money(approvedSum)}</strong></p>` : ''}
+      <p id="decide-err" style="color:#dc2626"></p>
+    </div>`;
+  } else if (isOwner && lines.length && q.status === 'accepted') {
+    decideBlock = `<div style="margin:12px 0"><p><strong>Booked${q.followUp ? ' as additional work' : ''} with ${approvedCount} line${approvedCount === 1 ? '' : 's'} (${money(approvedSum)}).</strong>${deniedCount ? ` ${deniedCount} line${deniedCount === 1 ? '' : 's'} denied and not charged.` : ''}</p>${ticketId ? `<p><a href="/job-ticket?id=${ticketId}" target="_blank">View ticket →</a></p>` : ''}</div>`;
+  } else if (isOwner && lines.length && q.status === 'declined') {
+    decideBlock = `<div style="margin:12px 0"><p><strong>${q.followUp ? 'Declined — these lines were not added to your invoice.' : 'Declined — no lines were accepted, nothing was booked.'}</strong></p></div>`;
+  }
   box.innerHTML = `<div class="type">Quote${q.followUp ? ' — Additional work' : ''}</div>
   <div class="head">
     ${b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
@@ -74,13 +127,16 @@ const fmtPhone = p => {
   <div class="meta">${meta.join('')}</div>
   ${row.description ? `<div class="disc"><strong>What is going on:</strong> ${esc(row.description)}</div>` : ''}
   ${items}
-  <div class="total">Total: ${money(total)}</div>
+  <div class="total">Total: ${money(displayTotal)}</div>
+  ${q.status === 'accepted' && deniedCount > 0 ? `<p class="muted" style="text-align:right">Accepted lines only — ${money(total - approvedSum)} of denied work not included.</p>` : ''}
+  ${decideBlock}
   ${q.message ? `<div class="notes"><strong>Message:</strong> ${esc(q.message)}</div>` : ''}
   ${q.notes ? `<div class="notes"><strong>Notes:</strong> ${esc(q.notes)}</div>` : ''}
   ${b.warranty ? `<div class="notes"><strong>Warranty:</strong> ${esc(b.warranty)}</div>` : ''}
   <div class="disc">This price covers exactly what is listed. Nothing extra gets added without your approval.</div>
   <div class="foot">${esc(b.name || '')} · Quote · ${new Date(q.createdAt).toLocaleDateString()} · Mobile Mechanic Network</div>`;
-})();
+}
+load();
 </script>
 </body>
 </html>
