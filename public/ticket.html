@@ -93,15 +93,15 @@ function expenseRows() {
 function itemRows() {
   return [...document.querySelectorAll('#edit-items > div')].map(r => {
     const ins = r.querySelectorAll('input');
-    return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value };
+    return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value, minutes: ins[3].value, parts: ins[4].value };
   });
 }
-function addItemRow(desc, qty, price) {
+function addItemRow(desc, qty, price, minutes, parts) {
   const w = document.getElementById('edit-items');
   if (!w) return;
   const row = document.createElement('div');
-  row.style.cssText = 'display:flex;gap:8px;margin:6px 0';
-  row.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" style="flex:3" aria-label="Line description"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" style="flex:1;max-width:70px" aria-label="Quantity"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" style="flex:1;max-width:110px" aria-label="Price"><button type="button" class="ghost" onclick="this.parentElement.remove()">✕</button>`;
+  row.style.cssText = 'display:flex;gap:8px;margin:6px 0;flex-wrap:wrap';
+  row.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" style="flex:3;min-width:140px" aria-label="Line description"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" style="flex:1;max-width:70px" aria-label="Quantity"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" style="flex:1;max-width:110px" aria-label="Price"><input type="number" placeholder="Labor min" min="0" step="1" value="${minutes || ''}" style="flex:1;max-width:90px" aria-label="Labor minutes"><input type="number" placeholder="Parts" min="0" step="1" value="${parts || ''}" style="flex:1;max-width:70px" aria-label="Parts used"><button type="button" class="ghost" onclick="this.parentElement.remove()">✕</button>`;
   w.appendChild(row);
 }
 // Details are editable directly on the ticket itself: the Job address,
@@ -118,7 +118,7 @@ window.saveDetails = async () => {
     if (T.type === 'receipt') {
       body = { vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value };
     } else {
-      body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value, expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
+      body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, minutes: it.minutes, parts: it.parts })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value, expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
     }
     const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
@@ -161,7 +161,7 @@ function bindComments() {
       if (T.type === 'receipt') {
         body = { comments: ta.value };
       } else {
-        body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', comments: ta.value, expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
+        body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, minutes: it.minutes, parts: it.parts })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', comments: ta.value, expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
       }
       const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
@@ -174,9 +174,13 @@ function bindComments() {
 // Notes work like Additional comments: an optional editor on the ticket
 // view that auto-saves when the mechanic finishes writing. Notes show on
 // the ticket document; blank notes show nothing.
+// Our notes field is one text block, so the count is its non-empty lines.
+function notesCount() {
+  return String(T.notes || '').split('\n').filter(l => l.trim()).length;
+}
 function notesSectionHtml() {
   return `<div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:12px">
-    <h3 style="margin:0 0 6px">Notes (optional)</h3>
+    <h3 style="margin:0 0 6px" id="notes-heading">Notes (${notesCount()})</h3>
     <textarea id="ticket-notes" rows="3" placeholder="Notes about this job (optional)...">${esc(T.notes || '')}</textarea>
     <div><span id="notes-msg"></span></div>
     <p class="muted" style="margin:6px 0 0">Optional. Saves automatically when you finish writing. Notes show on the ticket.</p>
@@ -190,11 +194,12 @@ function bindNotes() {
     if (msg) msg.textContent = '';
     try {
       const dv = id => { const el = document.getElementById(id); return el ? el.value : ''; };
-      const body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: ta.value, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
+      const body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, minutes: it.minutes, parts: it.parts })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: ta.value, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
       const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'Could not save.');
       if (d.ticket) T = d.ticket;
+      const nh = document.getElementById('notes-heading'); if (nh) nh.textContent = 'Notes (' + notesCount() + ')';
       if (msg) { msg.style.color = '#15803d'; msg.textContent = 'Saved.'; }
     } catch (e) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = e.message; } }
   });
@@ -315,6 +320,45 @@ function bindPhotos() {
     };
   });
 }
+function appointmentsCardHtml() {
+  return `<div class="card" style="margin-top:14px"><h3 style="margin:0 0 6px">Appointments</h3>
+  <div id="appt-list"><p class="muted" style="margin:0">Loading…</p></div></div>`;
+}
+async function bindAppointments() {
+  const box = document.getElementById('appt-list');
+  if (!box) return;
+  try {
+    const r = await fetch('/api/calendar');
+    const d = await r.json();
+    const list = (d.entries || []).filter(e => e.ticketId === T.id);
+    box.innerHTML = list.length ? list.map(e => `<div style="padding:6px 0;border-bottom:1px solid #eef2f7">${new Date(e.date + 'T00:00:00').toLocaleDateString()}${e.time ? ' at ' + esc(fmtTime(e.time)) + (e.endTime ? ' – ' + esc(fmtTime(e.endTime)) : '') : ''}${e.location ? ' · ' + esc(e.location) : ''}</div>`).join('') : '<p class="muted" style="margin:0">No appointments yet. Use the calendar card below to add one.</p>';
+  } catch (e) { box.innerHTML = '<p class="muted" style="margin:0">Could not load appointments.</p>'; }
+}
+// Invoices have no Edit-lines form (their prices are locked), so work
+// details get their own editor. Minutes and parts are metadata, not
+// price, so saving them passes the invoice price lock unchanged.
+function bindWorkDetails() {
+  const btn = document.getElementById('btn-save-work');
+  if (!btn) return;
+  btn.onclick = async () => {
+    const msg = document.getElementById('work-msg');
+    msg.textContent = '';
+    try {
+      const rows = [...document.querySelectorAll('#work-rows > div')];
+      const items = (T.items || []).map((it, i) => {
+        const ins = rows[i] ? rows[i].querySelectorAll('input') : [];
+        return { desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, minutes: ins[0] ? ins[0].value : it.minutes, parts: ins[1] ? ins[1].value : it.parts };
+      });
+      const dv = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+      const body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items, laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
+      const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Could not save.');
+      if (d.ticket) T = d.ticket;
+      msg.style.color = '#15803d'; msg.textContent = 'Saved.';
+    } catch (e) { msg.style.color = '#dc2626'; msg.textContent = e.message; }
+  };
+}
 function renderActions() {
   const box = document.getElementById('ticket-actions');
   if (!T) { box.innerHTML = ''; return; }
@@ -365,10 +409,19 @@ function renderActions() {
       html += `<div style="margin-top:14px"><button type="button" id="btn-paid">Mark as paid</button></div>`;
     }
   }
+  if (T.type === 'invoice') {
+    html += `<div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px">
+      <h3 style="margin:0 0 6px">Work details</h3>
+      <p class="muted" style="margin:0 0 8px">Labor minutes and parts used per line. This does not change the price.</p>
+      <div id="work-rows">${(T.items || []).map(it => `<div style="display:flex;gap:8px;margin:6px 0;align-items:center;flex-wrap:wrap"><span style="flex:3;min-width:140px">${esc(it.desc)}</span><input type="number" placeholder="Labor min" min="0" step="1" value="${it.minutes || ''}" style="flex:1;max-width:90px" aria-label="Labor minutes"><input type="number" placeholder="Parts" min="0" step="1" value="${it.parts || ''}" style="flex:1;max-width:70px" aria-label="Parts used"></div>`).join('')}</div>
+      <p><button type="button" id="btn-save-work">Save work details</button> <span id="work-msg"></span></p>
+    </div>`;
+  }
   html += notesSectionHtml();
   html += commentsSectionHtml();
   html += photoCardHtml();
   html += '</div>';
+  html += appointmentsCardHtml();
   html += calendarCardHtml();
   html += sendHtml();
   box.innerHTML = html;
@@ -377,13 +430,15 @@ function renderActions() {
   bindPhotos();
   bindSend();
   bindCalendar();
+  bindAppointments();
+  bindWorkDetails();
   const editForm = document.getElementById('edit-form');
   if (editForm) {
     document.getElementById('btn-edit').onclick = () => {
       document.getElementById('ed-customer').value = T.customerName || '';
       document.getElementById('ed-vehicle').value = T.vehicle || '';
       document.getElementById('edit-items').innerHTML = '';
-      (T.items || []).forEach(it => addItemRow(it.desc, it.qty ?? 1, it.price ?? it.amount));
+      (T.items || []).forEach(it => addItemRow(it.desc, it.qty ?? 1, it.price ?? it.amount, it.minutes, it.parts));
       if (!(T.items || []).length) addItemRow('', '', '');
       document.getElementById('ed-labor-desc').value = T.laborDesc || '';
       document.getElementById('ed-labor').value = T.laborAmount || '';
@@ -471,9 +526,15 @@ function renderActions() {
     try { const ib = await (await fetch('/api/requests/inbox')).json(); const bk = (ib.booked || []).find(x => x.ticketId === T.id); window._pendingFu = !!(bk && bk.pendingFollowUp); } catch (e) { window._pendingFu = false; }
     const t = T, b = B;
     const isNew = t.items && t.items.length && t.items[0].qty !== undefined;
+    const lineDetail = i => {
+      const bits = [];
+      if (Number(i.minutes) > 0) bits.push('Labor ' + Number(i.minutes) + ' min');
+      if (Number(i.parts) > 0) bits.push(Number(i.parts) + ' part' + (Number(i.parts) === 1 ? '' : 's'));
+      return bits.length ? `<div class="muted" style="font-size:.85rem">${bits.join(' · ')}</div>` : '';
+    };
     const itemRows = (t.items || []).map(i => isNew
-      ? `<tr><td>${esc(i.desc)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`
-      : `<tr><td>${esc(i.desc)}</td><td class="num">${money(i.amount)}</td></tr>`).join('');
+      ? `<tr><td>${esc(i.desc)}${lineDetail(i)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`
+      : `<tr><td>${esc(i.desc)}${lineDetail(i)}</td><td class="num">${money(i.amount)}</td></tr>`).join('');
     const headRow = isNew
       ? `<tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr>`
       : `<tr><th>Description</th><th class="num">Amount</th></tr>`;

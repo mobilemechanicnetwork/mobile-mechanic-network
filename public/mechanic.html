@@ -120,7 +120,8 @@
   </div>
   <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600">Add your phone number so you get new requests by text. <a href="/security" style="color:#b91c1c">Add it now →</a></div>
   <div class="tabs noprint">
-    <button data-tab="requests" class="active">Requests</button>
+    <button data-tab="today" class="active">Today</button>
+    <button data-tab="requests">Requests</button>
     <button data-tab="notifications">Notifications <span id="notif-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700;margin-left:4px;vertical-align:middle"></span></button>
     <button data-tab="profile">Business profile</button>
     <button data-tab="promos">Promotions</button>
@@ -134,11 +135,19 @@
     <button data-tab="help">Help</button>
   </div>
 
-  <section class="tab active" id="tab-requests">
+  <section class="tab active" id="tab-today">
+    <h2>Today</h2>
+    <p class="muted">Today's appointments and open jobs at a glance.</p>
+    <div id="today-appts"></div>
+    <div id="today-open"></div>
+  </section>
+
+  <section class="tab" id="tab-requests">
     <h2>Requests</h2>
     <p style="display:flex;gap:8px;flex-wrap:wrap"><input id="req-search" placeholder="Search requests by name, phone, service, or vehicle…" style="flex:1;min-width:220px;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"><button type="button" class="ghost" id="req-refresh">Refresh requests</button></p>
+    <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between"><span id="req-chips" style="display:flex;gap:6px;flex-wrap:wrap"></span><select id="req-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Default order</option><option value="newest">Sort: Newest first</option><option value="oldest">Sort: Oldest first</option><option value="az">Sort: Customer A to Z</option><option value="za">Sort: Customer Z to A</option><option value="due">Sort: Due date</option></select></p>
     <div id="inbox"></div>
-    <h2 style="margin-top:28px">Booked jobs</h2>
+    <h2 style="margin-top:28px" id="booked-heading">Booked jobs</h2>
     <div id="booked"></div>
   </section>
 
@@ -269,12 +278,15 @@
       <div class="err" id="t-err"></div><div class="ok" id="t-ok"></div>
     </form>
     <p><input id="ticket-search" placeholder="Search tickets by name, vehicle, or ticket number…" style="width:100%;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"></p>
+    <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between"><span id="ticket-chips" style="display:flex;gap:6px;flex-wrap:wrap"></span><select id="ticket-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Newest first</option><option value="oldest">Sort: Oldest first</option><option value="az">Sort: Customer A to Z</option><option value="za">Sort: Customer Z to A</option></select></p>
     <div id="ticket-list"></div>
   </section>
 
   <section class="tab" id="tab-calendar">
     <h2>Calendar</h2>
+    <p style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px"><button type="button" class="ghost" id="cal-view-week">Week</button><button type="button" class="ghost" id="cal-view-month">Month</button></p>
     <div id="cal-week" style="margin-bottom:16px"></div>
+    <div id="cal-month" style="margin-bottom:16px" hidden></div>
     <p class="muted">Upcoming jobs, soonest first. Booked jobs show up here automatically; add anything you set up by phone below.</p>
     <form id="cal-form">
       <div class="row">
@@ -293,7 +305,7 @@
   <section class="tab" id="tab-customers">
     <h2>Customers</h2>
     <p class="muted">Prior customers and their service history with you. A customer appears here once they have a booked or billed job.</p>
-    <p><input id="cust-search" placeholder="Search by name or phone…" style="width:100%;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"></p>
+    <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="cust-search" placeholder="Search by name or phone…" style="flex:1;min-width:220px;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"><select id="cust-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Default order</option><option value="az">Sort: Name A to Z</option><option value="za">Sort: Name Z to A</option></select></p>
     <div id="customer-list"><p class="muted">Loading…</p></div>
   </section>
 
@@ -379,10 +391,11 @@ document.querySelectorAll('.tabs button').forEach(b => {
     if (b.dataset.tab === 'notifications') loadNotifications(true);
     if (b.dataset.tab === 'customers') loadCustomers();
     if (b.dataset.tab === 'calendar') loadCalendar();
+    if (b.dataset.tab === 'today') loadToday();
   };
 });
 $('logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout', {}); location.href = '/'; };
-$('portal-home').onclick = (e) => { e.preventDefault(); document.querySelector('[data-tab="requests"]').click(); window.scrollTo(0, 0); };
+$('portal-home').onclick = (e) => { e.preventDefault(); document.querySelector('[data-tab="today"]').click(); window.scrollTo(0, 0); };
 
 let SERVICES = [];
 async function loadServices() {
@@ -471,12 +484,32 @@ async function loadInbox() {
 function renderInbox() {
   const inbox = window._inboxData || {};
   const box = $('inbox');
-  if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Save your business page to start receiving requests in your area.</p>'; return; }
+  if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Save your business page to start receiving requests in your area.</p>'; $('req-chips').innerHTML = ''; return; }
   const q = (document.getElementById('req-search').value || '').trim().toLowerCase();
   const qDigits = q.replace(/\D/g, '');
   const matchReq = r => !q || (r.ownerName || '').toLowerCase().includes(q) || (r.service || '').toLowerCase().includes(q) || (r.vehicle || '').toLowerCase().includes(q) || (r.city || '').toLowerCase().includes(q) || (qDigits && String(r.phone || '').replace(/\D/g, '').includes(qDigits));
-  const bookedList = (inbox.booked || []).filter(matchReq);
-  const reqList = (inbox.requests || []).filter(matchReq);
+  const filter = window._reqFilter || 'all';
+  const sort = window._reqSort || 'default';
+  let bookedList = (inbox.booked || []).filter(matchReq);
+  let reqList = (inbox.requests || []).filter(matchReq);
+  const counts = { all: (inbox.requests || []).length + (inbox.booked || []).length, open: (inbox.requests || []).length, booked: (inbox.booked || []).filter(b => !b.paid).length, paid: (inbox.booked || []).filter(b => b.paid).length };
+  $('req-chips').innerHTML = [['all', 'All'], ['open', 'Open'], ['booked', 'Booked'], ['paid', 'Paid invoice']].map(([f, label]) => `<button type="button" class="ghost" onclick="setReqFilter('${f}')" style="${filter === f ? 'background:#2563eb;color:#fff;border-color:#2563eb' : ''}">${label} · ${counts[f]}</button>`).join('');
+  if (filter === 'open') bookedList = [];
+  if (filter === 'booked') { reqList = []; bookedList = bookedList.filter(b => !b.paid); }
+  if (filter === 'paid') { reqList = []; bookedList = bookedList.filter(b => b.paid); }
+  box.hidden = (filter === 'booked' || filter === 'paid');
+  $('booked-heading').hidden = (filter === 'open');
+  $('booked').hidden = (filter === 'open');
+  const sortReq = (a, b) => {
+    if (sort === 'newest') return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+    if (sort === 'oldest') return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+    if (sort === 'az') return String(a.ownerName || '').localeCompare(String(b.ownerName || ''));
+    if (sort === 'za') return String(b.ownerName || '').localeCompare(String(a.ownerName || ''));
+    if (sort === 'due') return String(a.date || '9999').localeCompare(String(b.date || '9999'));
+    return 0;
+  };
+  if (sort === 'default') reqList.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
+  else { reqList.sort(sortReq); bookedList.sort(sortReq); }
   window._renderedRequests = reqList;
   const bk = $('booked');
   window._calTitles = window._calTitles || {}; window._calPrefill = window._calPrefill || {};
@@ -493,7 +526,6 @@ function renderInbox() {
     ${b.paid ? '<p><span class="ok">Paid</span></p>' : b.pendingFollowUp ? `<p class="ok">Additional work quoted $${esc(b.pendingFollowUp.total != null ? b.pendingFollowUp.total : b.pendingFollowUp.price)} (pending customer approval).</p><p><a href="/quote?id=${b.pendingFollowUp.id}" target="_blank">View quote →</a> <button type="button" class="ghost" onclick="textFollowUp('${b.id}')">Text quote from my phone</button></p>` : ''}
   </div>`).join('') : (q ? '<p class="muted">No booked jobs match your search.</p>' : '<p class="muted">No booked jobs yet. When a customer accepts your quote, it shows up here.</p>');
   if (!reqList.length) { box.innerHTML = q ? '<p class="muted">No open requests match your search.</p>' : '<p class="muted">No open requests match your area and services right now.</p>'; return; }
-  reqList.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
   box.innerHTML = reqList.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
     ${r.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(r.ownerName)}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(r)}${historyButton(r)}</div>${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}${r.setPrice != null ? ` <span class="ok">Set price: $${Number(r.setPrice).toFixed(2)}</span>` : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)}${r.phone ? ` · <a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · <a href="sms:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>${r.vehicleLocation ? `<div class="muted">Vehicle location: ${esc(r.vehicleLocation)}${r.vehicleLocationType ? ' (' + esc({ house: 'House', work: 'Work', business: 'Business' }[r.vehicleLocationType] || r.vehicleLocationType) + ')' : ''}</div>` : ''}
     <p>${esc(r.description)}</p>
@@ -696,18 +728,29 @@ document.addEventListener('touchend', e => {
   if (Math.abs(dx) > 50) { window._calWeekOff = (window._calWeekOff || 0) + (dx < 0 ? 1 : -1); renderCalendar(); }
 }, { passive: true });
 
-function renderCalendar() {
-  const box = $('cal-list');
+function calRows() {
   const booked = (window._booked || []).filter(b => !b.paid);
   const rows = [];
   for (const b of booked) rows.push({ date: b.date || '', time: b.time || '', kind: 'booked', title: (b.ownerName ? b.ownerName + ' — ' : '') + b.service + ' — ' + b.vehicle, phone: b.phone, address: b.address || (b.city ? b.city + (b.state ? ', ' + b.state : '') : ''), ticketId: b.ticketId || null, createdAt: b.createdAt || '' });
   for (const e of (window._calManual || [])) rows.push({ date: e.date || '', time: e.time || '', endTime: e.endTime || '', kind: 'manual', id: e.id, title: e.ticketId ? ([e.customerName, e.service, e.vehicle].filter(Boolean).join(' — ') || e.title) : e.title, notes: e.notes || '', ticketId: e.ticketId || null, location: e.location || '', createdAt: e.createdAt || '' });
+  return rows;
+}
+function renderCalendar() {
+  const box = $('cal-list');
+  const rows = calRows();
   const dated = rows.filter(r => r.date).sort((a, b) => String(a.date + (a.time || '')).localeCompare(String(b.date + (b.time || ''))) || String(a.createdAt).localeCompare(String(b.createdAt)));
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = dated.filter(r => r.date >= today);
   const past = dated.filter(r => r.date < today);
   const undated = rows.filter(r => !r.date);
+  window._calDated = dated;
   renderCalWeek(dated);
+  renderCalMonth(dated);
+  const view = window._calView || 'week';
+  $('cal-week').hidden = (view !== 'week');
+  $('cal-month').hidden = (view !== 'month');
+  $('cal-view-week').style.cssText = view === 'week' ? 'background:#2563eb;color:#fff;border-color:#2563eb' : '';
+  $('cal-view-month').style.cssText = view === 'month' ? 'background:#2563eb;color:#fff;border-color:#2563eb' : '';
   const rowHtml = r => `<div class="card">
     <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><strong style="min-width:0">${esc(r.title)}</strong>${r.date ? `<div style="text-align:right;flex-shrink:0"><div style="font-size:1.3rem;font-weight:800;line-height:1.2">${new Date(r.date + 'T00:00:00').toLocaleDateString()}</div>${timeRange(r) ? `<div class="muted" style="font-size:.85rem">${esc(timeRange(r))}</div>` : ''}</div>` : ''}</div>
     ${r.kind === 'booked' ? `<div class="muted" style="margin-top:4px">${r.phone ? `<a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · ` : ''}${r.address ? esc(r.address) + ' · ' : ''}<span class="ok">Booked</span></div>${r.ticketId ? `<p style="margin:8px 0 0"><a href="/ticket?id=${r.ticketId}" target="_blank">View ticket →</a></p>` : ''}` : `${r.ticketId ? `${r.location ? `<div class="muted" style="margin-top:4px">${esc(r.location)}</div>` : ''}<p style="margin:8px 0 0"><a href="/ticket?id=${r.ticketId}" target="_blank">View ticket →</a> <button type="button" class="danger" onclick="delCalEntry('${r.id}')">Delete</button></p>` : `<div class="muted" style="margin-top:4px">${esc(r.notes)}</div><p style="margin:8px 0 0"><button type="button" class="danger" onclick="delCalEntry('${r.id}')">Delete</button></p>`}`}
@@ -715,6 +758,68 @@ function renderCalendar() {
   box.innerHTML = (upcoming.length ? `<h3>Upcoming</h3>` + upcoming.map(rowHtml).join('') : '<p class="muted">No upcoming jobs with a date yet.</p>')
     + (past.length ? `<h3>Past</h3>` + past.map(rowHtml).join('') : '')
     + (undated.length ? `<h3>Booked jobs with no date set</h3>` + undated.map(rowHtml).join('') : '');
+}
+// ---- Month view for the Calendar tab: dots on days with jobs, tap a
+// day to see that day's jobs below. Sits beside the week time-grid.
+function renderCalMonth(dated) {
+  const box = $('cal-month');
+  if (!box) return;
+  if (window._calMonthOff == null) window._calMonthOff = 0;
+  if (window._calMonthSel == null) window._calMonthSel = calLocalToday();
+  const now = new Date();
+  const base = new Date(now.getFullYear(), now.getMonth() + window._calMonthOff, 1);
+  const y = base.getFullYear(), m = base.getMonth();
+  const startOff = new Date(y, m, 1).getDay();
+  const daysIn = new Date(y, m + 1, 0).getDate();
+  const byDate = {};
+  dated.forEach(r => { (byDate[r.date] = byDate[r.date] || []).push(r); });
+  const sel = window._calMonthSel;
+  const cells = [];
+  for (let i = 0; i < startOff; i++) cells.push('<span></span>');
+  for (let d = 1; d <= daysIn; d++) {
+    const ds = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    const has = (byDate[ds] || []).length > 0;
+    const isSel = ds === sel;
+    cells.push(`<button type="button" onclick="calMonthSel('${ds}')" style="border:0;background:${isSel ? '#2563eb' : '#fff'};color:${isSel ? '#fff' : '#0f172a'};border-radius:8px;padding:8px 0 4px;cursor:pointer;font-size:.9rem">${d}<span style="display:block;height:6px">${has ? '<i style="display:inline-block;width:6px;height:6px;border-radius:50%;background:' + (isSel ? '#fff' : '#2563eb') + '"></i>' : ''}</span></button>`);
+  }
+  const selJobs = (byDate[sel] || []).slice().sort((a, b) => String(a.time || '99').localeCompare(String(b.time || '99')));
+  const selLabel = new Date(sel + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  box.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;margin-bottom:8px">
+    <button type="button" class="ghost" onclick="calMonthMove(-1)">‹ Prev month</button>
+    <strong style="flex:1;text-align:center">${base.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</strong>
+    <button type="button" class="ghost" onclick="calMonthMove(1)">Next month ›</button>
+    <button type="button" class="ghost" onclick="calMonthToday()">Today</button>
+  </div>
+  <div style="border:1px solid #e2e8f0;border-radius:10px;background:#fff;padding:8px">
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:.75rem;color:#64748b;font-weight:700"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);text-align:center">${cells.join('')}</div>
+    <div style="margin-top:12px;border-top:1px solid #e2e8f0;padding-top:8px"><strong>${esc(selLabel)}</strong>
+    ${selJobs.length ? selJobs.map(j => `<div style="padding:6px 0;border-bottom:1px solid #eef2f7"><strong>${esc(j.title)}</strong>${j.time ? ` · ${esc(timeRange(j))}` : ''}${j.ticketId ? ` · <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('') : '<p class="muted" style="margin:6px 0">No jobs this day.</p>'}</div>
+  </div>`;
+}
+window.calMonthMove = d => { window._calMonthOff = (window._calMonthOff || 0) + d; renderCalMonth(window._calDated || []); };
+window.calMonthToday = () => { window._calMonthOff = 0; window._calMonthSel = calLocalToday(); renderCalMonth(window._calDated || []); };
+window.calMonthSel = ds => { window._calMonthSel = ds; renderCalMonth(window._calDated || []); };
+window.gotoTab = (t) => { const b = document.querySelector('[data-tab="' + t + '"]'); if (b) b.click(); window.scrollTo(0, 0); };
+
+// ---- Today tab: today's appointments plus open jobs at a glance ----
+async function loadToday() {
+  try { if (!window._inboxData) await loadInbox(); } catch (e) {}
+  try { await loadCalendar(); } catch (e) {}
+  renderToday();
+}
+function renderToday() {
+  const today = calLocalToday();
+  const rows = calRows();
+  const appts = rows.filter(r => r.date === today).sort((a, b) => String(a.time || '99').localeCompare(String(b.time || '99')));
+  const dateLabel = new Date(today + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  $('today-appts').innerHTML = `<h3 style="margin:16px 0 8px">Today's appointments — ${esc(dateLabel)}</h3>` + (appts.length ? appts.map(r => `<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><strong>${esc(r.title)}</strong>${r.time ? `<span>${esc(timeRange(r))}</span>` : ''}</div>${r.kind === 'booked' ? `<div class="muted" style="margin-top:4px">${r.address ? esc(r.address) + ' · ' : ''}<span class="ok">Booked</span></div>` : ''}${r.ticketId ? `<p style="margin:8px 0 0"><a href="/ticket?id=${r.ticketId}" target="_blank">View ticket →</a></p>` : ''}</div>`).join('') : '<p class="muted">No appointments today.</p>');
+  const inbox = window._inboxData || {};
+  const jobs = [
+    ...(inbox.requests || []).map(r => ({ name: r.ownerName, service: r.service, vehicle: r.vehicle, status: 'Open', ticketId: null })),
+    ...(inbox.booked || []).filter(b => !b.paid).map(b => ({ name: b.ownerName, service: b.service, vehicle: b.vehicle, status: 'Booked', ticketId: b.ticketId || null }))
+  ].slice(0, 10);
+  $('today-open').innerHTML = `<h3 style="margin:16px 0 8px">Open jobs</h3>` + (jobs.length ? jobs.map(j => `<div class="card"><strong>${esc(j.name || '')}</strong> — ${esc(j.service)} — ${esc(j.vehicle)} <span class="ok">${j.status}</span>${j.ticketId ? ` <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ` <button type="button" class="ghost" onclick="gotoTab('requests')">View in Requests →</button>`}</div>`).join('') : '<p class="muted">No open jobs right now.</p>') + `<p><button type="button" class="ghost" onclick="gotoTab('calendar')">Calendar →</button></p>`;
 }
 window.delCalEntry = async (id) => {
   if (!confirm('Delete this calendar entry?')) return;
@@ -798,6 +903,13 @@ $('cal-form').onsubmit = async (e) => {
 };
 document.getElementById('req-search').addEventListener('input', renderInbox);
 $('req-refresh').onclick = () => loadInbox();
+window.setReqFilter = (f) => { window._reqFilter = f; renderInbox(); };
+document.getElementById('req-sort').onchange = (e) => { window._reqSort = e.target.value; renderInbox(); };
+document.getElementById('ticket-sort').onchange = (e) => { window._ticketSort = e.target.value; renderTickets(); };
+document.getElementById('cust-sort').onchange = (e) => { window._custSort = e.target.value; renderCustomers(); };
+window.setTicketFilter = (f) => { window._ticketFilter = f; renderTickets(); };
+$('cal-view-week').onclick = () => { window._calView = 'week'; renderCalendar(); };
+$('cal-view-month').onclick = () => { window._calView = 'month'; renderCalendar(); };
 window.textQuote = (rid) => {
   const r = (window._inboxRequests || []).find(x => x.id === rid);
   if (!r || !r.myQuote) return;
@@ -1311,11 +1423,11 @@ function updateTicketTotals() {
   const total = Math.round((parts + labor + tax + expenses) * 100) / 100;
   $('t-totals').innerHTML = `Parts: $${parts.toFixed(2)} · Labor: $${labor.toFixed(2)} · Tax: $${tax.toFixed(2)} · Expenses: $${expenses.toFixed(2)}<br><strong>Total: $${total.toFixed(2)}</strong>`;
 }
-function addItemRow(desc, qty, price) {
+function addItemRow(desc, qty, price, minutes, parts) {
   const div = document.createElement('div');
   div.className = 'itemrow';
-  div.style.cssText = 'display:flex;gap:8px;margin:6px 0;align-items:center';
-  div.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" required style="flex:3"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" required style="flex:1;max-width:70px"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" required style="flex:1;max-width:110px"><span class="rowtotal muted" style="min-width:70px;text-align:right">$0.00</span><button class="danger" type="button">×</button>`;
+  div.style.cssText = 'display:flex;gap:8px;margin:6px 0;align-items:center;flex-wrap:wrap';
+  div.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" required style="flex:3;min-width:140px"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" required style="flex:1;max-width:70px"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" required style="flex:1;max-width:110px"><input type="number" placeholder="Labor min" min="0" step="1" value="${minutes || ''}" style="flex:1;max-width:90px" title="Labor minutes (optional)"><input type="number" placeholder="Parts" min="0" step="1" value="${parts || ''}" style="flex:1;max-width:70px" title="Parts used (optional)"><span class="rowtotal muted" style="min-width:70px;text-align:right">$0.00</span><button class="danger" type="button">×</button>`;
   div.querySelector('button').onclick = () => { div.remove(); updateTicketTotals(); };
   div.querySelectorAll('input').forEach(i => i.oninput = updateTicketTotals);
   $('t-items').appendChild(div);
@@ -1352,7 +1464,17 @@ async function loadTickets() {
 }
 function renderTickets() {
   const q = (document.getElementById('ticket-search').value || '').trim().toLowerCase();
-  const list = (window._tickets || []).filter(t => !q || (t.customerName || '').toLowerCase().includes(q) || (t.vehicle || '').toLowerCase().includes(q) || (t.label || '').toLowerCase().includes(q) || (t.type || '').includes(q));
+  const filter = window._ticketFilter || 'all';
+  const sort = window._ticketSort || 'default';
+  const all = (window._tickets || []);
+  const tCounts = { all: all.length, estimate: all.filter(t => t.type === 'estimate').length, invoice: all.filter(t => t.type === 'invoice').length, receipt: all.filter(t => t.type === 'receipt').length };
+  $('ticket-chips').innerHTML = [['all', 'All'], ['estimate', 'Estimates'], ['invoice', 'Active'], ['receipt', 'Completed']].map(([f, label]) => `<button type="button" class="ghost" onclick="setTicketFilter('${f}')" style="${filter === f ? 'background:#2563eb;color:#fff;border-color:#2563eb' : ''}">${label} · ${tCounts[f === 'all' ? 'all' : f]}</button>`).join('');
+  let list = all.filter(t => !q || (t.customerName || '').toLowerCase().includes(q) || (t.vehicle || '').toLowerCase().includes(q) || (t.label || '').toLowerCase().includes(q) || (t.type || '').includes(q));
+  if (filter !== 'all') list = list.filter(t => t.type === filter);
+  if (sort === 'oldest') list.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  else if (sort === 'az') list.sort((a, b) => String(a.customerName || '').localeCompare(String(b.customerName || '')));
+  else if (sort === 'za') list.sort((a, b) => String(b.customerName || '').localeCompare(String(a.customerName || '')));
+  else list.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   const ticketBadge = t => t.type === 'estimate'
     ? '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:#dbeafe;color:#1e40af">Estimate</span>'
     : t.type === 'receipt'
@@ -1364,6 +1486,7 @@ function renderTickets() {
     ${t.customerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(t.customerName)}</div>` : ''}
     <h3>${ticketBadge(t)} — $${esc(t.total)}</h3>
     <div class="muted">${t.label ? 'Ticket ' + esc(t.label) + ' · ' : ''}${t.vehicle ? esc(t.vehicle) + ' · ' : ''}${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() + (t.paymentMethod ? ' via ' + esc(t.paymentMethod) : '') : ''}</div>
+    ${t.jobAddress ? `<div class="muted">Job location: ${esc(t.jobAddress)}</div>` : ''}
     <p><a href="/ticket?id=${t.id}" target="_blank">View ticket →</a></p>
     ${t.type !== 'receipt' ? `<div data-calctl="${t.id}" style="margin-top:8px">${calControlHtml(t.id)}</div>` : ''}
   </div>`).join('') : (q ? '<p class="muted">No tickets match your search.</p>' : '<p class="muted">No tickets yet.</p>');
@@ -1384,7 +1507,10 @@ function toggleCustHist(i) {
 function renderCustomers() {
   const q = (document.getElementById('cust-search').value || '').trim().toLowerCase();
   const qDigits = q.replace(/\D/g, '');
+  const sort = window._custSort || 'default';
   const list = (window._customers || []).filter(c => !q || (c.name || '').toLowerCase().includes(q) || (qDigits && String(c.phone || '').replace(/\D/g, '').includes(qDigits)));
+  if (sort === 'az') list.sort((a, b) => String(a.name || a.phone || '').localeCompare(String(b.name || b.phone || '')));
+  else if (sort === 'za') list.sort((a, b) => String(b.name || b.phone || '').localeCompare(String(a.name || a.phone || '')));
   window._custList = list;
   $('customer-list').innerHTML = list.length ? list.map((c, i) => {
     const phoneDisp = c.phone ? (window.PhoneFmt ? window.PhoneFmt.display(c.phone) : c.phone) : '';
@@ -1423,7 +1549,7 @@ $('ticket-form').onsubmit = async (e) => {
   if (!tVeh) { $('t-err').textContent = 'Please pick the vehicle year, make, and model.'; return; }
   const rows = [...document.querySelectorAll('#t-items .itemrow')];
   const expenseRows = [...document.querySelectorAll('#t-expenses > div')].map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, amount: ins[1].value }; });
-  const items = rows.map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value }; });
+  const items = rows.map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value, minutes: ins[3].value, parts: ins[4].value }; });
   const payload = { type: $('t-type').value, customerName: $('t-customer').value, phone: $('t-phone') ? $('t-phone').value : '', vehicle: tVeh, vin: $('t-vin').value, mileage: $('t-mileage').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, expenses: expenseRows, notes: $('t-notes').value, warranty: $('t-warranty').value, sendText: $('t-send-text') ? $('t-send-text').checked : false };
   try {
     const d = await post('/api/tickets', payload);
@@ -1786,6 +1912,7 @@ async function loadStats() {
   else { window.cityChips = { get: () => [], set: () => {} }; }
   await safe(loadProfile);
   await safe(loadInbox);
+  await safe(loadToday);
   await safe(() => loadNotifications(false));
   renderPvView();
   await safe(loadPromos);

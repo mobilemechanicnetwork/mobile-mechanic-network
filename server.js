@@ -280,7 +280,7 @@ function cleanTicketBody(body, type) {
     return { error: 'A vehicle mileage is required on receipts.' };
   const r2 = n => Math.round(n * 100) / 100;
   const cleanItems = items.slice(0, 50)
-    .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), qty: Math.max(0, Number(it.qty) || 0), price: Math.max(0, Number(it.price) || 0) }))
+    .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), qty: Math.max(0, Number(it.qty) || 0), price: Math.max(0, Number(it.price) || 0), minutes: Math.max(0, Math.min(9999, Math.round(Number(it.minutes) || 0))), parts: Math.max(0, Math.min(999, Math.round(Number(it.parts) || 0))) }))
     .filter(it => it.desc && it.qty > 0 && it.price >= 0);
   if (!cleanItems.length) return { error: 'Add at least one line item with a quantity and price.' };
   const partsSubtotal = r2(cleanItems.reduce((s, it) => s + it.qty * it.price, 0));
