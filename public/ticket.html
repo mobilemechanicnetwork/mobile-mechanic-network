@@ -33,6 +33,11 @@
   .card button.ghost{background:#fff;color:#0f172a;border:1px solid #e2e8f0}
   .card button.decline{background:#fff;color:#dc2626;border:1px solid #fecaca}
   .card input,.card textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:.95rem;margin:4px 0}
+  .dtwrap{position:relative;display:inline-flex;align-items:center}
+  .dtwrap .dtph{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none}
+  .dtwrap.has-val .dtph{display:none}
+  .dtwrap:not(.has-val) input::-webkit-datetime-edit{color:transparent}
+  @-moz-document url-prefix(){.dtph{display:none}}
   .card label{font-size:.85rem;color:#475569;font-weight:600}
   .err{color:#dc2626;font-size:.9rem;margin-top:8px}
   .muted{color:#64748b;font-size:.9rem}
@@ -223,6 +228,9 @@ function fmtTime(t) {
   h = h % 12; if (h === 0) h = 12;
   return h + ':' + m[2] + ' ' + ap;
 }
+function syncDtph(input){ const w = input.closest('.dtwrap'); if (w) w.classList.toggle('has-val', !!input.value); }
+document.addEventListener('input', e => { if (e.target.matches && e.target.matches('.dtwrap input')) syncDtph(e.target); });
+document.addEventListener('change', e => { if (e.target.matches && e.target.matches('.dtwrap input')) syncDtph(e.target); });
 function calendarCardHtml() {
   return `<div class="card" style="margin-top:14px"><h3 style="margin:0 0 6px">Calendar</h3>
   <div id="cal-state"><p class="muted" style="margin:0">Loading calendar status…</p></div>
@@ -252,9 +260,10 @@ async function bindCalendar() {
         } catch (e) { err.textContent = e.message; }
       };
     } else {
-      state.innerHTML = `<p class="muted" style="margin:0 0 8px">Add this job to your calendar.</p><p style="margin:0;display:flex;gap:8px;flex-wrap:wrap;align-items:end"><label style="margin:0;flex:0 0 auto">Date <input type="date" id="cal-ticket-date" style="width:160px;background:#fff"></label><label style="margin:0;flex:0 0 auto">Time <input type="time" id="cal-ticket-time" style="width:120px;background:#fff"></label><button type="button" id="btn-cal-add">Add to calendar</button></p>`;
+      state.innerHTML = `<p class="muted" style="margin:0 0 8px">Add this job to your calendar.</p><p style="margin:0;display:flex;gap:8px;flex-wrap:wrap;align-items:end"><label style="margin:0;flex:0 0 auto">Date <span class="dtwrap"><input type="date" id="cal-ticket-date" style="width:160px;background:#fff"><span class="dtph">Date</span></span></label><label style="margin:0;flex:0 0 auto">Time <span class="dtwrap"><input type="time" id="cal-ticket-time" style="width:120px;background:#fff"><span class="dtph">Time</span></span></label><button type="button" id="btn-cal-add">Add to calendar</button></p>`;
       const di = document.getElementById('cal-ticket-date');
       if (window._requestDate) di.value = window._requestDate;
+      syncDtph(di); syncDtph(document.getElementById('cal-ticket-time'));
       document.getElementById('btn-cal-add').onclick = async () => {
         msg.textContent = ''; err.textContent = '';
         const date = di.value || '';

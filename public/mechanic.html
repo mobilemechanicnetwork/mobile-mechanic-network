@@ -50,6 +50,11 @@
   .card h3{margin:0 0 6px;font-size:1.05rem}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
   .row > div{flex:1;min-width:140px}
+  .dtwrap{position:relative;display:inline-flex;align-items:center}
+  .dtwrap .dtph{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none}
+  .dtwrap.has-val .dtph{display:none}
+  .dtwrap:not(.has-val) input::-webkit-datetime-edit{color:transparent}
+  @-moz-document url-prefix(){.dtph{display:none}}
   .err{color:#dc2626;min-height:20px;font-size:.9rem}
   .ok{color:#16a34a;min-height:20px;font-size:.9rem}
   .urgent-badge{background:#b91c1c;color:#fff;font-weight:800;font-size:.72rem;padding:2px 8px;border-radius:6px;letter-spacing:.04em}
@@ -271,8 +276,8 @@
     <p class="muted">Upcoming jobs, soonest first. Booked jobs show up here automatically; add anything you set up by phone below.</p>
     <form id="cal-form">
       <div class="row">
-        <div style="flex:0 0 auto"><label for="cal-date">Date</label><input id="cal-date" type="date" required style="width:160px"></div>
-        <div style="flex:0 0 auto"><label for="cal-time">Time (optional)</label><input id="cal-time" type="time" style="width:120px"></div>
+        <div style="flex:0 0 auto"><label for="cal-date">Date</label><span class="dtwrap"><input id="cal-date" type="date" required style="width:160px"><span class="dtph">Date</span></span></div>
+        <div style="flex:0 0 auto"><label for="cal-time">Time (optional)</label><span class="dtwrap"><input id="cal-time" type="time" style="width:120px"><span class="dtph">Time</span></span></div>
         <div style="flex:1 1 240px;min-width:0"><label for="cal-title">Job</label><input id="cal-title" required placeholder="e.g. Oil change for Thomas — 2019 F-150"></div>
       </div>
       <label for="cal-notes">Notes (optional)</label><input id="cal-notes" placeholder="e.g. Customer will text the address in the morning">
@@ -557,8 +562,12 @@ function calControlHtml(ticketId) {
   const e = (window._calByTicket || {})[ticketId];
   if (e) return `<span class="ok">On your calendar for ${esc(new Date(e.date + 'T00:00:00').toLocaleDateString())}${e.time ? ' at ' + esc(fmtTime(e.time)) : ''}.</span> <button type="button" class="ghost" onclick="removeCalFromCard('${ticketId}', this)">Remove from calendar</button> <span data-cal-err style="color:#b91c1c;font-size:.9rem"></span>`;
   const pre = (window._calPrefill || {})[ticketId] || '';
-  return `<span style="display:inline-flex;gap:6px;flex-wrap:wrap;align-items:end"><label style="margin:0;font-size:.85rem;color:#64748b">Date <input type="date" data-cal-date value="${esc(pre)}" style="width:auto"></label> <label style="margin:0;font-size:.85rem;color:#64748b">Time (optional) <input type="time" data-cal-time style="width:auto"></label> <button type="button" class="primary" style="width:auto;margin:0" onclick="addCalFromCard('${ticketId}', this)">Add to calendar</button></span> <span data-cal-err style="color:#b91c1c;font-size:.9rem"></span>`;
+  return `<span style="display:inline-flex;gap:6px;flex-wrap:wrap;align-items:end"><label style="margin:0;font-size:.85rem;color:#64748b">Date <span class="dtwrap${pre ? ' has-val' : ''}"><input type="date" data-cal-date value="${esc(pre)}" style="width:auto"><span class="dtph">Date</span></span></label> <label style="margin:0;font-size:.85rem;color:#64748b">Time (optional) <span class="dtwrap"><input type="time" data-cal-time style="width:auto"><span class="dtph">Time</span></span></label> <button type="button" class="primary" style="width:auto;margin:0" onclick="addCalFromCard('${ticketId}', this)">Add to calendar</button></span> <span data-cal-err style="color:#b91c1c;font-size:.9rem"></span>`;
 }
+function syncDtph(input){ const w = input.closest('.dtwrap'); if (w) w.classList.toggle('has-val', !!input.value); }
+document.addEventListener('input', e => { if (e.target.matches && e.target.matches('.dtwrap input')) syncDtph(e.target); });
+document.addEventListener('change', e => { if (e.target.matches && e.target.matches('.dtwrap input')) syncDtph(e.target); });
+document.querySelectorAll('.dtwrap input').forEach(syncDtph);
 window.addCalFromCard = async (ticketId, btn) => {
   const wrap = btn.closest('[data-calctl]');
   const errEl = wrap ? wrap.querySelector('[data-cal-err]') : null;
