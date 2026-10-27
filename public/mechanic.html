@@ -281,6 +281,7 @@
       <div class="row">
         <div style="flex:0 0 auto"><label for="cal-date">Date</label><span class="dtwrap"><input id="cal-date" type="date" required style="width:160px"><span class="dtph">Date</span></span></div>
         <div style="flex:0 0 auto"><label for="cal-time">Time (optional)</label><span class="dtwrap"><input id="cal-time" type="time" style="width:120px"><span class="dtph">Time</span></span></div>
+        <div style="flex:0 0 auto"><label for="cal-end">End time (optional)</label><span class="dtwrap"><input id="cal-end" type="time" style="width:120px"><span class="dtph">End time</span></span></div>
         <div style="flex:1 1 240px;min-width:0"><label for="cal-title">Job</label><input id="cal-title" required placeholder="e.g. Oil change for Thomas — 2019 F-150"></div>
       </div>
       <label for="cal-notes">Notes (optional)</label><input id="cal-notes" placeholder="e.g. Customer will text the address in the morning">
@@ -525,6 +526,11 @@ function fmtTime(t) {
   h = h % 12; if (h === 0) h = 12;
   return h + ':' + m[2] + ' ' + ap;
 }
+// Start time, or a start – end range when the job has an end time.
+function timeRange(r) {
+  if (!r.time) return '';
+  return fmtTime(r.time) + (r.endTime ? ' – ' + fmtTime(r.endTime) : '');
+}
 // ---- Week view for the Calendar tab (one week, Sunday start) ----
 function calLocalToday() {
   const n = new Date();
@@ -574,7 +580,7 @@ function renderCalWeek(dated) {
   const selJobs = (byDate[sel] || []).slice().sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
   const selLabel = new Date(sel + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
   const detail = selJobs.length
-    ? selJobs.map(j => `<div style="padding:6px 0;border-bottom:1px solid #e2e8f0"><strong>${esc(j.title)}</strong>${j.time ? ` <span class="muted">${esc(fmtTime(j.time))}</span>` : ''}${j.ticketId ? ` <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}${j.kind === 'manual' && j.id ? ` <button type="button" class="danger" onclick="delCalEntry('${j.id}')">Delete</button>` : ''}</div>`).join('')
+    ? selJobs.map(j => `<div style="padding:6px 0;border-bottom:1px solid #e2e8f0"><strong>${esc(j.title)}</strong>${timeRange(j) ? ` <span class="muted">${esc(timeRange(j))}</span>` : ''}${j.ticketId ? ` <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}${j.kind === 'manual' && j.id ? ` <button type="button" class="danger" onclick="delCalEntry('${j.id}')">Delete</button>` : ''}</div>`).join('')
     : `<p class="muted">No jobs on ${esc(selLabel)}.</p>`;
   box.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
     <button type="button" class="ghost" onclick="calWeekMove(-1)">‹ Prev week</button>
@@ -605,7 +611,7 @@ function renderCalendar() {
   const booked = (window._booked || []).filter(b => !b.paid);
   const rows = [];
   for (const b of booked) rows.push({ date: b.date || '', time: b.time || '', kind: 'booked', title: (b.ownerName ? b.ownerName + ' — ' : '') + b.service + ' — ' + b.vehicle, phone: b.phone, address: b.address || (b.city ? b.city + (b.state ? ', ' + b.state : '') : ''), ticketId: b.ticketId || null, createdAt: b.createdAt || '' });
-  for (const e of (window._calManual || [])) rows.push({ date: e.date || '', time: e.time || '', kind: 'manual', id: e.id, title: e.ticketId ? ([e.customerName, e.service, e.vehicle].filter(Boolean).join(' — ') || e.title) : e.title, notes: e.notes || '', ticketId: e.ticketId || null, location: e.location || '', createdAt: e.createdAt || '' });
+  for (const e of (window._calManual || [])) rows.push({ date: e.date || '', time: e.time || '', endTime: e.endTime || '', kind: 'manual', id: e.id, title: e.ticketId ? ([e.customerName, e.service, e.vehicle].filter(Boolean).join(' — ') || e.title) : e.title, notes: e.notes || '', ticketId: e.ticketId || null, location: e.location || '', createdAt: e.createdAt || '' });
   const dated = rows.filter(r => r.date).sort((a, b) => String(a.date + (a.time || '')).localeCompare(String(b.date + (b.time || ''))) || String(a.createdAt).localeCompare(String(b.createdAt)));
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = dated.filter(r => r.date >= today);
@@ -613,7 +619,7 @@ function renderCalendar() {
   const undated = rows.filter(r => !r.date);
   renderCalWeek(dated);
   const rowHtml = r => `<div class="card">
-    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><strong style="min-width:0">${esc(r.title)}</strong>${r.date ? `<div style="text-align:right;flex-shrink:0"><div style="font-size:1.3rem;font-weight:800;line-height:1.2">${new Date(r.date + 'T00:00:00').toLocaleDateString()}</div>${r.time ? `<div class="muted" style="font-size:.85rem">${esc(fmtTime(r.time))}</div>` : ''}</div>` : ''}</div>
+    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><strong style="min-width:0">${esc(r.title)}</strong>${r.date ? `<div style="text-align:right;flex-shrink:0"><div style="font-size:1.3rem;font-weight:800;line-height:1.2">${new Date(r.date + 'T00:00:00').toLocaleDateString()}</div>${timeRange(r) ? `<div class="muted" style="font-size:.85rem">${esc(timeRange(r))}</div>` : ''}</div>` : ''}</div>
     ${r.kind === 'booked' ? `<div class="muted" style="margin-top:4px">${r.phone ? `<a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · ` : ''}${r.address ? esc(r.address) + ' · ' : ''}<span class="ok">Booked</span></div>${r.ticketId ? `<p style="margin:8px 0 0"><a href="/ticket?id=${r.ticketId}" target="_blank">View ticket →</a></p>` : ''}` : `${r.ticketId ? `${r.location ? `<div class="muted" style="margin-top:4px">${esc(r.location)}</div>` : ''}<p style="margin:8px 0 0"><a href="/ticket?id=${r.ticketId}" target="_blank">View ticket →</a> <button type="button" class="danger" onclick="delCalEntry('${r.id}')">Delete</button></p>` : `<div class="muted" style="margin-top:4px">${esc(r.notes)}</div><p style="margin:8px 0 0"><button type="button" class="danger" onclick="delCalEntry('${r.id}')">Delete</button></p>`}`}
   </div>`;
   box.innerHTML = (upcoming.length ? `<h3>Upcoming</h3>` + upcoming.map(rowHtml).join('') : '<p class="muted">No upcoming jobs with a date yet.</p>')
@@ -639,9 +645,9 @@ async function loadCalByTicket() {
 }
 function calControlHtml(ticketId) {
   const e = (window._calByTicket || {})[ticketId];
-  if (e) return `<span class="ok">On your calendar for ${esc(new Date(e.date + 'T00:00:00').toLocaleDateString())}${e.time ? ' at ' + esc(fmtTime(e.time)) : ''}.</span> <button type="button" class="ghost" onclick="removeCalFromCard('${ticketId}', this)">Remove from calendar</button> <span data-cal-err style="color:#b91c1c;font-size:.9rem"></span>`;
+  if (e) return `<span class="ok">On your calendar for ${esc(new Date(e.date + 'T00:00:00').toLocaleDateString())}${timeRange(e) ? ' at ' + esc(timeRange(e)) : ''}.</span> <button type="button" class="ghost" onclick="removeCalFromCard('${ticketId}', this)">Remove from calendar</button> <span data-cal-err style="color:#b91c1c;font-size:.9rem"></span>`;
   const pre = (window._calPrefill || {})[ticketId] || '';
-  return `<span style="display:inline-flex;gap:6px;flex-wrap:wrap;align-items:end"><label style="margin:0;font-size:.85rem;color:#64748b">Date <span class="dtwrap${pre ? ' has-val' : ''}"><input type="date" data-cal-date value="${esc(pre)}" style="width:auto"><span class="dtph">Date</span></span></label> <label style="margin:0;font-size:.85rem;color:#64748b">Time (optional) <span class="dtwrap"><input type="time" data-cal-time style="width:auto"><span class="dtph">Time</span></span></label> <button type="button" class="primary" style="width:auto;margin:0" onclick="addCalFromCard('${ticketId}', this)">Add to calendar</button></span> <span data-cal-err style="color:#b91c1c;font-size:.9rem"></span>`;
+  return `<span style="display:inline-flex;gap:6px;flex-wrap:wrap;align-items:end"><label style="margin:0;font-size:.85rem;color:#64748b">Date <span class="dtwrap${pre ? ' has-val' : ''}"><input type="date" data-cal-date value="${esc(pre)}" style="width:auto"><span class="dtph">Date</span></span></label> <label style="margin:0;font-size:.85rem;color:#64748b">Time (optional) <span class="dtwrap"><input type="time" data-cal-time style="width:auto"><span class="dtph">Time</span></span></label> <label style="margin:0;font-size:.85rem;color:#64748b">End time (optional) <span class="dtwrap"><input type="time" data-cal-end style="width:auto"><span class="dtph">End time</span></span></label> <button type="button" class="primary" style="width:auto;margin:0" onclick="addCalFromCard('${ticketId}', this)">Add to calendar</button></span> <span data-cal-err style="color:#b91c1c;font-size:.9rem"></span>`;
 }
 function syncDtph(input){ const w = input.closest('.dtwrap'); if (w) w.classList.toggle('has-val', !!input.value); }
 document.addEventListener('input', e => { if (e.target.matches && e.target.matches('.dtwrap input')) syncDtph(e.target); });
@@ -653,10 +659,11 @@ window.addCalFromCard = async (ticketId, btn) => {
   if (errEl) errEl.textContent = '';
   const date = wrap ? (wrap.querySelector('[data-cal-date]').value || '') : '';
   const time = wrap ? (wrap.querySelector('[data-cal-time]').value || '') : '';
+  const endTime = wrap ? (wrap.querySelector('[data-cal-end]').value || '') : '';
   if (!date) { if (errEl) errEl.textContent = 'Pick a date.'; return; }
   btn.disabled = true;
   try {
-    const d = await post('/api/calendar', { ticketId, date, time, title: (window._calTitles || {})[ticketId] || 'Job' });
+    const d = await post('/api/calendar', { ticketId, date, time, endTime, title: (window._calTitles || {})[ticketId] || 'Job' });
     if (d.entry) window._calByTicket[ticketId] = d.entry;
     if (wrap) wrap.innerHTML = calControlHtml(ticketId);
   } catch (ex) { if (errEl) errEl.textContent = ex.message; btn.disabled = false; }
@@ -693,9 +700,9 @@ window.expandCalForNotif = async (noteId, btn) => {
 $('cal-form').onsubmit = async (e) => {
   e.preventDefault(); $('cal-err').textContent = ''; $('cal-ok').textContent = '';
   try {
-    await post('/api/calendar', { date: $('cal-date').value, time: $('cal-time').value, title: $('cal-title').value, notes: $('cal-notes').value });
+    await post('/api/calendar', { date: $('cal-date').value, time: $('cal-time').value, endTime: $('cal-end').value, title: $('cal-title').value, notes: $('cal-notes').value });
     $('cal-ok').textContent = 'Added.';
-    $('cal-date').value = ''; $('cal-time').value = ''; $('cal-title').value = ''; $('cal-notes').value = '';
+    $('cal-date').value = ''; $('cal-time').value = ''; $('cal-end').value = ''; $('cal-title').value = ''; $('cal-notes').value = '';
     loadCalendar();
   } catch (ex) { $('cal-err').textContent = ex.message; }
 };

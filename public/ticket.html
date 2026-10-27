@@ -249,7 +249,7 @@ async function bindCalendar() {
   const title = [T.customerName, T.vehicle].filter(Boolean).join(' — ');
   const render = () => {
     if (entry) {
-      state.innerHTML = `<p style="margin:0">On your calendar for <strong>${new Date(entry.date + 'T00:00:00').toLocaleDateString()}</strong>${entry.time ? ' at ' + esc(fmtTime(entry.time)) : ''}.</p><p style="margin:8px 0 0"><button type="button" class="ghost" id="btn-cal-remove">Remove from calendar</button></p>`;
+      state.innerHTML = `<p style="margin:0">On your calendar for <strong>${new Date(entry.date + 'T00:00:00').toLocaleDateString()}</strong>${entry.time ? ' at ' + esc(fmtTime(entry.time)) + (entry.endTime ? ' – ' + esc(fmtTime(entry.endTime)) : '') : ''}.</p><p style="margin:8px 0 0"><button type="button" class="ghost" id="btn-cal-remove">Remove from calendar</button></p>`;
       document.getElementById('btn-cal-remove').onclick = async () => {
         msg.textContent = ''; err.textContent = '';
         try {
@@ -260,16 +260,16 @@ async function bindCalendar() {
         } catch (e) { err.textContent = e.message; }
       };
     } else {
-      state.innerHTML = `<p class="muted" style="margin:0 0 8px">Add this job to your calendar.</p><p style="margin:0;display:flex;gap:8px;flex-wrap:wrap;align-items:end"><label style="margin:0;flex:0 0 auto">Date <span class="dtwrap"><input type="date" id="cal-ticket-date" style="width:160px;background:#fff"><span class="dtph">Date</span></span></label><label style="margin:0;flex:0 0 auto">Time <span class="dtwrap"><input type="time" id="cal-ticket-time" style="width:120px;background:#fff"><span class="dtph">Time</span></span></label><button type="button" id="btn-cal-add">Add to calendar</button></p>`;
+      state.innerHTML = `<p class="muted" style="margin:0 0 8px">Add this job to your calendar.</p><p style="margin:0;display:flex;gap:8px;flex-wrap:wrap;align-items:end"><label style="margin:0;flex:0 0 auto">Date <span class="dtwrap"><input type="date" id="cal-ticket-date" style="width:160px;background:#fff"><span class="dtph">Date</span></span></label><label style="margin:0;flex:0 0 auto">Time <span class="dtwrap"><input type="time" id="cal-ticket-time" style="width:120px;background:#fff"><span class="dtph">Time</span></span></label><label style="margin:0;flex:0 0 auto">End time <span class="dtwrap"><input type="time" id="cal-ticket-end" style="width:120px;background:#fff"><span class="dtph">End time</span></span></label><button type="button" id="btn-cal-add">Add to calendar</button></p>`;
       const di = document.getElementById('cal-ticket-date');
       if (window._requestDate) di.value = window._requestDate;
-      syncDtph(di); syncDtph(document.getElementById('cal-ticket-time'));
+      syncDtph(di); syncDtph(document.getElementById('cal-ticket-time')); syncDtph(document.getElementById('cal-ticket-end'));
       document.getElementById('btn-cal-add').onclick = async () => {
         msg.textContent = ''; err.textContent = '';
         const date = di.value || '';
         if (!date) { err.textContent = 'Pick a date first.'; return; }
         try {
-          const d = await api('/api/calendar', { date, time: document.getElementById('cal-ticket-time').value || '', title, notes: T.label ? ('Ticket ' + T.label) : '', ticketId: T.id });
+          const d = await api('/api/calendar', { date, time: document.getElementById('cal-ticket-time').value || '', endTime: document.getElementById('cal-ticket-end').value || '', title, notes: T.label ? ('Ticket ' + T.label) : '', ticketId: T.id });
           entry = d.entry; msg.textContent = 'Added to calendar.'; render();
         } catch (e) { err.textContent = e.message; }
       };
