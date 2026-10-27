@@ -557,7 +557,7 @@ function calControlHtml(ticketId) {
   const e = (window._calByTicket || {})[ticketId];
   if (e) return `<span class="ok">On your calendar for ${esc(new Date(e.date + 'T00:00:00').toLocaleDateString())}${e.time ? ' at ' + esc(fmtTime(e.time)) : ''}.</span> <button type="button" class="ghost" onclick="removeCalFromCard('${ticketId}', this)">Remove from calendar</button> <span data-cal-err style="color:#b91c1c;font-size:.9rem"></span>`;
   const pre = (window._calPrefill || {})[ticketId] || '';
-  return `<span style="display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center"><input type="date" title="Date" data-cal-date value="${esc(pre)}" style="width:auto"> <input type="time" title="Time (optional)" data-cal-time style="width:auto"> <button type="button" class="primary" style="width:auto;margin:0" onclick="addCalFromCard('${ticketId}', this)">Add to calendar</button></span> <span data-cal-err style="color:#b91c1c;font-size:.9rem"></span>`;
+  return `<span style="display:inline-flex;gap:6px;flex-wrap:wrap;align-items:end"><label style="margin:0;font-size:.85rem;color:#64748b">Date <input type="date" data-cal-date value="${esc(pre)}" style="width:auto"></label> <label style="margin:0;font-size:.85rem;color:#64748b">Time (optional) <input type="time" data-cal-time style="width:auto"></label> <button type="button" class="primary" style="width:auto;margin:0" onclick="addCalFromCard('${ticketId}', this)">Add to calendar</button></span> <span data-cal-err style="color:#b91c1c;font-size:.9rem"></span>`;
 }
 window.addCalFromCard = async (ticketId, btn) => {
   const wrap = btn.closest('[data-calctl]');
