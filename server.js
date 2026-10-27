@@ -260,7 +260,7 @@ function pushOwnerNote(ownerId, note) {
   } catch (e) { return false; }
 }
 function cleanTicketBody(body, type) {
-  const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage, paymentMethod, jobAddress, comments, phone } = body || {};
+  const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage, paymentMethod, jobAddress, comments, phone, expenses } = body || {};
   if (!customerName || !String(customerName).trim()) return { error: 'Customer name is required.' };
   if (!Array.isArray(items) || !items.length) return { error: 'At least one line item is required.' };
   let ticketVin = '';
@@ -287,13 +287,17 @@ function cleanTicketBody(body, type) {
   const laborAmountNum = r2(Math.max(0, Number(laborAmount) || 0));
   const rate = Math.max(0, Math.min(100, Number(taxRate) || 0));
   const taxAmount = r2(r2(partsSubtotal + laborAmountNum) * rate / 100);
-  const total = r2(partsSubtotal + laborAmountNum + taxAmount);
+  const cleanExpenses = Array.isArray(expenses) ? expenses.slice(0, 50)
+    .map(e => ({ desc: String((e && e.desc) || '').trim().slice(0, 200), amount: Math.round(Math.max(0, Number(e && e.amount) || 0) * 100) / 100 }))
+    .filter(e => e.desc && e.amount >= 0) : [];
+  const expensesTotal = r2(cleanExpenses.reduce((s, e) => s + e.amount, 0));
+  const total = r2(partsSubtotal + laborAmountNum + taxAmount + expensesTotal);
   return {
     customerName: String(customerName).trim().slice(0, 120),
     vehicle: String(vehicle || '').trim().slice(0, 120),
     vin: ticketVin, mileage: ticketMileage, items: cleanItems,
     laborDesc: String(laborDesc || '').trim().slice(0, 200), laborAmount: laborAmountNum,
-    taxRate: rate, subtotal: partsSubtotal, taxAmount,
+    taxRate: rate, subtotal: partsSubtotal, taxAmount, expenses: cleanExpenses, expensesTotal,
     notes: String(notes || '').trim().slice(0, 1000),
     warranty: String(warranty || '').trim().slice(0, 2000),
     ...(paymentMethod !== undefined ? { paymentMethod: String(paymentMethod || '').trim().slice(0, 50) } : {}),
@@ -1210,7 +1214,8 @@ const server = http.createServer(async (req, res) => {
           const lines = jobTicket
             ? [...(jobTicket.items || []).map(it => ({ desc: it.desc, amount: (it.qty != null && it.price != null) ? Number(it.qty) * Number(it.price) : (it.amount != null ? it.amount : it.price) })),
                ...(jobTicket.laborAmount > 0 ? [{ desc: 'Labor' + (jobTicket.laborDesc ? ' — ' + jobTicket.laborDesc : ''), amount: jobTicket.laborAmount }] : []),
-               ...(jobTicket.taxAmount > 0 ? [{ desc: 'Tax (' + jobTicket.taxRate + '%)', amount: jobTicket.taxAmount }] : [])]
+               ...(jobTicket.taxAmount > 0 ? [{ desc: 'Tax (' + jobTicket.taxRate + '%)', amount: jobTicket.taxAmount }] : []),
+               ...(jobTicket.expensesTotal > 0 ? [{ desc: 'Mobile expenses & supplies', amount: jobTicket.expensesTotal }] : [])]
             : (q.items || []).map(it => ({ desc: it.desc, amount: it.amount != null ? it.amount : it.price }));
           return { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, vehicleLocation: r.vehicleLocation || '', vehicleLocationType: r.vehicleLocationType || '', ownerName: r.ownerName, ownerId: r.ownerId || null, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, ticketTotal: jobTicket ? jobTicket.total : null, lines, hasTicket: myTickets.some(t => t.requestId === r.id), ticketId: jobTicket ? jobTicket.id : null, address: jobTicket ? (jobTicket.jobAddress || '') : '', paid: myTickets.some(t => t.requestId === r.id && t.type === 'receipt'), pendingFollowUp: quotes.find(q2 => q2.requestId === r.id && q2.businessId === biz.id && q2.status === 'pending' && q2.followUp === true) || null, history, returning: history.length > 0 };
         })
@@ -1404,7 +1409,7 @@ const server = http.createServer(async (req, res) => {
             const parts = r2(inv.items.reduce((s, it) => s + it.qty * it.price, 0));
             inv.subtotal = parts;
             inv.taxAmount = r2(r2(parts + (inv.laborAmount || 0)) * (inv.taxRate || 0) / 100);
-            inv.total = r2(parts + (inv.laborAmount || 0) + inv.taxAmount);
+            inv.total = r2(parts + (inv.laborAmount || 0) + inv.taxAmount + (inv.expensesTotal || 0));
             ticketsStore.write(tickets); autoTicket = inv;
           } else {
             const built = ticketFromAcceptedQuote(quote, row);
@@ -1864,6 +1869,13 @@ const server = http.createServer(async (req, res) => {
       const body = await parseBody(req);
       const clean = cleanTicketBody(body, t.type);
       if (clean.error) return sendJson(res, 400, { error: clean.error });
+      // A PUT that omits expenses (older callers) keeps the stored ones
+      // instead of wiping them, so detail/notes saves never drop them.
+      if (body.expenses === undefined) {
+        clean.expenses = t.expenses || [];
+        clean.expensesTotal = t.expensesTotal || 0;
+        clean.total = Math.round((clean.subtotal + clean.laborAmount + clean.taxAmount + clean.expensesTotal) * 100) / 100;
+      }
       if (t.type === 'invoice') {
         // Invoices are locked: the accepted price never changes. Only
         // customer-approved follow-up quotes add lines, never edits.
@@ -1872,7 +1884,9 @@ const server = http.createServer(async (req, res) => {
         // invoices don't trip the lock when only details change.
         const sameItems = (clean.items || []).length === (t.items || []).length &&
           (clean.items || []).every((it, i) => t.items[i] && it.desc === t.items[i].desc && Number(it.qty) === Number(t.items[i].qty ?? 1) && Number(it.price) === Number(t.items[i].price ?? t.items[i].amount ?? 0));
-        if (!sameItems || clean.laborAmount !== Number(t.laborAmount ?? 0) || clean.taxRate !== Number(t.taxRate ?? 0))
+        const sameExpenses = (clean.expenses || []).length === (t.expenses || []).length &&
+          (clean.expenses || []).every((e, i) => t.expenses[i] && e.desc === t.expenses[i].desc && Number(e.amount) === Number(t.expenses[i].amount ?? 0));
+        if (!sameItems || !sameExpenses || clean.laborAmount !== Number(t.laborAmount ?? 0) || clean.taxRate !== Number(t.taxRate ?? 0))
           return sendJson(res, 400, { error: 'Invoice prices are locked. Additional work needs customer approval first.' });
       }
       Object.assign(t, clean, { updatedAt: new Date().toISOString() });
@@ -2080,7 +2094,7 @@ const server = http.createServer(async (req, res) => {
           const parts = r2(t.items.reduce((s, it) => s + it.qty * it.price, 0));
           t.subtotal = parts;
           t.taxAmount = r2(r2(parts + (t.laborAmount || 0)) * (t.taxRate || 0) / 100);
-          t.total = r2(parts + (t.laborAmount || 0) + t.taxAmount);
+          t.total = r2(parts + (t.laborAmount || 0) + t.taxAmount + (t.expensesTotal || 0));
           t.estimateLines = remaining; t.estimateStatus = remaining.length ? 'pending' : 'none';
         } else {
           t.deniedLines = [...(t.deniedLines || []), ...acted];

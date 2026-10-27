@@ -103,6 +103,7 @@ window.actAll = (action) => act(action, null);
       : `<tr><th>Description</th><th class="num">Amount</th></tr>`;
     const laborRow = (t.laborAmount > 0) ? `<tr><td>Labor${t.laborDesc ? ' — ' + esc(t.laborDesc) : ''}</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.laborAmount)}</td></tr>` : '';
     const taxRow = (t.taxAmount > 0) ? `<tr><td>Tax (${esc(t.taxRate)}%)</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.taxAmount)}</td></tr>` : '';
+    const expensesRows = (t.expenses || []).map(e => `<tr><td>Mobile expense — ${esc(e.desc)}</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(e.amount)}</td></tr>`).join('');
     const subRow = (isNew && (t.laborAmount > 0 || t.taxAmount > 0)) ? `<tr><td>Parts subtotal</td><td class="num"></td><td class="num"></td><td class="num">${money(t.subtotal)}</td></tr>` : '';
     box.innerHTML = `
       <div class="head">
@@ -121,7 +122,7 @@ window.actAll = (action) => act(action, null);
         <div><span>Ticket</span>${t.label ? esc(t.label) : '#' + esc(t.id.slice(0, 8))}</div>
         ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}${t.paymentMethod ? ' via ' + esc(t.paymentMethod) : ''}</div>` : ''}
       </div>
-      <table>${headRow}${itemRows}${subRow}${laborRow}${taxRow}</table>
+      <table>${headRow}${itemRows}${subRow}${laborRow}${taxRow}${expensesRows}</table>
       ${(t.estimateLines && t.estimateLines.length && t.estimateStatus === 'pending') ? `<h3 style="margin-top:16px">Estimate — awaiting approval</h3><table><tr><th>Description</th><th class="num">Amount</th></tr>${t.estimateLines.map(l => `<tr><td>${esc(l.desc)}</td><td class="num">${money(l.price)}</td></tr>`).join('')}</table><div class="muted">These lines are not yet on the invoice. They join it only if you approve.</div>` : ''}
       ${(t.deniedLines && t.deniedLines.length) ? `<h3 style="margin-top:16px">Denied repairs (not performed, not charged)</h3><table><tr><th>Description</th><th class="num">Amount</th></tr>${t.deniedLines.map(l => `<tr><td>${esc(l.desc)}</td><td class="num">${money(l.price)}</td></tr>`).join('')}</table><div class="muted">The customer declined these repairs. They are not included in the total.</div>` : ''}
       <div class="total">${t.type === 'estimate' ? 'Estimated total' : 'Total'}: ${money(t.total)}</div>

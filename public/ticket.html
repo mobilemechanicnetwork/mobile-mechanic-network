@@ -70,6 +70,21 @@ function addEstRow(desc, price) {
   row.innerHTML = `<input placeholder="Description (e.g. Brake pads — parts)" value="${esc(desc || '')}" style="flex:2" aria-label="Estimate line description"><input type="number" min="0.01" step="0.01" placeholder="$" value="${price || ''}" style="flex:1;max-width:110px" aria-label="Estimate line amount"><button type="button" class="ghost" onclick="this.parentElement.remove()">✕</button>`;
   w.appendChild(row);
 }
+function addExpenseRow(desc, amount) {
+  const w = document.getElementById('edit-expenses');
+  if (!w) return;
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;margin:6px 0';
+  row.innerHTML = `<input placeholder="Description (e.g. Shop supplies)" value="${esc(desc || '')}" style="flex:3" aria-label="Expense description"><input type="number" placeholder="Amount" min="0" step="0.01" value="${amount || ''}" style="flex:1" aria-label="Expense amount"><button type="button" class="ghost">×</button>`;
+  row.querySelector('button').onclick = () => row.remove();
+  w.appendChild(row);
+}
+function expenseRows() {
+  return [...document.querySelectorAll('#edit-expenses > div')].map(r => {
+    const ins = r.querySelectorAll('input');
+    return { desc: ins[0].value, amount: ins[1].value };
+  });
+}
 function itemRows() {
   return [...document.querySelectorAll('#edit-items > div')].map(r => {
     const ins = r.querySelectorAll('input');
@@ -98,7 +113,7 @@ window.saveDetails = async () => {
     if (T.type === 'receipt') {
       body = { vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value };
     } else {
-      body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value };
+      body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value, expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
     }
     const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
@@ -141,7 +156,7 @@ function bindComments() {
       if (T.type === 'receipt') {
         body = { comments: ta.value };
       } else {
-        body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', comments: ta.value };
+        body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', comments: ta.value, expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
       }
       const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
@@ -170,7 +185,7 @@ function bindNotes() {
     if (msg) msg.textContent = '';
     try {
       const dv = id => { const el = document.getElementById(id); return el ? el.value : ''; };
-      const body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: ta.value, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '' };
+      const body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: ta.value, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
       const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'Could not save.');
@@ -311,6 +326,8 @@ function renderActions() {
       <button type="button" class="ghost" id="btn-add-item">Add line</button></div>
       <div style="display:flex;gap:8px;margin-top:10px"><div style="flex:1"><label>Labor description</label><input id="ed-labor-desc"></div><div style="flex:1"><label>Labor amount</label><input id="ed-labor" type="number" min="0" step="0.01"></div></div>
       <div><label>Tax rate (%)</label><input id="ed-tax" type="number" min="0" max="100" step="0.01"></div>
+      <div style="margin-top:10px"><label>Mobile expenses & supplies <span class="muted">(optional)</span></label><div id="edit-expenses"></div>
+      <button type="button" class="ghost" id="btn-add-expense">Add expense</button></div>
       <div><label>Notes</label><textarea id="ed-notes" rows="3"></textarea></div>
       <div><label>Warranty</label><textarea id="ed-warranty" rows="2"></textarea></div>
       <button type="button" id="btn-save-edit">Save changes</button> <button type="button" class="ghost" id="btn-cancel-edit">Cancel</button>
@@ -362,12 +379,15 @@ function renderActions() {
       document.getElementById('ed-labor-desc').value = T.laborDesc || '';
       document.getElementById('ed-labor').value = T.laborAmount || '';
       document.getElementById('ed-tax').value = T.taxRate || '';
+      document.getElementById('edit-expenses').innerHTML = '';
+      (T.expenses || []).forEach(e => addExpenseRow(e.desc, e.amount));
       document.getElementById('ed-notes').value = T.notes || '';
       document.getElementById('ed-warranty').value = T.warranty || '';
       editForm.hidden = false;
       editForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
     document.getElementById('btn-add-item').onclick = () => addItemRow('', '', '');
+    document.getElementById('btn-add-expense').onclick = () => addExpenseRow('', '');
     document.getElementById('btn-cancel-edit').onclick = () => { editForm.hidden = true; };
     document.getElementById('btn-save-edit').onclick = async () => {
       const msg = document.getElementById('edit-msg');
@@ -382,6 +402,7 @@ function renderActions() {
           laborDesc: document.getElementById('ed-labor-desc').value,
           laborAmount: document.getElementById('ed-labor').value,
           taxRate: document.getElementById('ed-tax').value,
+          expenses: expenseRows(),
           notes: document.getElementById('ed-notes').value,
           warranty: document.getElementById('ed-warranty').value
         }) });
@@ -449,6 +470,7 @@ function renderActions() {
       : `<tr><th>Description</th><th class="num">Amount</th></tr>`;
     const laborRow = (t.laborAmount > 0) ? `<tr><td>Labor${t.laborDesc ? ' — ' + esc(t.laborDesc) : ''}</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.laborAmount)}</td></tr>` : '';
     const taxRow = (t.taxAmount > 0) ? `<tr><td>Tax (${esc(t.taxRate)}%)</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.taxAmount)}</td></tr>` : '';
+    const expensesRows = (t.expenses || []).map(e => `<tr><td>Mobile expense — ${esc(e.desc)}</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(e.amount)}</td></tr>`).join('');
     const subRow = (isNew && (t.laborAmount > 0 || t.taxAmount > 0)) ? `<tr><td>Parts subtotal</td><td class="num"></td><td class="num"></td><td class="num">${money(t.subtotal)}</td></tr>` : '';
     box.innerHTML = `
       ${t.type === 'receipt' ? '' : `<div class="noprint" style="text-align:right;margin-bottom:8px;min-height:1.2em"><span id="details-msg"></span></div>`}
@@ -469,7 +491,7 @@ function renderActions() {
         <div><span>Ticket</span>${t.label ? esc(t.label) : '#' + esc(t.id.slice(0, 8))}</div>
         ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}</div>` : ''}
       </div>
-      <table>${headRow}${itemRows}${subRow}${laborRow}${taxRow}</table>
+      <table>${headRow}${itemRows}${subRow}${laborRow}${taxRow}${expensesRows}</table>
       ${(t.estimateLines && t.estimateLines.length && t.estimateStatus === 'pending') ? `<h3 style="margin-top:16px">Estimate — awaiting approval</h3><table><tr><th>Description</th><th class="num">Amount</th></tr>${t.estimateLines.map(l => `<tr><td>${esc(l.desc)}</td><td class="num">${money(l.price)}</td></tr>`).join('')}</table><div class="muted">These lines are not yet on the invoice. They join it only if the customer approves.</div>` : ''}
       ${(t.deniedLines && t.deniedLines.length) ? `<h3 style="margin-top:16px">Denied repairs (not performed, not charged)</h3><table><tr><th>Description</th><th class="num">Amount</th></tr>${t.deniedLines.map(l => `<tr><td>${esc(l.desc)}</td><td class="num">${money(l.price)}</td></tr>`).join('')}</table><div class="muted">The customer declined these repairs. They are not included in the total.</div>` : ''}
       <div class="total">${t.type === 'estimate' ? 'Estimated total' : 'Total'}: ${money(t.total)}</div>
