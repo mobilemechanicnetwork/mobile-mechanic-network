@@ -50,8 +50,6 @@
   .card h3{margin:0 0 6px;font-size:1.05rem}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
   .row > div{flex:1;min-width:140px}
-  #cal-week-grid .wk-count{display:none}
-  @media (max-width:520px){ #cal-week-grid .wk-job{display:none} #cal-week-grid .wk-count{display:block} }
   .dtwrap{position:relative;display:inline-flex;align-items:center}
   .dtwrap .dtph{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none}
   .dtwrap.has-val .dtph{display:none}
@@ -531,7 +529,9 @@ function timeRange(r) {
   if (!r.time) return '';
   return fmtTime(r.time) + (r.endTime ? ' – ' + fmtTime(r.endTime) : '');
 }
-// ---- Week view for the Calendar tab (one week, Sunday start) ----
+// ---- Week view for the Calendar tab: time grid, Sunday start ----
+// (Template: ShopMonkey Standard view — day columns, hour rows, blocks
+// placed by start time and sized by duration, overlapping blocks side by side.)
 function calLocalToday() {
   const n = new Date();
   return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
@@ -552,52 +552,120 @@ function calWeekLabel(sunStr) {
   if (a.getFullYear() !== b.getFullYear()) return fmt(a, true) + ' – ' + fmt(b, true);
   return fmt(a, false) + ' – ' + fmt(b, true);
 }
+function calMin(t) {
+  const m = String(t || '').match(/^(\d{2}):(\d{2})$/);
+  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+}
+// Grid hours: cover every timed job, at least 8 AM – 5 PM.
+function calGridRange(timed) {
+  let gs = 8, ge = 17;
+  timed.forEach(j => {
+    const s = calMin(j.time), e = j.endTime ? calMin(j.endTime) : null;
+    if (s != null) gs = Math.min(gs, Math.floor(s / 60));
+    if (e != null) ge = Math.max(ge, Math.ceil(e / 60));
+    else if (s != null) ge = Math.max(ge, Math.floor(s / 60) + 1);
+  });
+  return [Math.max(0, gs), Math.min(24, ge)];
+}
+// Side-by-side layout for one day's timed jobs: returns {job, col, cols}.
+// Jobs that touch at an endpoint (one ends as another starts) do not overlap.
+function calLayoutDay(jobs) {
+  const items = jobs.map(j => ({ job: j, start: calMin(j.time), end: j.endTime ? calMin(j.endTime) : calMin(j.time) + 60 }))
+    .filter(x => x.start != null)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  const out = [];
+  let cluster = [], clusterEnd = -1, clusterCols = [];
+  const flush = () => {
+    const cols = clusterCols.length;
+    cluster.forEach(c => out.push({ job: c.job, col: c.col, cols }));
+    cluster = []; clusterCols = []; clusterEnd = -1;
+  };
+  items.forEach(x => {
+    if (cluster.length && x.start >= clusterEnd) flush();
+    let col = clusterCols.findIndex(lastEnd => lastEnd <= x.start);
+    if (col === -1) { col = clusterCols.length; clusterCols.push(x.end); }
+    else clusterCols[col] = x.end;
+    cluster.push({ job: x.job, col });
+    clusterEnd = Math.max(clusterEnd, x.end);
+  });
+  flush();
+  return out;
+}
 function renderCalWeek(dated) {
   const box = $('cal-week');
   if (!box) return;
   if (window._calWeekOff == null) window._calWeekOff = 0;
-  if (!window._calSelDate) window._calSelDate = calLocalToday();
   const sun = calAddDays(calWeekSunday(calLocalToday()), window._calWeekOff * 7);
   const byDate = {};
   dated.forEach(r => { (byDate[r.date] = byDate[r.date] || []).push(r); });
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const today = calLocalToday(), sel = window._calSelDate;
-  const cells = [];
+  const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const today = calLocalToday();
+  const weekTimed = [];
+  const dayData = [];
   for (let i = 0; i < 7; i++) {
     const ds = calAddDays(sun, i);
-    const d = new Date(ds + 'T00:00:00');
-    const jobs = (byDate[ds] || []).slice().sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
-    const shown = jobs.slice(0, 2), extra = jobs.length - shown.length;
-    const isToday = ds === today, isSel = ds === sel;
-    cells.push(`<div onclick="calWeekSelect('${ds}')" style="min-width:0;border:1px solid ${isSel ? '#2563eb' : '#e2e8f0'};border-radius:10px;padding:8px;cursor:pointer;background:${isToday ? '#dbeafe' : '#fff'}">
-      <div style="font-size:.8rem;color:#64748b">${days[i]}</div>
-      <div style="font-weight:800;font-size:1.05rem">${d.getDate()}</div>
-      ${shown.map(j => `<div class="wk-job" style="font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px">${esc(j.title)}</div>`).join('')}
-      ${extra > 0 ? `<div class="muted wk-job" style="font-size:.8rem">+${extra} more</div>` : ''}
-      ${jobs.length ? `<div class="muted wk-count" style="font-size:.8rem">${jobs.length} job${jobs.length === 1 ? '' : 's'}</div>` : ''}
-    </div>`);
+    const jobs = byDate[ds] || [];
+    const timed = jobs.filter(j => j.time);
+    const allday = jobs.filter(j => !j.time);
+    weekTimed.push(...timed);
+    dayData.push({ ds, timed, allday });
   }
-  const selJobs = (byDate[sel] || []).slice().sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
-  const selLabel = new Date(sel + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-  const detail = selJobs.length
-    ? selJobs.map(j => `<div style="padding:6px 0;border-bottom:1px solid #e2e8f0"><strong>${esc(j.title)}</strong>${timeRange(j) ? ` <span class="muted">${esc(timeRange(j))}</span>` : ''}${j.ticketId ? ` <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}${j.kind === 'manual' && j.id ? ` <button type="button" class="danger" onclick="delCalEntry('${j.id}')">Delete</button>` : ''}</div>`).join('')
-    : `<p class="muted">No jobs on ${esc(selLabel)}.</p>`;
-  box.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+  const [gs, ge] = calGridRange(weekTimed);
+  const pxH = 56, gridH = (ge - gs) * pxH;
+  const hourLabels = [];
+  for (let h = gs; h < ge; h++) hourLabels.push(`<div style="position:absolute;left:0;right:4px;top:${(h - gs) * pxH + 2}px;text-align:right;font-size:.75rem;color:#64748b">${esc(fmtTime(String(h).padStart(2, '0') + ':00'))}</div>`);
+  const headerCells = dayData.map(d => {
+    const dt = new Date(d.ds + 'T00:00:00');
+    const isToday = d.ds === today;
+    return `<div style="padding:8px 4px;text-align:center;font-weight:800;border-left:1px solid #e2e8f0;background:${isToday ? '#dbeafe' : '#f8fafc'}">${dayNames[dt.getDay()]} ${dt.getDate()}</div>`;
+  }).join('');
+  const hasAllday = dayData.some(d => d.allday.length);
+  const alldayRow = !hasAllday ? '' : `<div style="display:contents"><div style="padding:6px 4px;font-size:.75rem;color:#64748b;border-top:1px solid #e2e8f0">All Day</div>${dayData.map(d => `<div style="padding:4px;border-left:1px solid #e2e8f0;border-top:1px solid #e2e8f0">${d.allday.map(j => `<div style="font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(j.title)}</div>`).join('')}</div>`).join('')}</div>`;
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const bodyCells = dayData.map(d => {
+    const blocks = calLayoutDay(d.timed).map(b => {
+      const j = b.job;
+      const startMin = calMin(j.time), endMin = j.endTime ? calMin(j.endTime) : startMin + 60;
+      const top = (startMin - gs * 60) / 60 * pxH;
+      const height = Math.max(24, (endMin - startMin) / 60 * pxH - 2);
+      const left = (b.col * 100 / b.cols).toFixed(2), width = (100 / b.cols).toFixed(2);
+      const parts = String(j.title).split(' — ');
+      const lines = parts.length === 3
+        ? `<div style="font-weight:700">${esc(parts[0])}</div><div>${esc(parts[2])}</div><div>${esc(parts[1])}</div>`
+        : `<div style="font-weight:700">${esc(j.title)}</div>`;
+      const inner = `${lines}<div class="muted">${esc(timeRange(j))}</div>`;
+      const style = `position:absolute;top:${top}px;left:calc(${left}% + 1px);width:calc(${width}% - 2px);height:${height}px;overflow:hidden;background:#dbeafe;border:1px solid #93c5fd;border-radius:6px;padding:3px 5px;font-size:.78rem;line-height:1.25;box-sizing:border-box;color:#0f172a`;
+      return j.ticketId
+        ? `<a href="/ticket?id=${j.ticketId}" target="_blank" style="${style};text-decoration:none">${inner}</a>`
+        : `<div style="${style}">${inner}</div>`;
+    }).join('');
+    const nowLine = (d.ds === today && nowMin >= gs * 60 && nowMin < ge * 60)
+      ? `<div style="position:absolute;left:0;right:0;top:${(nowMin - gs * 60) / 60 * pxH}px;height:2px;background:#dc2626;z-index:2"><span style="position:absolute;left:2px;top:-9px;background:#dc2626;color:#fff;font-size:.7rem;padding:1px 4px;border-radius:4px">${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}</span></div>`
+      : '';
+    return `<div style="position:relative;height:${gridH}px;border-left:1px solid #e2e8f0;border-top:1px solid #e2e8f0;background:repeating-linear-gradient(to bottom,#e2e8f0 0 1px,transparent 1px ${pxH}px)">${blocks}${nowLine}</div>`;
+  }).join('');
+  box.innerHTML = `<div id="cal-week-nav" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
     <button type="button" class="ghost" onclick="calWeekMove(-1)">‹ Prev week</button>
     <strong style="flex:1;text-align:center">${esc(calWeekLabel(sun))}</strong>
     <button type="button" class="ghost" onclick="calWeekMove(1)">Next week ›</button>
     <button type="button" class="ghost" onclick="calWeekToday()">Today</button>
   </div>
-  <div id="cal-week-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">${cells.join('')}</div>
-  <div style="margin-top:10px"><strong>${esc(selLabel)}</strong>${detail}</div>`;
+  <div id="cal-week-grid" style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px">
+    <div style="display:grid;grid-template-columns:48px repeat(7,1fr);min-width:720px">
+      <div style="padding:8px 4px"></div>${headerCells}
+      ${alldayRow}
+      <div style="position:relative;height:${gridH}px;border-top:1px solid #e2e8f0">${hourLabels.join('')}</div>${bodyCells}
+    </div>
+  </div>`;
 }
 window.calWeekMove = d => { window._calWeekOff = (window._calWeekOff || 0) + d; renderCalendar(); };
-window.calWeekToday = () => { window._calWeekOff = 0; window._calSelDate = calLocalToday(); renderCalendar(); };
-window.calWeekSelect = ds => { window._calSelDate = ds; renderCalendar(); };
-// Swipe left/right across the week grid to move weeks (buttons cover desktop).
+window.calWeekToday = () => { window._calWeekOff = 0; renderCalendar(); };
+// Swipe left/right on the week header to move weeks (the grid itself scrolls
+// sideways on narrow screens, so swipes there pan the grid instead).
 let _calTouchX = null;
 document.addEventListener('touchstart', e => {
-  const g = e.target.closest && e.target.closest('#cal-week-grid');
+  const g = e.target.closest && e.target.closest('#cal-week-nav');
   if (g && e.touches.length === 1) _calTouchX = e.touches[0].clientX;
 }, { passive: true });
 document.addEventListener('touchend', e => {
@@ -606,6 +674,7 @@ document.addEventListener('touchend', e => {
   _calTouchX = null;
   if (Math.abs(dx) > 50) { window._calWeekOff = (window._calWeekOff || 0) + (dx < 0 ? 1 : -1); renderCalendar(); }
 }, { passive: true });
+
 function renderCalendar() {
   const box = $('cal-list');
   const booked = (window._booked || []).filter(b => !b.paid);
