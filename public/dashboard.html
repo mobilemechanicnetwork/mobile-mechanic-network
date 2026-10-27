@@ -89,10 +89,10 @@
       </div>
       <label for="rq-service">Service needed</label><select id="rq-service"></select>
       <label for="rq-desc">What is going on with the vehicle?</label><textarea id="rq-desc" rows="3"></textarea>
+      <label for="rq-location">Street address of the vehicle <span class="muted">(if unsure, write "contact for exact location")</span></label><input id="rq-location">
+      <label for="rq-loctype">Is the vehicle at a house, work, or business?</label><select id="rq-loctype"><option value="" disabled selected>Select one</option><option value="house">House</option><option value="work">Work</option><option value="business">Business</option></select>
       <label for="rq-city">City</label><input id="rq-city">
       <label for="rq-state">State</label><input id="rq-state" maxlength="2">
-      <label for="rq-loctype">Is the vehicle at a house, work, or business?</label><select id="rq-loctype"><option value="" disabled selected>Select one</option><option value="house">House</option><option value="work">Work</option><option value="business">Business</option></select>
-      <label for="rq-location">Where is the vehicle? <span class="muted">(if unsure, write "contact for exact location")</span></label><input id="rq-location">
       <label for="rq-date">When do you need it?</label><input id="rq-date" type="date">
       <p><button type="button" onclick="sendRecentRequest()">Send quote request</button></p>
       <div class="err" id="rq-err"></div><div class="ok" id="rq-ok"></div>

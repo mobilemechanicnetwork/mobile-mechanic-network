@@ -45,15 +45,15 @@
       <input id="f-name" autocomplete="name" required>
       <label for="f-phone">Phone number <span class="muted">(mechanics reach you here)</span></label>
       <input id="f-phone" type="tel" autocomplete="tel" required>
+      <label for="f-location">Street address of the vehicle <span class="muted">(if you are not sure, write "contact for exact location")</span></label>
+      <input id="f-location" required placeholder="e.g. 123 Main St">
+      <label for="f-loctype">Is the vehicle at a house, work, or business?</label>
+      <select id="f-loctype" required><option value="" disabled selected>Select one</option><option value="house">House</option><option value="work">Work</option><option value="business">Business</option></select>
       <div class="row">
         <div><label for="f-city">City</label><input id="f-city" required></div>
         <div><label for="f-state">State</label><input id="f-state" required maxlength="2"></div>
         <div><label for="f-zip">ZIP <span class="muted">(optional)</span></label><input id="f-zip" inputmode="numeric" maxlength="10" placeholder="e.g. 70460"></div>
       </div>
-      <label for="f-loctype">Is the vehicle at a house, work, or business?</label>
-      <select id="f-loctype" required><option value="" disabled selected>Select one</option><option value="house">House</option><option value="work">Work</option><option value="business">Business</option></select>
-      <label for="f-location">Where is the vehicle? <span class="muted">(if you are not sure, write "contact for exact location")</span></label>
-      <input id="f-location" required placeholder="e.g. home, work, or where it is parked">
       <div id="f-garage-row" hidden><label for="f-garage-select">Your garage</label><select id="f-garage-select"></select></div>
       <label id="f-vehicle-label">Vehicle (year, make, model)</label>
       <div id="f-vehicle-manual">
