@@ -271,9 +271,9 @@
     <p class="muted">Upcoming jobs, soonest first. Booked jobs show up here automatically; add anything you set up by phone below.</p>
     <form id="cal-form">
       <div class="row">
-        <div><label for="cal-date">Date</label><input id="cal-date" type="date" required></div>
-        <div><label for="cal-time">Time (optional)</label><input id="cal-time" type="time"></div>
-        <div><label for="cal-title">Job</label><input id="cal-title" required placeholder="e.g. Oil change for Thomas — 2019 F-150"></div>
+        <div style="flex:0 0 auto"><label for="cal-date">Date</label><input id="cal-date" type="date" required style="width:160px"></div>
+        <div style="flex:0 0 auto"><label for="cal-time">Time (optional)</label><input id="cal-time" type="time" style="width:120px"></div>
+        <div style="flex:1 1 240px;min-width:0"><label for="cal-title">Job</label><input id="cal-title" required placeholder="e.g. Oil change for Thomas — 2019 F-150"></div>
       </div>
       <label for="cal-notes">Notes (optional)</label><input id="cal-notes" placeholder="e.g. Customer will text the address in the morning">
       <button class="primary" type="submit">Add to calendar</button>

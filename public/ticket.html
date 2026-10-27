@@ -252,7 +252,7 @@ async function bindCalendar() {
         } catch (e) { err.textContent = e.message; }
       };
     } else {
-      state.innerHTML = `<p class="muted" style="margin:0 0 8px">Add this job to your calendar.</p><p style="margin:0;display:flex;gap:8px;flex-wrap:wrap;align-items:end"><label style="margin:0">Date <input type="date" id="cal-ticket-date"></label><label style="margin:0">Time <input type="time" id="cal-ticket-time"></label><button type="button" id="btn-cal-add">Add to calendar</button></p>`;
+      state.innerHTML = `<p class="muted" style="margin:0 0 8px">Add this job to your calendar.</p><p style="margin:0;display:flex;gap:8px;flex-wrap:wrap;align-items:end"><label style="margin:0;flex:0 0 auto">Date <input type="date" id="cal-ticket-date" style="width:160px;background:#fff"></label><label style="margin:0;flex:0 0 auto">Time <input type="time" id="cal-ticket-time" style="width:120px;background:#fff"></label><button type="button" id="btn-cal-add">Add to calendar</button></p>`;
       const di = document.getElementById('cal-ticket-date');
       if (window._requestDate) di.value = window._requestDate;
       document.getElementById('btn-cal-add').onclick = async () => {
