@@ -50,6 +50,8 @@
   .card h3{margin:0 0 6px;font-size:1.05rem}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
   .row > div{flex:1;min-width:140px}
+  #cal-week-grid .wk-count{display:none}
+  @media (max-width:520px){ #cal-week-grid .wk-job{display:none} #cal-week-grid .wk-count{display:block} }
   .dtwrap{position:relative;display:inline-flex;align-items:center}
   .dtwrap .dtph{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none}
   .dtwrap.has-val .dtph{display:none}
@@ -273,6 +275,7 @@
 
   <section class="tab" id="tab-calendar">
     <h2>Calendar</h2>
+    <div id="cal-week" style="margin-bottom:16px"></div>
     <p class="muted">Upcoming jobs, soonest first. Booked jobs show up here automatically; add anything you set up by phone below.</p>
     <form id="cal-form">
       <div class="row">
@@ -522,6 +525,81 @@ function fmtTime(t) {
   h = h % 12; if (h === 0) h = 12;
   return h + ':' + m[2] + ' ' + ap;
 }
+// ---- Week view for the Calendar tab (one week, Sunday start) ----
+function calLocalToday() {
+  const n = new Date();
+  return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
+}
+function calAddDays(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function calWeekSunday(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return calAddDays(dateStr, -d.getDay());
+}
+function calWeekLabel(sunStr) {
+  const satStr = calAddDays(sunStr, 6);
+  const a = new Date(sunStr + 'T00:00:00'), b = new Date(satStr + 'T00:00:00');
+  const fmt = (x, withYear) => x.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + (withYear ? ', ' + x.getFullYear() : '');
+  if (a.getFullYear() !== b.getFullYear()) return fmt(a, true) + ' – ' + fmt(b, true);
+  return fmt(a, false) + ' – ' + fmt(b, true);
+}
+function renderCalWeek(dated) {
+  const box = $('cal-week');
+  if (!box) return;
+  if (window._calWeekOff == null) window._calWeekOff = 0;
+  if (!window._calSelDate) window._calSelDate = calLocalToday();
+  const sun = calAddDays(calWeekSunday(calLocalToday()), window._calWeekOff * 7);
+  const byDate = {};
+  dated.forEach(r => { (byDate[r.date] = byDate[r.date] || []).push(r); });
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const today = calLocalToday(), sel = window._calSelDate;
+  const cells = [];
+  for (let i = 0; i < 7; i++) {
+    const ds = calAddDays(sun, i);
+    const d = new Date(ds + 'T00:00:00');
+    const jobs = (byDate[ds] || []).slice().sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
+    const shown = jobs.slice(0, 2), extra = jobs.length - shown.length;
+    const isToday = ds === today, isSel = ds === sel;
+    cells.push(`<div onclick="calWeekSelect('${ds}')" style="min-width:0;border:1px solid ${isSel ? '#2563eb' : '#e2e8f0'};border-radius:10px;padding:8px;cursor:pointer;background:${isToday ? '#dbeafe' : '#fff'}">
+      <div style="font-size:.8rem;color:#64748b">${days[i]}</div>
+      <div style="font-weight:800;font-size:1.05rem">${d.getDate()}</div>
+      ${shown.map(j => `<div class="wk-job" style="font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px">${esc(j.title)}</div>`).join('')}
+      ${extra > 0 ? `<div class="muted wk-job" style="font-size:.8rem">+${extra} more</div>` : ''}
+      ${jobs.length ? `<div class="muted wk-count" style="font-size:.8rem">${jobs.length} job${jobs.length === 1 ? '' : 's'}</div>` : ''}
+    </div>`);
+  }
+  const selJobs = (byDate[sel] || []).slice().sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
+  const selLabel = new Date(sel + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  const detail = selJobs.length
+    ? selJobs.map(j => `<div style="padding:6px 0;border-bottom:1px solid #e2e8f0"><strong>${esc(j.title)}</strong>${j.time ? ` <span class="muted">${esc(fmtTime(j.time))}</span>` : ''}${j.ticketId ? ` <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}${j.kind === 'manual' && j.id ? ` <button type="button" class="danger" onclick="delCalEntry('${j.id}')">Delete</button>` : ''}</div>`).join('')
+    : `<p class="muted">No jobs on ${esc(selLabel)}.</p>`;
+  box.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+    <button type="button" class="ghost" onclick="calWeekMove(-1)">‹ Prev week</button>
+    <strong style="flex:1;text-align:center">${esc(calWeekLabel(sun))}</strong>
+    <button type="button" class="ghost" onclick="calWeekMove(1)">Next week ›</button>
+    <button type="button" class="ghost" onclick="calWeekToday()">Today</button>
+  </div>
+  <div id="cal-week-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">${cells.join('')}</div>
+  <div style="margin-top:10px"><strong>${esc(selLabel)}</strong>${detail}</div>`;
+}
+window.calWeekMove = d => { window._calWeekOff = (window._calWeekOff || 0) + d; renderCalendar(); };
+window.calWeekToday = () => { window._calWeekOff = 0; window._calSelDate = calLocalToday(); renderCalendar(); };
+window.calWeekSelect = ds => { window._calSelDate = ds; renderCalendar(); };
+// Swipe left/right across the week grid to move weeks (buttons cover desktop).
+let _calTouchX = null;
+document.addEventListener('touchstart', e => {
+  const g = e.target.closest && e.target.closest('#cal-week-grid');
+  if (g && e.touches.length === 1) _calTouchX = e.touches[0].clientX;
+}, { passive: true });
+document.addEventListener('touchend', e => {
+  if (_calTouchX == null) return;
+  const dx = e.changedTouches[0].clientX - _calTouchX;
+  _calTouchX = null;
+  if (Math.abs(dx) > 50) { window._calWeekOff = (window._calWeekOff || 0) + (dx < 0 ? 1 : -1); renderCalendar(); }
+}, { passive: true });
 function renderCalendar() {
   const box = $('cal-list');
   const booked = (window._booked || []).filter(b => !b.paid);
@@ -533,6 +611,7 @@ function renderCalendar() {
   const upcoming = dated.filter(r => r.date >= today);
   const past = dated.filter(r => r.date < today);
   const undated = rows.filter(r => !r.date);
+  renderCalWeek(dated);
   const rowHtml = r => `<div class="card">
     <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><strong style="min-width:0">${esc(r.title)}</strong>${r.date ? `<div style="text-align:right;flex-shrink:0"><div style="font-size:1.3rem;font-weight:800;line-height:1.2">${new Date(r.date + 'T00:00:00').toLocaleDateString()}</div>${r.time ? `<div class="muted" style="font-size:.85rem">${esc(fmtTime(r.time))}</div>` : ''}</div>` : ''}</div>
     ${r.kind === 'booked' ? `<div class="muted" style="margin-top:4px">${r.phone ? `<a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · ` : ''}${r.address ? esc(r.address) + ' · ' : ''}<span class="ok">Booked</span></div>${r.ticketId ? `<p style="margin:8px 0 0"><a href="/ticket?id=${r.ticketId}" target="_blank">View ticket →</a></p>` : ''}` : `${r.ticketId ? `${r.location ? `<div class="muted" style="margin-top:4px">${esc(r.location)}</div>` : ''}<p style="margin:8px 0 0"><a href="/ticket?id=${r.ticketId}" target="_blank">View ticket →</a> <button type="button" class="danger" onclick="delCalEntry('${r.id}')">Delete</button></p>` : `<div class="muted" style="margin-top:4px">${esc(r.notes)}</div><p style="margin:8px 0 0"><button type="button" class="danger" onclick="delCalEntry('${r.id}')">Delete</button></p>`}`}
