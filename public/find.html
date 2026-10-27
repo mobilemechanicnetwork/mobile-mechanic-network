@@ -45,8 +45,9 @@
       <input id="f-name" autocomplete="name" required>
       <label for="f-phone">Phone number <span class="muted">(mechanics reach you here)</span></label>
       <input id="f-phone" type="tel" autocomplete="tel" required>
-      <label for="f-location">Street address of the vehicle <span class="muted">(if you are not sure, write "contact for exact location")</span></label>
+      <label for="f-location">Street address of the vehicle</label>
       <input id="f-location" required placeholder="e.g. 123 Main St">
+      <label style="display:block;margin-top:6px"><input type="checkbox" id="f-contact-loc" onchange="toggleFindContact(this)"> Contact me for the exact location</label>
       <label for="f-loctype">Is the vehicle at a house, work, or business?</label>
       <select id="f-loctype" required><option value="" disabled selected>Select one</option><option value="house">House</option><option value="work">Work</option><option value="business">Business</option></select>
       <div class="row">
@@ -192,6 +193,8 @@ const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABE
   } catch (e) {}
 })();
 if (window.PhoneFmt) window.PhoneFmt.attach($('f-phone'));
+function toggleFindContact(cb) { const inp = $('f-location'); if (cb.checked) { inp.value = ''; inp.disabled = true; } else inp.disabled = false; }
+function findLoc() { return $('f-contact-loc').checked ? 'contact for exact location' : $('f-location').value.trim(); }
 $('find-form').onsubmit = async (e) => {
   e.preventDefault();
   $('f-err').textContent = '';
@@ -204,7 +207,7 @@ $('find-form').onsubmit = async (e) => {
   need('f-phone', 'phone number');
   need('f-city', 'city');
   need('f-state', 'state');
-  need('f-location', 'vehicle location');
+  if (!$('f-contact-loc').checked) need('f-location', 'vehicle location');
   if (!$('f-loctype').value) { missing.push('location type'); focusFor['location type'] = 'f-loctype'; }
   if (!$('f-service').value) { missing.push('service'); focusFor['service'] = 'f-service'; }
   if (!$('f-date').value) { missing.push('date'); focusFor['date'] = 'f-date'; }
@@ -241,7 +244,7 @@ $('find-form').onsubmit = async (e) => {
     city: $('f-city').value.trim(),
     state: $('f-state').value.trim(),
     zip: $('f-zip').value.trim(),
-    vehicleLocation: $('f-location').value.trim(),
+    vehicleLocation: findLoc(),
     vehicleLocationType: $('f-loctype').value,
     vehicle: veh,
     service: $('f-service').value,
@@ -326,7 +329,7 @@ $('req-send').onclick = async () => {
     desc = $('f-desc').value.trim();
     if (!desc) { errEl.textContent = 'Please describe what is going on with the vehicle.'; return; }
   }
-  if (!$('f-location').value.trim()) { errEl.textContent = 'Please tell us where the vehicle is, or write "contact for exact location".'; return; }
+  if (!$('f-contact-loc').checked && !$('f-location').value.trim()) { errEl.textContent = 'Please enter the street address, or check "Contact me for the exact location".'; return; }
   if (!$('f-loctype').value) { errEl.textContent = 'Please pick whether the vehicle is at a house, work, or business.'; return; }
   const body = {
     name: $('f-name').value.trim(),
@@ -344,7 +347,7 @@ $('req-send').onclick = async () => {
     date: $('f-date').value,
     urgent: new URLSearchParams(location.search).get('urgent') === '1',
     zip: $('f-zip').value.trim(),
-    vehicleLocation: $('f-location').value.trim(),
+    vehicleLocation: findLoc(),
     vehicleLocationType: $('f-loctype').value,
   };
   const sentKey = JSON.stringify(body);

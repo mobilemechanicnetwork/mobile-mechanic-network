@@ -89,7 +89,8 @@
       </div>
       <label for="rq-service">Service needed</label><select id="rq-service"></select>
       <label for="rq-desc">What is going on with the vehicle?</label><textarea id="rq-desc" rows="3"></textarea>
-      <label for="rq-location">Street address of the vehicle <span class="muted">(if unsure, write "contact for exact location")</span></label><input id="rq-location">
+      <label for="rq-location">Street address of the vehicle</label><input id="rq-location">
+      <label style="display:block;margin-top:6px"><input type="checkbox" id="rq-contact-loc" onchange="toggleRqContact(this)"> Contact me for the exact location</label>
       <label for="rq-loctype">Is the vehicle at a house, work, or business?</label><select id="rq-loctype"><option value="" disabled selected>Select one</option><option value="house">House</option><option value="work">Work</option><option value="business">Business</option></select>
       <label for="rq-city">City</label><input id="rq-city">
       <label for="rq-state">State</label><input id="rq-state" maxlength="2">
@@ -347,6 +348,7 @@
     loadOwner();
   };
   window.delVehiclePhoto = async (id) => { if (!confirm('Remove your photo? The automatic photo will show again if one was found.')) return; await api('/api/vehicles/' + id + '/photo/remove', { method: 'POST' }); loadOwner(); };
+  window.toggleRqContact = (cb) => { const inp = $('rq-location'); if (cb.checked) { inp.value = ''; inp.disabled = true; } else inp.disabled = false; };
   window.openRecentRequest = async (id) => {
     const b = (window._recentMechs || []).find(x => x.id === id);
     if (!b) return;
@@ -400,6 +402,7 @@
     $('rq-date').value = '';
     $('rq-location').value = '';
     $('rq-loctype').value = '';
+    $('rq-contact-loc').checked = false; $('rq-location').disabled = false;
     $('rq-desc').value = ''; $('rq-err').textContent = ''; $('rq-ok').textContent = '';
     $('recent-req').hidden = false;
     $('recent-req').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -429,8 +432,8 @@
     if (!desc) { errEl.textContent = 'Describe what is going on with the vehicle.'; return; }
     const city = $('rq-city').value.trim(); const state = $('rq-state').value.trim(); const date = $('rq-date').value;
     if (!city || !state) { errEl.textContent = 'Add your city and state.'; return; }
-    const vehicleLocation = $('rq-location').value.trim();
-    if (!vehicleLocation) { errEl.textContent = 'Add where the vehicle is, or write "contact for exact location".'; return; }
+    const vehicleLocation = $('rq-contact-loc').checked ? 'contact for exact location' : $('rq-location').value.trim();
+    if (!vehicleLocation) { errEl.textContent = 'Add the street address, or check "Contact me for the exact location".'; return; }
     const vehicleLocationType = $('rq-loctype').value;
     if (!vehicleLocationType) { errEl.textContent = 'Pick whether the vehicle is at a house, work, or business.'; return; }
     if (!date) { errEl.textContent = 'Pick a date.'; return; }
