@@ -46,7 +46,7 @@
       <label for="f-phone">Phone number <span class="muted">(mechanics reach you here)</span></label>
       <input id="f-phone" type="tel" autocomplete="tel" required>
       <label for="f-location">Street address of the vehicle</label>
-      <input id="f-location" required placeholder="e.g. 123 Main St">
+      <input id="f-location" required placeholder="e.g. 123 Main St" autocomplete="street-address">
       <label style="display:block;margin-top:6px"><input type="checkbox" id="f-contact-loc" onchange="toggleFindContact(this)"> Contact me for the exact location</label>
       <label for="f-loctype">Is the vehicle at a house, work, or business?</label>
       <select id="f-loctype" required><option value="" disabled selected>Select one</option><option value="house">House</option><option value="work">Work</option><option value="business">Business</option></select>
