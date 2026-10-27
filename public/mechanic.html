@@ -50,6 +50,7 @@
   .card h3{margin:0 0 6px;font-size:1.05rem}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
   .row > div{flex:1;min-width:140px}
+  @media (max-width:520px){ #cal-week-nav strong{flex-basis:100% !important} }
   .dtwrap{position:relative;display:inline-flex;align-items:center}
   .dtwrap .dtph{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none}
   .dtwrap.has-val .dtph{display:none}
@@ -552,6 +553,25 @@ function calWeekLabel(sunStr) {
   if (a.getFullYear() !== b.getFullYear()) return fmt(a, true) + ' – ' + fmt(b, true);
   return fmt(a, false) + ' – ' + fmt(b, true);
 }
+function calHourLabel(h) {
+  const ap = h >= 12 ? 'PM' : 'AM';
+  const hh = h % 12; return (hh === 0 ? 12 : hh) + ' ' + ap;
+}
+// Short time range for blocks: "8–9 AM", "11:30 AM – 4:15 PM", "2:30 PM".
+function calShortRange(r) {
+  const fmt = t => {
+    const m = String(t || '').match(/^(\d{2}):(\d{2})$/);
+    if (!m) return String(t || '');
+    let h = parseInt(m[1], 10);
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if (h === 0) h = 12;
+    return { label: h + (m[2] === '00' ? '' : ':' + m[2]), ap };
+  };
+  const s = fmt(r.time);
+  if (!r.endTime) return s.label + ' ' + s.ap;
+  const e = fmt(r.endTime);
+  return s.ap === e.ap ? s.label + '–' + e.label + ' ' + s.ap : s.label + ' ' + s.ap + ' – ' + e.label + ' ' + e.ap;
+}
 function calMin(t) {
   const m = String(t || '').match(/^(\d{2}):(\d{2})$/);
   return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
@@ -611,16 +631,16 @@ function renderCalWeek(dated) {
     dayData.push({ ds, timed, allday });
   }
   const [gs, ge] = calGridRange(weekTimed);
-  const pxH = 56, gridH = (ge - gs) * pxH;
+  const pxH = 60, gridH = (ge - gs) * pxH;
   const hourLabels = [];
-  for (let h = gs; h < ge; h++) hourLabels.push(`<div style="position:absolute;left:0;right:4px;top:${(h - gs) * pxH + 2}px;text-align:right;font-size:.75rem;color:#64748b">${esc(fmtTime(String(h).padStart(2, '0') + ':00'))}</div>`);
+  for (let h = gs; h < ge; h++) hourLabels.push(`<div style="position:absolute;left:0;right:4px;top:${(h - gs) * pxH + 2}px;text-align:right;font-size:.75rem;color:#64748b">${esc(calHourLabel(h))}</div>`);
   const headerCells = dayData.map(d => {
     const dt = new Date(d.ds + 'T00:00:00');
     const isToday = d.ds === today;
     return `<div style="padding:8px 4px;text-align:center;font-weight:800;border-left:1px solid #e2e8f0;background:${isToday ? '#dbeafe' : '#f8fafc'}">${dayNames[dt.getDay()]} ${dt.getDate()}</div>`;
   }).join('');
   const hasAllday = dayData.some(d => d.allday.length);
-  const alldayRow = !hasAllday ? '' : `<div style="display:contents"><div style="padding:6px 4px;font-size:.75rem;color:#64748b;border-top:1px solid #e2e8f0">All Day</div>${dayData.map(d => `<div style="padding:4px;border-left:1px solid #e2e8f0;border-top:1px solid #e2e8f0">${d.allday.map(j => `<div style="font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(j.title)}</div>`).join('')}</div>`).join('')}</div>`;
+  const alldayRow = !hasAllday ? '' : `<div style="display:contents"><div style="padding:6px 4px;font-size:.75rem;color:#64748b;border-top:1px solid #e2e8f0;position:sticky;left:0;z-index:3;background:#fff">All Day</div>${dayData.map(d => `<div style="padding:4px;border-left:1px solid #e2e8f0;border-top:1px solid #e2e8f0">${d.allday.map(j => `<div style="font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(j.title)}</div>`).join('')}</div>`).join('')}</div>`;
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const bodyCells = dayData.map(d => {
@@ -631,31 +651,32 @@ function renderCalWeek(dated) {
       const height = Math.max(24, (endMin - startMin) / 60 * pxH - 2);
       const left = (b.col * 100 / b.cols).toFixed(2), width = (100 / b.cols).toFixed(2);
       const parts = String(j.title).split(' — ');
+      const head = esc(calShortRange(j));
       const lines = parts.length === 3
-        ? `<div style="font-weight:700">${esc(parts[0])}</div><div>${esc(parts[2])}</div><div>${esc(parts[1])}</div>`
-        : `<div style="font-weight:700">${esc(j.title)}</div>`;
-      const inner = `${lines}<div class="muted">${esc(timeRange(j))}</div>`;
-      const style = `position:absolute;top:${top}px;left:calc(${left}% + 1px);width:calc(${width}% - 2px);height:${height}px;overflow:hidden;background:#dbeafe;border:1px solid #93c5fd;border-radius:6px;padding:3px 5px;font-size:.78rem;line-height:1.25;box-sizing:border-box;color:#0f172a`;
+        ? `<div style="font-weight:700">${head} · ${esc(parts[0])}</div><div>${esc(parts[2])}</div><div>${esc(parts[1])}</div>`
+        : `<div style="font-weight:700">${head} · ${esc(j.title)}</div>`;
+      const inner = lines;
+      const style = `position:absolute;top:${top}px;left:calc(${left}% + 1px);width:calc(${width}% - 2px);height:${height}px;overflow:hidden;background:#dbeafe;border:1px solid #93c5fd;border-radius:6px;padding:3px 5px;font-size:.78rem;line-height:1.2;box-sizing:border-box;color:#0f172a`;
       return j.ticketId
         ? `<a href="/ticket?id=${j.ticketId}" target="_blank" style="${style};text-decoration:none">${inner}</a>`
         : `<div style="${style}">${inner}</div>`;
     }).join('');
     const nowLine = (d.ds === today && nowMin >= gs * 60 && nowMin < ge * 60)
-      ? `<div style="position:absolute;left:0;right:0;top:${(nowMin - gs * 60) / 60 * pxH}px;height:2px;background:#dc2626;z-index:2"><span style="position:absolute;left:2px;top:-9px;background:#dc2626;color:#fff;font-size:.7rem;padding:1px 4px;border-radius:4px">${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}</span></div>`
+      ? `<div style="position:absolute;left:0;right:0;top:${(nowMin - gs * 60) / 60 * pxH}px;height:2px;background:#dc2626;z-index:2"><span style="position:absolute;left:2px;top:2px;background:#dc2626;color:#fff;font-size:.7rem;padding:1px 4px;border-radius:4px">${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}</span></div>`
       : '';
     return `<div style="position:relative;height:${gridH}px;border-left:1px solid #e2e8f0;border-top:1px solid #e2e8f0;background:repeating-linear-gradient(to bottom,#e2e8f0 0 1px,transparent 1px ${pxH}px)">${blocks}${nowLine}</div>`;
   }).join('');
-  box.innerHTML = `<div id="cal-week-nav" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+  box.innerHTML = `<div id="cal-week-nav" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;margin-bottom:8px">
     <button type="button" class="ghost" onclick="calWeekMove(-1)">‹ Prev week</button>
     <strong style="flex:1;text-align:center">${esc(calWeekLabel(sun))}</strong>
     <button type="button" class="ghost" onclick="calWeekMove(1)">Next week ›</button>
     <button type="button" class="ghost" onclick="calWeekToday()">Today</button>
   </div>
   <div id="cal-week-grid" style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px">
-    <div style="display:grid;grid-template-columns:48px repeat(7,1fr);min-width:720px">
-      <div style="padding:8px 4px"></div>${headerCells}
+    <div style="display:grid;grid-template-columns:48px repeat(7,1fr);min-width:720px;background:#fff">
+      <div style="padding:8px 4px;position:sticky;left:0;z-index:3;background:#f8fafc"></div>${headerCells}
       ${alldayRow}
-      <div style="position:relative;height:${gridH}px;border-top:1px solid #e2e8f0">${hourLabels.join('')}</div>${bodyCells}
+      <div style="position:sticky;left:0;z-index:3;background:#fff;height:${gridH}px;border-top:1px solid #e2e8f0">${hourLabels.join('')}</div>${bodyCells}
     </div>
   </div>`;
 }
