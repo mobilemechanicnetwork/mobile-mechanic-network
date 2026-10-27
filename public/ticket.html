@@ -94,15 +94,15 @@ function expenseRows() {
 function itemRows() {
   return [...document.querySelectorAll('#edit-items > div')].map(r => {
     const ins = r.querySelectorAll('input');
-    return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value, minutes: ins[3].value, parts: ins[4].value };
+    return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value, hours: ins[3].value, parts: ins[4].value };
   });
 }
-function addItemRow(desc, qty, price, minutes, parts) {
+function addItemRow(desc, qty, price, hours, parts) {
   const w = document.getElementById('edit-items');
   if (!w) return;
   const row = document.createElement('div');
   row.style.cssText = 'display:flex;gap:8px;margin:6px 0;flex-wrap:wrap';
-  row.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" style="flex:3;min-width:140px" aria-label="Line description"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" style="flex:1;max-width:70px" aria-label="Quantity"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" style="flex:1;max-width:110px" aria-label="Price"><input type="number" placeholder="Labor min" min="0" step="any" value="${minutes || ''}" style="flex:1;max-width:90px" aria-label="Labor minutes"><input type="number" placeholder="Parts" min="0" step="any" value="${parts || ''}" style="flex:1;max-width:70px" aria-label="Parts used"><button type="button" class="ghost" onclick="this.parentElement.remove()">✕</button>`;
+  row.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" style="flex:3;min-width:140px" aria-label="Line description"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" style="flex:1;max-width:70px" aria-label="Quantity"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" style="flex:1;max-width:110px" aria-label="Price"><input type="number" placeholder="Labor hrs" min="0" step="any" value="${hours || ''}" style="flex:1;max-width:90px" aria-label="Labor hours"><input type="number" placeholder="Parts" min="0" step="any" value="${parts || ''}" style="flex:1;max-width:70px" aria-label="Parts used"><button type="button" class="ghost" onclick="this.parentElement.remove()">✕</button>`;
   w.appendChild(row);
 }
 // Details are editable directly on the ticket itself: the Job address,
@@ -119,7 +119,7 @@ window.saveDetails = async () => {
     if (T.type === 'receipt') {
       body = { vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value };
     } else {
-      body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, minutes: it.minutes, parts: it.parts })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value, expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
+      body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, hours: it.hours, parts: it.parts })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value, expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
     }
     const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
@@ -162,7 +162,7 @@ function bindComments() {
       if (T.type === 'receipt') {
         body = { comments: ta.value };
       } else {
-        body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, minutes: it.minutes, parts: it.parts })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', comments: ta.value, expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
+        body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, hours: it.hours, parts: it.parts })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', comments: ta.value, expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
       }
       const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
@@ -195,7 +195,7 @@ function bindNotes() {
     if (msg) msg.textContent = '';
     try {
       const dv = id => { const el = document.getElementById(id); return el ? el.value : ''; };
-      const body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, minutes: it.minutes, parts: it.parts })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: ta.value, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
+      const body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, hours: it.hours, parts: it.parts })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: ta.value, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
       const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'Could not save.');
@@ -336,25 +336,25 @@ async function bindAppointments() {
   } catch (e) { box.innerHTML = '<p class="muted" style="margin:0">Could not load appointments.</p>'; }
 }
 // Work details live on each invoice line: the line's own row in the
-// ticket table carries its labor-minutes and parts inputs, auto-saving
+// ticket table carries its labor-hours and parts inputs, auto-saving
 // on change like the detail fields. Minutes and parts are metadata, not
 // price, so saving them passes the invoice price lock unchanged.
 // Receipts get no inputs (fully locked); estimates use Edit lines.
 function bindLineWorkDetails() {
-  const inputs = document.querySelectorAll('[data-wmin], [data-wparts]');
+  const inputs = document.querySelectorAll('[data-whours], [data-wparts]');
   if (!inputs.length) return;
   inputs.forEach(inp => {
     inp.addEventListener('change', async () => {
       const msg = document.getElementById('line-work-msg');
       if (msg) msg.textContent = '';
-      const idx = Number(inp.dataset.wmin !== undefined ? inp.dataset.wmin : inp.dataset.wparts);
+      const idx = Number(inp.dataset.whours !== undefined ? inp.dataset.whours : inp.dataset.wparts);
       try {
         const dv = id => { const el = document.getElementById(id); return el ? el.value : ''; };
         const items = (T.items || []).map((it, i) => {
-          if (i !== idx) return { desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, minutes: it.minutes, parts: it.parts };
-          const minEl = document.querySelector('[data-wmin="' + idx + '"]');
+          if (i !== idx) return { desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, hours: it.hours, parts: it.parts };
+          const hrsEl = document.querySelector('[data-whours="' + idx + '"]');
           const partsEl = document.querySelector('[data-wparts="' + idx + '"]');
-          return { desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, minutes: minEl ? minEl.value : it.minutes, parts: partsEl ? partsEl.value : it.parts };
+          return { desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, hours: hrsEl ? hrsEl.value : it.hours, parts: partsEl ? partsEl.value : it.parts };
         });
         const body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items, laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
         const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -365,7 +365,7 @@ function bindLineWorkDetails() {
         if (txEl) {
           const it = T.items[idx];
           const bits = [];
-          if (Number(it.minutes) > 0) bits.push('Labor ' + Number(it.minutes) + ' min');
+          if (Number(it.hours) > 0) bits.push(Number(it.hours) + ' hr' + (Number(it.hours) === 1 ? '' : 's'));
           if (Number(it.parts) > 0) bits.push(Number(it.parts) + ' part' + (Number(it.parts) === 1 ? '' : 's'));
           txEl.textContent = bits.join(' · ');
         }
@@ -444,7 +444,7 @@ function renderActions() {
       document.getElementById('ed-customer').value = T.customerName || '';
       document.getElementById('ed-vehicle').value = T.vehicle || '';
       document.getElementById('edit-items').innerHTML = '';
-      (T.items || []).forEach(it => addItemRow(it.desc, it.qty ?? 1, it.price ?? it.amount, it.minutes, it.parts));
+      (T.items || []).forEach(it => addItemRow(it.desc, it.qty ?? 1, it.price ?? it.amount, it.hours, it.parts));
       if (!(T.items || []).length) addItemRow('', '', '');
       document.getElementById('ed-labor-desc').value = T.laborDesc || '';
       document.getElementById('ed-labor').value = T.laborAmount || '';
@@ -534,16 +534,16 @@ function renderActions() {
     const isNew = t.items && t.items.length && t.items[0].qty !== undefined;
     const lineDetailText = i => {
       const bits = [];
-      if (Number(i.minutes) > 0) bits.push('Labor ' + Number(i.minutes) + ' min');
+      if (Number(i.hours) > 0) bits.push(Number(i.hours) + ' hr' + (Number(i.hours) === 1 ? '' : 's'));
       if (Number(i.parts) > 0) bits.push(Number(i.parts) + ' part' + (Number(i.parts) === 1 ? '' : 's'));
       return bits.join(' · ');
     };
     const lineDetail = i => { const tx = lineDetailText(i); return tx ? `<div class="muted" style="font-size:.85rem">${tx}</div>` : ''; };
-    // Invoices: the line's own row carries editable minutes/parts inputs
+    // Invoices: the line's own row carries editable hours/parts inputs
     // (screen only; print shows the plain text instead).
     const cellDetail = (i, idx) => {
       if (t.type !== 'invoice') return lineDetail(i);
-      return `<div class="noprint" style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><label style="font-size:.8rem;color:#64748b">Labor <input data-wmin="${idx}" type="number" step="any" min="0" value="${i.minutes || ''}" style="width:70px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:6px"> min</label><label style="font-size:.8rem;color:#64748b">Parts <input data-wparts="${idx}" type="number" step="any" min="0" value="${i.parts || ''}" style="width:60px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:6px"></label></div><div class="wdetail-text" id="wdetail-text-${idx}" style="font-size:.85rem;color:#64748b">${lineDetailText(i)}</div>`;
+      return `<div class="noprint" style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><label style="font-size:.8rem;color:#64748b">Labor <input data-whours="${idx}" type="number" step="any" min="0" value="${i.hours || ''}" style="width:70px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:6px"> hrs</label><label style="font-size:.8rem;color:#64748b">Parts <input data-wparts="${idx}" type="number" step="any" min="0" value="${i.parts || ''}" style="width:60px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:6px"></label></div><div class="wdetail-text" id="wdetail-text-${idx}" style="font-size:.85rem;color:#64748b">${lineDetailText(i)}</div>`;
     };
     const itemRows = (t.items || []).map((i, idx) => isNew
       ? `<tr><td>${esc(i.desc)}${cellDetail(i, idx)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`

@@ -1423,11 +1423,11 @@ function updateTicketTotals() {
   const total = Math.round((parts + labor + tax + expenses) * 100) / 100;
   $('t-totals').innerHTML = `Parts: $${parts.toFixed(2)} · Labor: $${labor.toFixed(2)} · Tax: $${tax.toFixed(2)} · Expenses: $${expenses.toFixed(2)}<br><strong>Total: $${total.toFixed(2)}</strong>`;
 }
-function addItemRow(desc, qty, price, minutes, parts) {
+function addItemRow(desc, qty, price, hours, parts) {
   const div = document.createElement('div');
   div.className = 'itemrow';
   div.style.cssText = 'display:flex;gap:8px;margin:6px 0;align-items:center;flex-wrap:wrap';
-  div.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" required style="flex:3;min-width:140px"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" required style="flex:1;max-width:70px"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" required style="flex:1;max-width:110px"><input type="number" placeholder="Labor min" min="0" step="any" value="${minutes || ''}" style="flex:1;max-width:90px" title="Labor minutes (optional, decimals allowed)"><input type="number" placeholder="Parts" min="0" step="any" value="${parts || ''}" style="flex:1;max-width:70px" title="Parts used (optional, decimals allowed)"><span class="rowtotal muted" style="min-width:70px;text-align:right">$0.00</span><button class="danger" type="button">×</button>`;
+  div.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" required style="flex:3;min-width:140px"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" required style="flex:1;max-width:70px"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" required style="flex:1;max-width:110px"><input type="number" placeholder="Labor hrs" min="0" step="any" value="${hours || ''}" style="flex:1;max-width:90px" title="Labor hours (optional, decimals allowed)"><input type="number" placeholder="Parts" min="0" step="any" value="${parts || ''}" style="flex:1;max-width:70px" title="Parts used (optional, decimals allowed)"><span class="rowtotal muted" style="min-width:70px;text-align:right">$0.00</span><button class="danger" type="button">×</button>`;
   div.querySelector('button').onclick = () => { div.remove(); updateTicketTotals(); };
   div.querySelectorAll('input').forEach(i => i.oninput = updateTicketTotals);
   $('t-items').appendChild(div);
@@ -1549,7 +1549,7 @@ $('ticket-form').onsubmit = async (e) => {
   if (!tVeh) { $('t-err').textContent = 'Please pick the vehicle year, make, and model.'; return; }
   const rows = [...document.querySelectorAll('#t-items .itemrow')];
   const expenseRows = [...document.querySelectorAll('#t-expenses > div')].map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, amount: ins[1].value }; });
-  const items = rows.map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value, minutes: ins[3].value, parts: ins[4].value }; });
+  const items = rows.map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value, hours: ins[3].value, parts: ins[4].value }; });
   const payload = { type: $('t-type').value, customerName: $('t-customer').value, phone: $('t-phone') ? $('t-phone').value : '', vehicle: tVeh, vin: $('t-vin').value, mileage: $('t-mileage').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, expenses: expenseRows, notes: $('t-notes').value, warranty: $('t-warranty').value, sendText: $('t-send-text') ? $('t-send-text').checked : false };
   try {
     const d = await post('/api/tickets', payload);
