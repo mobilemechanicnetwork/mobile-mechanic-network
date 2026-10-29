@@ -120,24 +120,18 @@
   </div>
   <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600">Add your phone number so you get new requests by text. <a href="/security" style="color:#b91c1c">Add it now →</a></div>
   <div class="tabs noprint">
-    <button data-tab="today" class="active">Today</button>
+    <button data-tab="today" class="active">Today <span id="notif-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700;margin-left:4px;vertical-align:middle"></span></button>
     <button data-tab="requests">Requests</button>
-    <button data-tab="notifications">Notifications <span id="notif-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700;margin-left:4px;vertical-align:middle"></span></button>
-    <button data-tab="profile">Business profile</button>
-    <button data-tab="promos">Promotions</button>
-    <button data-tab="photos">Photos</button>
+    <button data-tab="profile">Profile</button>
     <button data-tab="tickets">Tickets</button>
     <button data-tab="calendar">Calendar</button>
     <button data-tab="customers">Customers</button>
-    <button data-tab="earnings">Earnings</button>
-    <button data-tab="inspections">Inspections</button>
-    <button data-tab="billing">Billing</button>
-    <button data-tab="help">Help</button>
+    <button data-tab="money">Money</button>
   </div>
 
   <section class="tab active" id="tab-today">
     <h2>Today</h2>
-    <p class="muted">Today's appointments and open jobs at a glance.</p>
+    <p class="muted">Today's appointments, open jobs, and notifications at a glance.</p>
     <div id="today-appts"></div>
     <div id="today-open"></div>
   </section>
@@ -151,9 +145,9 @@
     <div id="booked"></div>
   </section>
 
-  <section class="tab" id="tab-notifications">
+  <section class="tab active" id="tab-notifications">
     <h2>Notifications</h2>
-    <p><button type="button" class="ghost" id="notif-clear">Clear all</button></p>
+    <p><button type="button" class="ghost" id="notif-read">Mark all read</button> <button type="button" class="ghost" id="notif-clear">Clear all</button></p>
     <div id="notif-list"></div>
   </section>
 
@@ -364,6 +358,7 @@
       <div class="err" id="h-err"></div><div class="ok" id="h-ok"></div>
     </form>
   </section>
+  <footer style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;color:#64748b;font-size:.9rem"><a href="#" onclick="event.preventDefault();showTab('help');window.scrollTo(0,0);">Help</a></footer>
 </main>
 <script src="/city-autocomplete.js"></script>
 <script src="/vehicle-picker.js"></script>
@@ -391,19 +386,23 @@ function earnedBadgesHtml(b) {
 async function api(url, opts) { const r = await fetch(url, opts); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Something went wrong.'); return d; }
 async function post(url, body) { return api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
 
-document.querySelectorAll('.tabs button').forEach(b => {
-  b.onclick = () => {
-    document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('active'));
-    document.querySelectorAll('section.tab').forEach(x => x.classList.remove('active'));
-    b.classList.add('active');
-    $('tab-' + b.dataset.tab).classList.add('active');
-    if (b.dataset.tab === 'profile') renderPvView();
-    if (b.dataset.tab === 'notifications') loadNotifications(true);
-    if (b.dataset.tab === 'customers') loadCustomers();
-    if (b.dataset.tab === 'calendar') loadCalendar();
-    if (b.dataset.tab === 'today') loadToday();
-  };
-});
+// Merged tabs: one tab button can show several sections (Today shows
+// notifications too, Profile holds promos and photos, Tickets holds
+// inspections, Money holds earnings and billing). Help has no button;
+// the footer link opens it.
+const TAB_SECTIONS = { today: ['today', 'notifications'], requests: ['requests'], profile: ['profile', 'promos', 'photos'], tickets: ['tickets', 'inspections'], calendar: ['calendar'], customers: ['customers'], money: ['earnings', 'billing'], help: ['help'] };
+window.showTab = (name) => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('section.tab').forEach(x => x.classList.remove('active'));
+  const btn = document.querySelector('.tabs button[data-tab="' + name + '"]');
+  if (btn) btn.classList.add('active');
+  (TAB_SECTIONS[name] || [name]).forEach(s => { const el = $('tab-' + s); if (el) el.classList.add('active'); });
+  if (name === 'profile') renderPvView();
+  if (name === 'today') { loadToday(); loadNotifications(true); }
+  if (name === 'customers') loadCustomers();
+  if (name === 'calendar') loadCalendar();
+};
+document.querySelectorAll('.tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.tab); });
 $('logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout', {}); location.href = '/'; };
 $('portal-home').onclick = (e) => { e.preventDefault(); document.querySelector('[data-tab="today"]').click(); window.scrollTo(0, 0); };
 
@@ -455,13 +454,14 @@ window.viewBookedJob = async (id) => {
 window.viewRequest = async () => {
   try { await loadInbox(); } catch (e) {}
   document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('inbox'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
-// Keep the unread count live: the number next to Notifications updates
+// Keep the unread count live: the number next to Today updates
 // without reloading the portal, and refreshes when the tab is reopened.
 async function refreshNotifBadge() {
   try { const d = await api('/api/notifications'); updateNotifBadge(d.unread || 0); } catch (e) {}
 }
 setInterval(refreshNotifBadge, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshNotifBadge(); });
+$('notif-read').onclick = async () => { await post('/api/notifications/read', {}); loadNotifications(false); };
 $('notif-clear').onclick = async () => { await post('/api/notifications/clear', {}); loadNotifications(false); };
 
 /* ---------- Customer badges + service history ---------- */
@@ -834,7 +834,7 @@ function renderCalMonth(dated) {
 window.calMonthMove = d => { window._calMonthOff = (window._calMonthOff || 0) + d; renderCalMonth(window._calDated || []); };
 window.calMonthToday = () => { window._calMonthOff = 0; window._calMonthSel = calLocalToday(); renderCalMonth(window._calDated || []); };
 window.calMonthSel = ds => { window._calMonthSel = ds; renderCalMonth(window._calDated || []); };
-window.gotoTab = (t) => { const b = document.querySelector('[data-tab="' + t + '"]'); if (b) b.click(); window.scrollTo(0, 0); };
+window.gotoTab = (t) => { showTab(t); window.scrollTo(0, 0); };
 
 // ---- Today tab: today's appointments plus open jobs at a glance ----
 async function loadToday() {
@@ -1937,8 +1937,9 @@ async function loadStats() {
     banner.style.borderColor = '#fca5a5';
     banner.innerHTML = '<strong>Your free trial has ended.</strong><p class="muted">Your business is hidden and requests are paused until a payment method is added.</p><button class="primary" id="frozen-billing">Add payment method</button>';
     document.querySelector('main').prepend(banner);
-    document.querySelector('[data-tab="billing"]').click();
-    $('frozen-billing').onclick = () => document.querySelector('[data-tab="billing"]').click();
+    const goBilling = () => { document.querySelector('[data-tab="money"]').click(); setTimeout(() => { const s = $('tab-billing'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
+    goBilling();
+    $('frozen-billing').onclick = goBilling;
   }
   const safe = async fn => { try { await fn(); } catch (e) { console.error(e); } };
   await safe(loadServices);
