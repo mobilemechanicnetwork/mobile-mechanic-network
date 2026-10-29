@@ -608,9 +608,9 @@ function calMin(t) {
   const m = String(t || '').match(/^(\d{2}):(\d{2})$/);
   return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
 }
-// Grid hours: cover every timed job, at least 8 AM – 5 PM.
+// Grid hours: cover every timed job, at least 4 AM – 10 PM.
 function calGridRange(timed) {
-  let gs = 8, ge = 17;
+  let gs = 4, ge = 22;
   timed.forEach(j => {
     const s = calMin(j.time), e = j.endTime ? calMin(j.endTime) : null;
     if (s != null) gs = Math.min(gs, Math.floor(s / 60));
