@@ -126,7 +126,7 @@
     <button data-tab="tickets">Tickets</button>
     <button data-tab="calendar">Calendar</button>
     <button data-tab="customers">Customers</button>
-    <button data-tab="money">Money</button>
+    <button data-tab="finances">Finances</button>
   </div>
 
   <section class="tab active" id="tab-today">
@@ -388,9 +388,9 @@ async function post(url, body) { return api(url, { method: 'POST', headers: { 'C
 
 // Merged tabs: one tab button can show several sections (Today shows
 // notifications too, Profile holds promos and photos, Tickets holds
-// inspections, Money holds earnings and billing). Help has no button;
+// inspections, Finances holds earnings and billing). Help has no button;
 // the footer link opens it.
-const TAB_SECTIONS = { today: ['today', 'notifications'], requests: ['requests'], profile: ['profile', 'promos', 'photos'], tickets: ['tickets', 'inspections'], calendar: ['calendar'], customers: ['customers'], money: ['earnings', 'billing'], help: ['help'] };
+const TAB_SECTIONS = { today: ['today', 'notifications'], requests: ['requests'], profile: ['profile', 'promos', 'photos'], tickets: ['tickets', 'inspections'], calendar: ['calendar'], customers: ['customers'], finances: ['earnings', 'billing'], help: ['help'] };
 window.showTab = (name) => {
   document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('active'));
   document.querySelectorAll('section.tab').forEach(x => x.classList.remove('active'));
@@ -1937,7 +1937,7 @@ async function loadStats() {
     banner.style.borderColor = '#fca5a5';
     banner.innerHTML = '<strong>Your free trial has ended.</strong><p class="muted">Your business is hidden and requests are paused until a payment method is added.</p><button class="primary" id="frozen-billing">Add payment method</button>';
     document.querySelector('main').prepend(banner);
-    const goBilling = () => { document.querySelector('[data-tab="money"]').click(); setTimeout(() => { const s = $('tab-billing'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
+    const goBilling = () => { document.querySelector('[data-tab="finances"]').click(); setTimeout(() => { const s = $('tab-billing'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
     goBilling();
     $('frozen-billing').onclick = goBilling;
   }
