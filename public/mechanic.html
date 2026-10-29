@@ -669,10 +669,10 @@ function renderCalWeek(dated) {
   const headerCells = dayData.map(d => {
     const dt = new Date(d.ds + 'T00:00:00');
     const isToday = d.ds === today;
-    return `<div style="padding:8px 4px;text-align:center;font-weight:800;border-left:1px solid #e2e8f0;background:${isToday ? '#dbeafe' : '#f8fafc'}">${dayNames[dt.getDay()]} ${dt.getDate()}</div>`;
+    return `<div style="padding:8px 4px;min-width:0;text-align:center;font-weight:800;border-left:1px solid #e2e8f0;background:${isToday ? '#dbeafe' : '#f8fafc'}">${dayNames[dt.getDay()]} ${dt.getDate()}</div>`;
   }).join('');
   const hasAllday = dayData.some(d => d.allday.length);
-  const alldayRow = !hasAllday ? '' : `<div style="display:contents"><div style="padding:6px 4px;font-size:.75rem;color:#64748b;border-top:1px solid #e2e8f0;position:sticky;left:0;z-index:3;background:#fff">All Day</div>${dayData.map(d => `<div style="padding:4px;border-left:1px solid #e2e8f0;border-top:1px solid #e2e8f0">${d.allday.map(j => `<div style="font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(j.title)}</div>`).join('')}</div>`).join('')}</div>`;
+  const alldayRow = !hasAllday ? '' : `<div style="display:contents"><div style="padding:6px 4px;font-size:.75rem;color:#64748b;border-top:1px solid #e2e8f0;position:sticky;left:0;z-index:3;background:#fff">All Day</div>${dayData.map(d => `<div style="padding:4px;min-width:0;border-left:1px solid #e2e8f0;border-top:1px solid #e2e8f0">${d.allday.map(j => `<div style="font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(j.title)}</div>`).join('')}</div>`).join('')}</div>`;
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const bodyCells = dayData.map(d => {
@@ -684,10 +684,8 @@ function renderCalWeek(dated) {
       const left = (b.col * 100 / b.cols).toFixed(2), width = (100 / b.cols).toFixed(2);
       const parts = String(j.title).split(' — ');
       const head = esc(calShortRange(j));
-      const lines = parts.length === 3
-        ? `<div style="font-weight:700">${head} · ${esc(parts[0])}</div><div>${esc(parts[2])}</div><div>${esc(parts[1])}</div>`
-        : `<div style="font-weight:700">${head} · ${esc(j.title)}</div>`;
-      const inner = lines;
+      const name = parts.length === 3 ? parts[0] : j.title;
+      const inner = `<div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${head} · ${esc(name)}</div>`;
       const style = `position:absolute;top:${top}px;left:calc(${left}% + 1px);width:calc(${width}% - 2px);height:${height}px;overflow:hidden;background:#dbeafe;border:1px solid #93c5fd;border-radius:6px;padding:3px 5px;font-size:.78rem;line-height:1.2;box-sizing:border-box;color:#0f172a`;
       return j.ticketId
         ? `<a href="/ticket?id=${j.ticketId}" target="_blank" style="${style};text-decoration:none">${inner}</a>`
@@ -705,7 +703,7 @@ function renderCalWeek(dated) {
     <button type="button" class="ghost" onclick="calWeekToday()">Today</button>
   </div>
   <div id="cal-week-grid" style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px">
-    <div style="display:grid;grid-template-columns:48px repeat(7,1fr);min-width:720px;background:#fff">
+    <div style="display:grid;grid-template-columns:48px repeat(7,minmax(0,1fr));min-width:720px;background:#fff">
       <div style="padding:8px 4px;position:sticky;left:0;z-index:3;background:#f8fafc"></div>${headerCells}
       ${alldayRow}
       <div style="position:sticky;left:0;z-index:3;background:#fff;height:${gridH}px;border-top:1px solid #e2e8f0">${hourLabels.join('')}</div>${bodyCells}
