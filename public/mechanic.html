@@ -32,11 +32,6 @@
   .badge-fr{background:#052e1b;border-color:#16a34a;color:#86efac}
   .badge-hr{background:#3b2f04;border-color:#d97706;color:#fcd34d}
   .badge-cert{background:#1e1b4b;border-color:#6366f1;color:#c7d2fe}
-  #tab-inspections{background:#ffffff;border-radius:12px;padding:6px 18px 18px;color:#0f172a}
-  #tab-inspections h2,#tab-inspections h3{color:#0f172a}
-  #tab-inspections>p{color:#334155}
-  #tab-inspections .muted{color:#64748b}
-  #tab-inspections input[type="radio"],#tab-inspections input[type="checkbox"]{width:auto}
   .banddots{display:inline-flex;gap:6px;align-items:center;flex:none;margin-left:4px}
   .bdot{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid #cbd5e1;flex:none;padding:0}
   .bdot.red{background:#dc2626}.bdot.yellow{background:#eab308}.bdot.green{background:#16a34a}
@@ -107,6 +102,14 @@
   #pv-lb-prev{left:10px;top:50%;transform:translateY(-50%)}
   #pv-lb-next{right:10px;top:50%;transform:translateY(-50%)}
   #pv-lb-count{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);color:#fff;font-size:.85rem;background:rgba(0,0,0,.5);padding:4px 12px;border-radius:999px}
+  .help-acc details{border:1px solid #e2e8f0;border-radius:12px;background:#ffffff;margin:10px 0;overflow:hidden}
+  .help-acc summary{cursor:pointer;padding:14px 16px;font-weight:700;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .help-acc summary::-webkit-details-marker{display:none}
+  .help-acc summary::after{content:"+";font-size:1.4rem;line-height:1;color:#2563eb;flex:none}
+  .help-acc details[open] summary::after{content:"−"}
+  .help-acc .help-body{padding:0 16px 16px;color:#334155}
+  .help-acc .help-body ol{margin:8px 0;padding-left:20px}
+  .help-acc .help-body li{margin:6px 0}
 </style>
 </head>
 <body>
@@ -234,7 +237,7 @@
   <section class="tab" id="tab-tickets">
     <h2>Tickets</h2>
     <p class="muted">Create estimates, invoices, and receipts branded with your logo and contact info. Open a ticket to print or save it as a PDF.</p>
-    <p><button class="primary" type="button" id="t-new">Create new ticket</button></p>
+    <p style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" type="button" id="t-new">Create new ticket</button> <button class="primary" type="button" id="t-new-insp">Create an inspection</button></p>
     <form id="ticket-form" hidden>
       <div class="row">
         <div><label for="t-type">Type</label><select id="t-type"><option value="estimate">Estimate</option><option value="invoice">Invoice</option><option value="receipt">Receipt</option></select></div>
@@ -271,6 +274,23 @@
       <button class="ghost" type="button" id="t-cancel">Cancel</button>
       <div class="err" id="t-err"></div><div class="ok" id="t-ok"></div>
     </form>
+    <form id="ppi-form" hidden>
+      <h3 id="ppi-form-title">New pre-purchase inspection</h3>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin:8px 0"><label style="margin:0"><input type="radio" name="ppi-kind" value="ppi" checked> Pre-purchase inspection</label><label style="margin:0"><input type="radio" name="ppi-kind" value="complete"> Complete vehicle inspection</label></div>
+      <p class="muted" id="ppi-kind-note" style="margin:0 0 8px">For a buyer deciding on a vehicle.</p>
+      <label for="ppi-customer">Customer name</label><input id="ppi-customer" required maxlength="120">
+      <label for="ppi-phone">Customer phone (optional)</label><input id="ppi-phone" maxlength="30">
+      <label>Vehicle (year, make, model)</label>
+      <div id="ppi-type"></div>
+      <div class="row"><div><label for="ppi-year">Year</label><select id="ppi-year"></select></div><div><label for="ppi-make">Make</label><select id="ppi-make"></select></div><div><label for="ppi-model">Model</label><select id="ppi-model"></select></div></div>
+      <label for="ppi-vin">VIN (optional)</label><input id="ppi-vin" maxlength="17" placeholder="17 characters">
+      <label for="ppi-mileage">Mileage (optional)</label><input id="ppi-mileage" maxlength="20" placeholder="e.g. 84,500">
+      <div id="ppi-cats"></div>
+      <label for="ppi-notes">Inspector notes (optional)</label><textarea id="ppi-notes" rows="3" maxlength="2000"></textarea>
+      <p><button class="primary" type="submit" id="ppi-submit">Save inspection</button> <button type="button" class="ghost" id="ppi-cancel">Cancel</button></p>
+      <div class="err" id="ppi-err"></div>
+    </form>
+    <div id="ppi-share" hidden></div>
     <p><input id="ticket-search" placeholder="Search tickets by name, vehicle, or ticket number…" style="width:100%;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"></p>
     <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between"><span id="ticket-chips" style="display:flex;gap:6px;flex-wrap:wrap"></span><select id="ticket-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Newest first</option><option value="oldest">Sort: Oldest first</option><option value="az">Sort: Customer A to Z</option><option value="za">Sort: Customer Z to A</option></select></p>
     <div id="ticket-list"></div>
@@ -319,30 +339,6 @@
     <div id="stats-box"><p class="muted">Loading…</p></div>
   </section>
 
-  <section class="tab" id="tab-inspections">
-    <h2>Inspections</h2>
-    <p class="muted">Fill out an inspection and send the customer a link to their report. Reports are informational only: they show what concerns the vehicle is presenting now or may present soon. Pre-purchase inspections help a buyer decide. Complete vehicle inspections are routine checkouts that keep the owner informed about concerns before they become major issues or breakdowns — including before a major trip.</p>
-    <div id="ppi-list"><p class="muted">Loading…</p></div>
-    <p><button class="primary" id="ppi-new" type="button">New inspection</button></p>
-    <form id="ppi-form" hidden>
-      <h3 id="ppi-form-title">New pre-purchase inspection</h3>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;margin:8px 0"><label style="margin:0"><input type="radio" name="ppi-kind" value="ppi" checked> Pre-purchase inspection</label><label style="margin:0"><input type="radio" name="ppi-kind" value="complete"> Complete vehicle inspection</label></div>
-      <p class="muted" id="ppi-kind-note" style="margin:0 0 8px">For a buyer deciding on a vehicle.</p>
-      <label for="ppi-customer">Customer name</label><input id="ppi-customer" required maxlength="120">
-      <label for="ppi-phone">Customer phone (optional)</label><input id="ppi-phone" maxlength="30">
-      <label>Vehicle (year, make, model)</label>
-      <div id="ppi-type"></div>
-      <div class="row"><div><label for="ppi-year">Year</label><select id="ppi-year"></select></div><div><label for="ppi-make">Make</label><select id="ppi-make"></select></div><div><label for="ppi-model">Model</label><select id="ppi-model"></select></div></div>
-      <label for="ppi-vin">VIN (optional)</label><input id="ppi-vin" maxlength="17" placeholder="17 characters">
-      <label for="ppi-mileage">Mileage (optional)</label><input id="ppi-mileage" maxlength="20" placeholder="e.g. 84,500">
-      <div id="ppi-cats"></div>
-      <label for="ppi-notes">Inspector notes (optional)</label><textarea id="ppi-notes" rows="3" maxlength="2000"></textarea>
-      <p><button class="primary" type="submit" id="ppi-submit">Save inspection</button> <button type="button" class="ghost" id="ppi-cancel">Cancel</button></p>
-      <div class="err" id="ppi-err"></div>
-    </form>
-    <div id="ppi-share" hidden></div>
-  </section>
-
   <section class="tab" id="tab-billing">
     <h2>Billing</h2>
     <div id="billing-box"><p class="muted">Loading…</p></div>
@@ -350,6 +346,129 @@
 
   <section class="tab" id="tab-help">
     <h2>Help</h2>
+    <p class="muted">Tap a task for step-by-step instructions.</p>
+    <div class="help-acc">
+      <details>
+        <summary>Start on Today</summary>
+        <div class="help-body"><ol>
+          <li>Today is your home tab. It opens every time you sign in.</li>
+          <li>Today's appointments shows the jobs on your calendar for today, with a link to open each ticket.</li>
+          <li>Open jobs shows your open requests and unpaid booked jobs, with a shortcut to the calendar.</li>
+          <li>Your notifications sit below, on the same page.</li>
+        </ol></div>
+      </details>
+      <details>
+        <summary>Quote a request</summary>
+        <div class="help-body"><ol>
+          <li>Open the Requests tab and find the request card. Cards marked Urgent or Sent directly to you stand out.</li>
+          <li>Fill in your price and warranty on the card's quote builder.</li>
+          <li>Your draft saves automatically as you type, so you can finish it later from any device.</li>
+          <li>Tap Send quote. The customer is notified and can accept, decline, or decide on each line.</li>
+          <li>Under a pending quote you will also see Text quote from my phone, which opens the quote in your phone's texting app.</li>
+        </ol></div>
+      </details>
+      <details>
+        <summary>Create a ticket</summary>
+        <div class="help-body"><ol>
+          <li>Open the Tickets tab and tap Create new ticket.</li>
+          <li>Pick Estimate, Invoice, or Receipt.</li>
+          <li>Add the customer name, phone if you have it, vehicle, and VIN. VIN is required on invoices and receipts.</li>
+          <li>Add line items with prices. Each line can also carry labor hours and parts.</li>
+          <li>Add labor, a tax rate, and any mobile expenses and supplies, then check Text it or Share PDF if you want it sent.</li>
+          <li>Tap Create ticket. Note: when a customer accepts your quote, an invoice is already created for you, so you do not need to create one.</li>
+        </ol></div>
+      </details>
+      <details>
+        <summary>Add extra work to a job</summary>
+        <div class="help-body"><ol>
+          <li>On an invoice ticket, use Add lines as an estimate for work beyond the accepted quote.</li>
+          <li>The customer approves or denies each line from their dashboard.</li>
+          <li>Approved lines join the invoice. Denied lines are never charged and show on the receipt as not performed.</li>
+          <li>You cannot mark a job paid while an estimate is still waiting on the customer.</li>
+          <li>The price a customer accepted never changes without their approval.</li>
+        </ol></div>
+      </details>
+      <details>
+        <summary>Mark a job as paid</summary>
+        <div class="help-body"><ol>
+          <li>Open the ticket and tap Mark as paid.</li>
+          <li>Fill in the VIN, mileage, and payment method first if any are missing. The page will point you to the empty field.</li>
+          <li>Once paid, the ticket becomes a receipt and cannot be edited.</li>
+          <li>Paid jobs show Paid invoice on their request card and count toward your earnings.</li>
+        </ol></div>
+      </details>
+      <details>
+        <summary>Add a job to your calendar</summary>
+        <div class="help-body"><ol>
+          <li>Any unpaid ticket has a Calendar card. Pick a date, an optional time, and an optional end time, then tap Add.</li>
+          <li>You can also add from a Tickets tab card, a booked job card, or a booked-job notification.</li>
+          <li>On the Calendar tab, the week view shows a time grid. Tap a block for a short synopsis and an Open full ticket button.</li>
+          <li>The month view shows dots on days with jobs. Tap a day to list that day's jobs.</li>
+          <li>Calendar entries drop off automatically once the job is paid.</li>
+        </ol></div>
+      </details>
+      <details>
+        <summary>Create an inspection</summary>
+        <div class="help-body"><ol>
+          <li>Open the Tickets tab and tap Create an inspection.</li>
+          <li>Pick Pre-purchase inspection or Complete vehicle inspection.</li>
+          <li>Fill in the customer and vehicle, then each category: Good, Needs attention, or Fail, plus urgency, notes, and photos.</li>
+          <li>Tap Save inspection, then send the customer the link with Copy link or Text link to customer.</li>
+          <li>Reports are informational only. They show what concerns the vehicle is presenting now or may present soon.</li>
+        </ol></div>
+      </details>
+      <details>
+        <summary>Set up your business profile</summary>
+        <div class="help-body"><ol>
+          <li>Open the Profile tab and tap Edit profile.</li>
+          <li>Add your logo and cover photo. You can drag the cover to reposition it.</li>
+          <li>Pick your services and the cities you serve, and add certifications (up to 10) to show as badges.</li>
+          <li>Set a price per service if you want it shown on your profile. It only attaches when a customer requests from inside your profile, and it is still a request, not an automatic quote.</li>
+          <li>Add your Google Business Profile link if you have one.</li>
+          <li>Save, and you will see exactly how customers see your page.</li>
+          <li>In the Photos section you can upload pictures of your work for your business gallery.</li>
+          <li>In the Promotions section you can add a deal. If you add more than one, only the latest shows publicly.</li>
+        </ol></div>
+      </details>
+      <details>
+        <summary>Find and manage customers</summary>
+        <div class="help-body"><ol>
+          <li>Open the Customers tab. It lists everyone you have had a booked or billed job with.</li>
+          <li>Search by name or phone, or change the sort order.</li>
+          <li>Tap Service history on a card to see their past jobs and what they spent.</li>
+          <li>Tap Create new ticket on a card to start a ticket with that customer already filled in.</li>
+        </ol></div>
+      </details>
+      <details>
+        <summary>Check your earnings</summary>
+        <div class="help-body"><ol>
+          <li>Open the Finances tab. Earnings counts jobs marked paid (receipts).</li>
+          <li>See total income, jobs quoted and your acceptance rate, average job value, and outstanding invoices.</li>
+          <li>See income by month and your recent paid jobs.</li>
+          <li>Quotes and booked jobs show up here once they are paid.</li>
+        </ol></div>
+      </details>
+      <details>
+        <summary>Manage your subscription and billing</summary>
+        <div class="help-body"><ol>
+          <li>Open the Finances tab, then Billing. It shows your free trial countdown.</li>
+          <li>Your first 60 days are free, and no payment information is needed during the trial.</li>
+          <li>After that, pick $39.99 a month or $400 a year. Cards go through Stripe's secure checkout.</li>
+          <li>If your trial ends without a payment method, your business is hidden and requests pause until you add one.</li>
+          <li>You can always sign in and reach Billing to pay.</li>
+        </ol></div>
+      </details>
+      <details>
+        <summary>Understand notifications</summary>
+        <div class="help-body"><ol>
+          <li>Notifications live at the bottom of the Today tab.</li>
+          <li>Unread notifications have a blue edge, and the unread count shows on the Today tab.</li>
+          <li>Tap Mark all read when you have caught up, or Clear all to remove them.</li>
+          <li>View booked job opens the job's ticket. A new request notification shows View request instead.</li>
+        </ol></div>
+      </details>
+    </div>
+    <h3 style="margin-top:28px">Still need help?</h3>
     <p class="muted">Something not working or have a question? Describe it below and it goes straight to us.</p>
     <form id="help-form">
       <label for="h-subject">Subject (optional)</label><input id="h-subject" maxlength="120" placeholder="e.g. Can't upload my logo">
@@ -390,7 +509,7 @@ async function post(url, body) { return api(url, { method: 'POST', headers: { 'C
 // notifications too, Profile holds promos and photos, Tickets holds
 // inspections, Finances holds earnings and billing). Help has no button;
 // the footer link opens it.
-const TAB_SECTIONS = { today: ['today', 'notifications'], requests: ['requests'], profile: ['profile', 'promos', 'photos'], tickets: ['tickets', 'inspections'], calendar: ['calendar'], customers: ['customers'], finances: ['earnings', 'billing'], help: ['help'] };
+const TAB_SECTIONS = { today: ['today', 'notifications'], requests: ['requests'], profile: ['profile', 'promos', 'photos'], tickets: ['tickets'], calendar: ['calendar'], customers: ['customers'], finances: ['earnings', 'billing'], help: ['help'] };
 window.showTab = (name) => {
   document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('active'));
   document.querySelectorAll('section.tab').forEach(x => x.classList.remove('active'));
@@ -1381,7 +1500,7 @@ function fillVinFromVehicle() {
 function showTicketForm(show) {
   $('ticket-form').hidden = !show;
   $('t-new').hidden = !!show;
-  if (show) window.scrollTo(0, 0);
+  if (show) { $('ppi-form').hidden = true; $('ppi-share').hidden = true; window.scrollTo(0, 0); }
 }
 $('t-new').onclick = () => { resetTicketForm(); showTicketForm(true); loadCustomerCache(); };
 // From a Customers card: open the ticket form with this customer's name
@@ -1809,48 +1928,8 @@ function renderPpiCats(existing, cats, kind) {
   CATS.forEach((c, i) => { renderPpiThumbs(i); });
 }
 function ppiShareUrl(r) { return location.origin + '/inspection.html?id=' + r.id + '&token=' + r.shareToken; }
-async function loadPpiList() {
-  try {
-    const d = await api('/api/ppi');
-    $('ppi-list').innerHTML = d.reports.length ? d.reports.map(r => `<div class="card">
-      <strong>${esc(r.vehicle)}</strong> — ${esc(r.customerName)} <span class="muted">${r.kind === 'complete' ? 'Complete vehicle inspection' : 'Pre-purchase'} · ${esc(new Date(r.createdAt).toLocaleDateString())}</span><br>
-      <button type="button" class="ghost" onclick="window.open('${ppiShareUrl(r)}','_blank')">View report</button>
-      <button type="button" class="ghost" onclick="ppiCopy('${ppiShareUrl(r)}')">Copy link</button>
-      <button type="button" class="ghost" onclick="ppiEdit('${r.id}')">Edit</button>
-      <button type="button" class="ghost" onclick="ppiDel('${r.id}')">Delete</button>
-    </div>`).join('') : '<p class="muted">No inspections yet.</p>';
-  } catch (e) { $('ppi-list').innerHTML = '<p class="err">' + esc(e.message) + '</p>'; }
-}
-window.ppiCopy = async (url) => { try { await navigator.clipboard.writeText(url); alert('Link copied.'); } catch (_) { alert(url); } };
-window.ppiDel = async (id) => { if (!confirm('Delete this inspection report? The customer link will stop working.')) return; try { await api('/api/ppi/' + id, { method: 'DELETE' }); loadPpiList(); } catch (e) { alert(e.message); } };
-window.ppiEdit = async (id) => {
-  try {
-    const { report: r } = await api('/api/ppi/' + id);
-    ppiEditingId = id;
-    ppiPhotos = {};
-    ppiBands = {};
-    const EC = ppiCatsFor(r.kind || 'ppi');
-    (r.categories || []).forEach(c => {
-      const idx = EC.findIndex(x => x.key === c.key);
-      if (idx < 0) return;
-      if (Array.isArray(c.photos) && c.photos.length) ppiPhotos[idx] = [...c.photos];
-      if (c.bands && typeof c.bands === 'object') for (const [k, v] of Object.entries(c.bands)) {
-        const fj = EC[idx].fields.findIndex(f => f.k === k);
-        if (fj >= 0 && ['red', 'yellow', 'green'].includes(v)) ppiBands[idx + '-' + fj] = v;
-      }
-    });
-    document.querySelectorAll('input[name="ppi-kind"]').forEach(el => { el.checked = el.value === (r.kind || 'ppi'); el.disabled = true; });
-    $('ppi-kind-note').textContent = ppiKindNote(r.kind || 'ppi');
-    $('ppi-form-title').textContent = ppiFormTitle(r.kind || 'ppi', true);
-    $('ppi-customer').value = r.customerName || ''; $('ppi-phone').value = window.PhoneFmt ? window.PhoneFmt.display(r.customerPhone) : (r.customerPhone || '');
-    if (window._ppiVeh) window._ppiVeh.setFromString(r.vehicle || ''); $('ppi-vin').value = r.vin || ''; $('ppi-mileage').value = r.mileage || '';
-    $('ppi-notes').value = r.generalNotes || '';
-    renderPpiCats(r.categories, ppiCatsFor(r.kind || 'ppi'), r.kind || 'ppi');
-    $('ppi-form').hidden = false; $('ppi-share').hidden = true;
-    $('ppi-form').scrollIntoView();
-  } catch (e) { alert(e.message); }
-};
-$('ppi-new').onclick = () => {
+$('t-new-insp').onclick = () => {
+  showTicketForm(false);
   ppiEditingId = null;
   ppiPhotos = {};
   ppiBands = {};
@@ -1896,7 +1975,6 @@ $('ppi-form').onsubmit = async (e) => {
     if (tb) tb.onclick = () => { window.location.href = 'sms:' + tel + '?body=' + encodeURIComponent('Your vehicle inspection report: ' + url); };
     $('ppi-copy').onclick = async () => { try { await navigator.clipboard.writeText(url); $('ppi-copy').textContent = 'Copied'; } catch (_) { alert(url); } };
     sh.scrollIntoView();
-    loadPpiList();
   } catch (err) { $('ppi-err').textContent = err.message; }
 };
 
@@ -1954,7 +2032,6 @@ async function loadStats() {
   await safe(loadTickets);
   await safe(loadCustomers);
   await safe(loadStats);
-  await safe(loadPpiList);
   await safe(loadBilling);
   await safe(loadCustomerCache);
   addItemRow('', '');
