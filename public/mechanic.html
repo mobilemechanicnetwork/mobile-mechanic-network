@@ -129,6 +129,12 @@
     <button data-tab="money">Money</button>
   </div>
 
+  <section class="tab active" id="tab-notifications">
+    <h2>Notifications</h2>
+    <p><button type="button" class="ghost" id="notif-read">Mark all read</button> <button type="button" class="ghost" id="notif-clear">Clear all</button></p>
+    <div id="notif-list"></div>
+  </section>
+
   <section class="tab active" id="tab-today">
     <h2>Today</h2>
     <p class="muted">Today's appointments, open jobs, and notifications at a glance.</p>
@@ -143,12 +149,6 @@
     <div id="inbox"></div>
     <h2 style="margin-top:28px" id="booked-heading">Booked jobs</h2>
     <div id="booked"></div>
-  </section>
-
-  <section class="tab active" id="tab-notifications">
-    <h2>Notifications</h2>
-    <p><button type="button" class="ghost" id="notif-read">Mark all read</button> <button type="button" class="ghost" id="notif-clear">Clear all</button></p>
-    <div id="notif-list"></div>
   </section>
 
   <section class="tab" id="tab-profile">
