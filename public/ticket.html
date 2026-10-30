@@ -44,14 +44,30 @@
   .wdetail-text{display:none}
   .editbtn{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:8px 16px;font-size:.95rem;cursor:pointer}
   .meta input{width:100%;padding:6px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;font-size:.95rem}
+  .meta select{width:100%;padding:6px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;font-size:.95rem;background:#fff}
+  .newdoc table input{padding:8px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;font-size:.95rem}
+  .newdoc table input[type="number"]{text-align:right}
+  @media (max-width:520px){
+    .newdoc table td, .newdoc table th{ padding:6px 4px }
+    .newdoc table input[data-f="desc"]{ width:118px }
+    .newdoc table input[data-f="qty"]{ width:44px !important }
+    .newdoc table input[data-f="price"]{ width:60px !important }
+    .newdoc table input[data-f="hours"]{ width:44px !important }
+    .newdoc table input[data-f="parts"]{ width:44px !important }
+    .newdoc table td > div{ flex-wrap:wrap }
+  }
+  .newdoc textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:.95rem}
+  .newdoc button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:.9rem;cursor:pointer}
+  .newdoc button.ghost{background:#fff;color:#0f172a;border:1px solid #e2e8f0}
   @media print{ .actions,.noprint{display:none} body{background:#fff} .page{box-shadow:none;margin:0;max-width:none} .meta .empty-line{display:none} .wdetail-text{display:block} }
 </style>
 </head>
 <body>
 <div class="page" id="ticket"><p>Loading…</p></div>
 <div id="ticket-actions" class="noprint"></div>
-<div class="actions noprint"><a href="/mechanic">← Back to mechanic portal</a> &nbsp; <button onclick="window.print()">Print / Save as PDF</button> <button onclick="window.print()">Share PDF</button></div>
-<p class="noprint" style="text-align:center;color:#64748b;font-size:.9rem;margin:0 16px">To share the PDF from your phone: tap Share PDF, then tap Share in the print preview and pick Messages, Mail, or another app.</p>
+<div class="actions noprint" id="ticket-foot-actions"><a href="/mechanic">← Back to mechanic portal</a> &nbsp; <button onclick="window.print()">Print / Save as PDF</button> <button onclick="window.print()">Share PDF</button></div>
+<p class="noprint" id="ticket-foot-hint" style="text-align:center;color:#64748b;font-size:.9rem;margin:0 16px">To share the PDF from your phone: tap Share PDF, then tap Share in the print preview and pick Messages, Mail, or another app.</p>
+<script src="/vehicle-picker.js"></script>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money = n => '$' + Number(n).toFixed(2);
@@ -521,7 +537,141 @@ function renderActions() {
     };
   }
 }
+/* ---------- New ticket: type straight into the branded document ----------
+   /ticket?new=1 renders the same branded document the customer will see,
+   with inputs in place of values. Nothing is created until Save, which
+   posts an estimate (never asks a type) and opens the ticket workspace. */
+const $n = id => document.getElementById(id);
+let _newVeh = null;
+function newItemRowEl() {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td><input data-f="desc" placeholder="Description (e.g. Brake pads)"><div style="display:flex;gap:6px;margin-top:6px;align-items:center"><label style="font-size:.8rem;color:#64748b">Labor <input data-f="hours" type="number" step="any" min="0" placeholder="hrs" style="width:70px"></label><label style="font-size:.8rem;color:#64748b">Parts <input data-f="parts" type="number" step="any" min="0" placeholder="qty" style="width:60px"></label><button type="button" class="ghost" style="margin-left:auto" onclick="this.closest('tr').remove();newTicketTotals()">×</button></div></td>
+    <td class="num"><input data-f="qty" type="number" min="0" step="1" placeholder="Qty" style="width:70px"></td>
+    <td class="num"><input data-f="price" type="number" min="0" step="0.01" placeholder="Price $" style="width:100px"></td>
+    <td class="num"><span class="nrowtotal">$0.00</span></td>`;
+  tr.querySelectorAll('input').forEach(i => i.addEventListener('input', newTicketTotals));
+  return tr;
+}
+function newExpenseRowEl() {
+  const div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:8px;margin:6px 0;align-items:center';
+  div.innerHTML = `<input data-f="desc" placeholder="Description (e.g. Shop supplies)" style="flex:3"><input data-f="amount" type="number" placeholder="Amount" min="0" step="0.01" style="flex:1"><button type="button" class="ghost" onclick="this.parentElement.remove();newTicketTotals()">×</button>`;
+  div.querySelectorAll('input').forEach(i => i.addEventListener('input', newTicketTotals));
+  return div;
+}
+function newTicketTotals() {
+  let parts = 0;
+  document.querySelectorAll('#new-items tr').forEach(tr => {
+    const qty = Number(tr.querySelector('[data-f="qty"]').value) || 0;
+    const price = Number(tr.querySelector('[data-f="price"]').value) || 0;
+    const row = Math.round(qty * price * 100) / 100;
+    parts += row;
+    tr.querySelector('.nrowtotal').textContent = '$' + row.toFixed(2);
+  });
+  const labor = Math.max(0, Number($n('new-labor') ? $n('new-labor').value : 0) || 0);
+  const rate = Math.max(0, Math.min(100, Number($n('new-tax') ? $n('new-tax').value : 0) || 0));
+  const tax = Math.round((parts + labor) * rate) / 100;
+  let expenses = 0;
+  document.querySelectorAll('#new-expenses > div').forEach(r => {
+    expenses += Math.max(0, Number(r.querySelector('[data-f="amount"]').value) || 0);
+  });
+  expenses = Math.round(expenses * 100) / 100;
+  const total = Math.round((parts + labor + tax + expenses) * 100) / 100;
+  const el = $n('new-total');
+  if (el) el.innerHTML = `Parts: $${parts.toFixed(2)} · Labor: $${labor.toFixed(2)} · Tax: $${tax.toFixed(2)} · Expenses: $${expenses.toFixed(2)}<br><strong>Estimated total: $${total.toFixed(2)}</strong>`;
+}
+async function saveNewTicket() {
+  const err = $n('new-err');
+  err.textContent = '';
+  const customer = $n('new-customer').value.trim();
+  if (!customer) { err.textContent = 'Enter the customer name.'; return; }
+  const veh = _newVeh ? _newVeh.vehicleString() : '';
+  if (!veh) { err.textContent = 'Please pick the vehicle year, make, and model.'; return; }
+  const items = [...document.querySelectorAll('#new-items tr')].map(tr => ({
+    desc: tr.querySelector('[data-f="desc"]').value,
+    qty: tr.querySelector('[data-f="qty"]').value,
+    price: tr.querySelector('[data-f="price"]').value,
+    hours: tr.querySelector('[data-f="hours"]').value,
+    parts: tr.querySelector('[data-f="parts"]').value
+  }));
+  const expenses = [...document.querySelectorAll('#new-expenses > div')].map(r => ({
+    desc: r.querySelector('[data-f="desc"]').value,
+    amount: r.querySelector('[data-f="amount"]').value
+  }));
+  const body = { type: 'estimate', customerName: customer, phone: $n('new-phone').value, vehicle: veh, vin: $n('new-vin').value, mileage: $n('new-mileage').value, jobAddress: $n('new-job').value, items, laborDesc: $n('new-labor-desc').value, laborAmount: $n('new-labor').value, taxRate: $n('new-tax').value, expenses, notes: $n('new-notes').value, warranty: $n('new-warranty').value, sendText: $n('new-send-text').checked };
+  try {
+    const r = await fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Could not create the ticket.');
+    location.href = '/ticket?id=' + d.ticket.id;
+  } catch (e) { err.textContent = e.message; }
+}
+async function renderNewTicket() {
+  const box = document.getElementById('ticket');
+  const qp = new URLSearchParams(location.search);
+  document.title = 'New ticket — Mobile Mechanic Network';
+  const fa = document.getElementById('ticket-foot-actions');
+  if (fa) fa.style.display = 'none';
+  const fh = document.getElementById('ticket-foot-hint');
+  if (fh) fh.style.display = 'none';
+  let b = null;
+  try {
+    const r = await fetch('/api/business/me');
+    if (r.status === 401) { box.innerHTML = '<p>Please <a href="/account">sign in</a> to create a ticket.</p>'; return; }
+    const d = await r.json().catch(() => ({}));
+    b = d.business || null;
+    if (!b) { box.innerHTML = '<p>Save your business page first, then create a ticket.</p><p><a href="/mechanic">Back to mechanic portal</a></p>'; return; }
+  } catch (e) { box.innerHTML = '<p>Could not load your business page.</p>'; return; }
+  box.classList.add('newdoc');
+  box.innerHTML = `
+    <div class="head">
+      ${b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
+      <div><h1>${esc(b.name)}</h1>
+      <div class="sub">${esc(b.city)}, ${esc(b.state)}${b.phone ? ' · ' + esc(b.phone) : ''}</div></div>
+    </div>
+    <div class="type" style="background:#2563eb">estimate</div>
+    <div class="meta">
+      <div><span>Customer</span><input id="new-customer" value="${esc(qp.get('customer') || '')}" placeholder="Customer name"></div>
+      <div><span>Date</span>${new Date().toLocaleDateString()}</div>
+      <div style="grid-column:1/-1"><span>Vehicle</span><div id="new-veh-type"></div><div style="display:flex;gap:8px"><select id="new-year" style="flex:1"></select><select id="new-make" style="flex:1"></select><select id="new-model" style="flex:1"></select></div></div>
+      <div><span>Job address</span><input id="new-job" placeholder="Job address"></div>
+      <div><span>VIN</span><input id="new-vin" maxlength="17" placeholder="VIN" style="text-transform:uppercase"></div>
+      <div><span>Mileage</span><input id="new-mileage" type="number" min="0" placeholder="Mileage" inputmode="numeric"></div>
+    </div>
+    <table><tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr><tbody id="new-items"></tbody></table>
+    <p><button type="button" class="ghost" id="new-add-item">+ Add line item</button></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><div style="flex:2;min-width:180px"><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Labor description</span><input id="new-labor-desc" placeholder="e.g. Brake job labor" style="width:100%"></div><div style="flex:1;min-width:120px"><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Labor amount</span><input id="new-labor" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%"></div><div style="flex:1;min-width:120px"><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Tax rate %</span><input id="new-tax" type="number" min="0" max="100" step="0.01" placeholder="0" style="width:100%"></div></div>
+    <div><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Mobile expenses &amp; supplies (optional)</span><div id="new-expenses"></div><p><button type="button" class="ghost" id="new-add-expense">+ Add expense</button></p></div>
+    <div class="total" id="new-total">Estimated total: $0.00</div>
+    <div class="notes"><strong>Notes:</strong><br><textarea id="new-notes" rows="2" style="margin-top:6px"></textarea></div>
+    <div class="notes"><strong>Warranty:</strong><br><textarea id="new-warranty" rows="2" style="margin-top:6px" placeholder="e.g. 12 months / 12,000 miles on parts and labor"></textarea></div>
+    <div class="disc">This is an estimate only and is not a final invoice. The work and price listed above are what is quoted. No additional charges will be added without your approval.</div>
+    <div class="foot">Prepared by ${esc(b.name)}${b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network</div>`;
+  if (window.VehiclePicker) {
+    _newVeh = VehiclePicker.attach({ year: 'new-year', make: 'new-make', model: 'new-model', type: 'new-veh-type' });
+    const preVeh = qp.get('vehicle');
+    if (preVeh && _newVeh) { try { await _newVeh.setFromString(preVeh); } catch (e) {} }
+  }
+  const preVin = qp.get('vin');
+  if (preVin) $n('new-vin').value = preVin;
+  const itemsBody = $n('new-items');
+  itemsBody.appendChild(newItemRowEl());
+  $n('new-add-item').onclick = () => { itemsBody.appendChild(newItemRowEl()); };
+  $n('new-add-expense').onclick = () => { $n('new-expenses').appendChild(newExpenseRowEl()); };
+  ['new-labor', 'new-tax'].forEach(id => $n(id).addEventListener('input', newTicketTotals));
+  const actions = document.getElementById('ticket-actions');
+  actions.innerHTML = `<div class="card">
+    <div><label>Customer phone (optional, for texting the ticket)</label><input id="new-phone" type="tel" value="${esc(qp.get('phone') || '')}"></div>
+    <label style="display:block;margin-top:10px"><input type="checkbox" id="new-send-text" checked> Text it to the customer</label>
+    <p class="muted" style="margin:4px 0 0">Texts need a phone number above and texting set up. Customers with an account are also notified in their dashboard automatically. After saving, the ticket opens with the Share PDF button.</p>
+    <p style="margin-top:14px"><button type="button" id="new-save">Create ticket</button> <button type="button" class="ghost" id="new-cancel">Cancel</button></p>
+    <div class="err" id="new-err"></div></div>`;
+  $n('new-cancel').onclick = () => { location.href = '/mechanic'; };
+  $n('new-save').onclick = saveNewTicket;
+  newTicketTotals();
+}
 (async () => {
+  if (new URLSearchParams(location.search).has('new')) { await renderNewTicket(); return; }
   const id = new URLSearchParams(location.search).get('id');
   const box = document.getElementById('ticket');
   try {

@@ -29,12 +29,32 @@
   .foot{margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;color:#64748b;font-size:.85rem;text-align:center}
   .actions{text-align:center;margin:16px 0}
   .actions button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:11px 24px;font-size:1rem;cursor:pointer}
-  @media print{ .actions{display:none} body{background:#fff} .page{box-shadow:none;margin:0;max-width:none} }
+  .w100{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:.95rem;margin:4px 0}
+  .page textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:.95rem;margin:4px 0}
+  .page button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-size:.95rem;cursor:pointer;margin:4px 4px 4px 0}
+  .page button.ghost{background:#fff;color:#0f172a;border:1px solid #e2e8f0}
+  .page label{font-size:.85rem;color:#475569;font-weight:600}
+  .page select{padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:.95rem;background:#fff}
+  .banddots{display:inline-flex;gap:6px;align-items:center;flex:none;margin-left:4px}
+  .bdot{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid #cbd5e1;flex:none;padding:0}
+  .bdot.red{background:#dc2626}.bdot.yellow{background:#eab308}.bdot.green{background:#16a34a}
+  .bdot.sel{border-color:#0f172a;box-shadow:0 0 0 2px #ffffff,0 0 0 4px #0f172a}
+  .ppi-legend{font-size:.85rem;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin:8px 0}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:baseline}
+  .dot.red{background:#dc2626}.dot.yellow{background:#eab308}.dot.green{background:#16a34a}
+  .ppi-thumb{position:relative;display:inline-block}
+  .ppi-thumb img{width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0}
+  .ppi-thumb button{position:absolute;top:-8px;right:-8px;width:22px;height:22px;border-radius:50%;background:#dc2626;color:#fff;border:0;font-size:12px;line-height:1;cursor:pointer;padding:0;margin:0}
+  .err{color:#dc2626;font-size:.9rem;margin-top:8px}
+  .muted{color:#64748b;font-size:.9rem}
+  @media print{ .actions,.noprint{display:none} body{background:#fff} .page{box-shadow:none;margin:0;max-width:none} }
 </style>
 </head>
 <body>
 <div class="actions"><button onclick="window.print()">Print / Save as PDF</button></div>
 <div class="page" id="report"><p>Loading…</p></div>
+<script src="/vehicle-picker.js"></script>
+<script src="/inspection-cats.js"></script>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const STATUS_LABEL = { good: 'Good', needs_attention: 'Needs attention', fail: 'Fail' };
@@ -53,7 +73,182 @@ function bandFor(catKey, label, value) {
 }
 const dotCss = 'display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;';
 const dotColor = { red: '#dc2626', yellow: '#eab308', green: '#16a34a' };
+/* ---------- New inspection: type straight into the branded report ----------
+   /inspection?new=1 renders the same branded report the customer will see,
+   with inputs in place of values. Nothing is created until Save, which
+   posts the report and shows the share link. */
+let newPhotos = {}, newBands = {};
+let _newPpiVeh = null;
+function newKind() { const el = document.querySelector('input[name="new-kind"]:checked'); return el ? el.value : 'ppi'; }
+function newCatsFor(kind) { return kind === 'complete' ? CVI_CATS : PPI_CATS; }
+function newKindNote(kind) { return kind === 'complete' ? 'A routine checkout: what the owner should know before small concerns become major issues or breakdowns, including before a major trip.' : 'For a buyer deciding on a vehicle.'; }
+function newKindLabel(kind) { return kind === 'complete' ? 'Complete Vehicle Inspection' : 'Pre-Purchase Inspection'; }
+function newDisclaimer(kind) {
+  return kind === 'complete'
+    ? `<div class="disclaimer"><strong>Please read:</strong> This complete vehicle inspection is informational only. It describes the concerns this vehicle is presenting now, or may present soon, based on a visual inspection at the time of service. It is meant to help you stay informed about your vehicle, keep up with your vehicle's routine maintenance, and catch concerns before they become major issues or breakdowns — including before a major trip. It does not promise the vehicle will not develop problems later.</div>`
+    : `<div class="disclaimer"><strong>Please read:</strong> This pre-purchase inspection is informational only. It is not a recommendation to buy or not buy this vehicle. It describes the concerns this vehicle is presenting now, or may present soon, based on a visual inspection at the time of service. Neither Mobile Mechanic Network nor the inspecting mechanic is liable for any buying decision.</div>`;
+}
+document.addEventListener('click', e => {
+  const d = e.target.closest('.bdot');
+  if (!d || !d.parentElement.classList.contains('banddots')) return;
+  const wrap = d.parentElement;
+  newBands[wrap.dataset.key] = d.dataset.band;
+  wrap.querySelectorAll('.bdot').forEach(x => x.classList.toggle('sel', x === d));
+});
+window.newPpiPhoto = async (input, i) => {
+  const f = input.files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append('kind', 'inspection');
+  fd.append('file', f);
+  try {
+    const r = await fetch('/api/upload', { method: 'POST', body: fd });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Upload failed.');
+    (newPhotos[i] = newPhotos[i] || []).push(d.url);
+    renderNewThumbs(i);
+  } catch (e) { alert(e.message); }
+  input.value = '';
+};
+window.newPpiPhotoRemove = (i, idx) => {
+  if (!confirm('Remove this photo?')) return;
+  newPhotos[i].splice(idx, 1);
+  renderNewThumbs(i);
+};
+function renderNewThumbs(i) {
+  const wrap = document.getElementById('ppi-ph-' + i);
+  if (!wrap) return;
+  wrap.innerHTML = (newPhotos[i] || []).map((u, idx) =>
+    `<span class="ppi-thumb"><img src="${esc(u)}" alt=""><button type="button" onclick="newPpiPhotoRemove(${i},${idx})" title="Remove">×</button></span>`).join('');
+}
+function renderNewCats() {
+  const kind = newKind();
+  const CATS = newCatsFor(kind);
+  document.getElementById('new-cats').innerHTML = CATS.map((c, i) => {
+    return `<div class="cat"><strong>${esc(c.label)}</strong>
+      ${c.legend ? `<div class="ppi-legend"><span class="dot red"></span>Replace <span class="dot yellow" style="margin-left:10px"></span>Suggest <span class="dot green" style="margin-left:10px"></span>Good <span class="muted">— ${esc(c.legend)}</span></div>` : ''}
+      <div style="margin:8px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <label style="margin:0"><input type="radio" name="ppi-status-${i}" value="good" checked> Good</label>
+        <label style="margin:0"><input type="radio" name="ppi-status-${i}" value="needs_attention"> Needs attention</label>
+        <label style="margin:0"><input type="radio" name="ppi-status-${i}" value="fail"> Fail</label>
+        <label style="margin:0">Urgency <select id="ppi-urg-${i}">
+          <option value="none" selected>None</option>
+          <option value="monitor">Monitor</option>
+          <option value="soon">Repair soon</option>
+          <option value="immediate">Immediate attention</option>
+        </select></label>
+      </div>
+      ${c.fields.map((f, j) => {
+        const bkey = i + '-' + j;
+        const dots = f.band ? `<span class="banddots" data-key="${bkey}">${['red', 'yellow', 'green'].map(b =>
+          `<span class="bdot ${b}${newBands[bkey] === b ? ' sel' : ''}" data-band="${b}" title="${b === 'red' ? 'Replace' : b === 'yellow' ? 'Suggest soon' : 'Good'}"></span>`).join('')}</span>` : '';
+        return `<label>${esc(f.k)}</label><div style="display:flex;gap:8px;align-items:center"><input id="ppi-f-${i}-${j}" class="w100" placeholder="${esc(f.ph)}" maxlength="300" style="margin:0">${dots}</div>`;
+      }).join('')}
+      <label>Notes</label><textarea id="ppi-n-${i}" rows="2" maxlength="1000" placeholder="${kind === 'complete' ? 'Anything the owner should know' : 'Anything the buyer should know'}"></textarea>
+      <label>Photos</label>
+      <div id="ppi-ph-${i}" style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0"></div>
+      <input type="file" accept="image/*" onchange="newPpiPhoto(this, ${i})" style="margin-bottom:4px">
+    </div>`;
+  }).join('');
+  CATS.forEach((c, i) => { renderNewThumbs(i); });
+}
+async function saveNewReport() {
+  const err = document.getElementById('new-err');
+  err.textContent = '';
+  const customer = document.getElementById('new-customer').value.trim();
+  if (!customer) { err.textContent = 'Enter the customer name.'; return; }
+  const veh = _newPpiVeh ? _newPpiVeh.vehicleString() : '';
+  if (!veh) { err.textContent = 'Please pick the vehicle year, make, and model.'; return; }
+  const categories = newCatsFor(newKind()).map((c, i) => {
+    const statusEl = document.querySelector('input[name="ppi-status-' + i + '"]:checked');
+    const detail = {};
+    const bands = {};
+    c.fields.forEach((f, j) => {
+      const v = document.getElementById('ppi-f-' + i + '-' + j).value.trim();
+      if (v) detail[f.k] = v;
+      const band = newBands[i + '-' + j];
+      if (f.band && band) bands[f.k] = band;
+    });
+    return { key: c.key, label: c.label, status: statusEl ? statusEl.value : 'good', urgency: document.getElementById('ppi-urg-' + i).value, detail, bands, photos: newPhotos[i] || [], notes: document.getElementById('ppi-n-' + i).value.trim() };
+  });
+  const body = { kind: newKind(), customerName: customer, customerPhone: document.getElementById('new-phone').value, vehicle: veh, vin: document.getElementById('new-vin').value, mileage: document.getElementById('new-mileage').value, categories, generalNotes: document.getElementById('new-notes').value };
+  try {
+    const r = await fetch('/api/ppi', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Could not save.');
+    const rep = d.report;
+    const url = location.origin + '/inspection.html?id=' + rep.id + '&token=' + rep.shareToken;
+    const tel = String(document.getElementById('new-phone').value || '').replace(/[^+\d]/g, '');
+    const box = document.getElementById('report');
+    box.innerHTML = `<h2 style="margin-top:0">Inspection saved.</h2><p>Send this link to your customer:</p><p><a href="${esc(url)}" target="_blank">${esc(url)}</a></p><p><button type="button" id="new-copy">Copy link</button>${tel ? ` <button type="button" id="new-text">Text link to customer</button>` : ''}</p><p><a href="${esc(url)}" target="_blank">View report →</a></p>`;
+    document.querySelectorAll('.page.noprint').forEach(el => el.remove());
+    const tb = document.getElementById('new-text');
+    if (tb) tb.onclick = () => { window.location.href = 'sms:' + tel + '?body=' + encodeURIComponent('Your vehicle inspection report: ' + url); };
+    document.getElementById('new-copy').onclick = async () => { try { await navigator.clipboard.writeText(url); document.getElementById('new-copy').textContent = 'Copied'; } catch (_) { alert(url); } };
+    window.scrollTo(0, 0);
+  } catch (e) { err.textContent = e.message; }
+}
+async function newReport() {
+  const box = document.getElementById('report');
+  document.title = 'New inspection — Mobile Mechanic Network';
+  const acts = document.querySelector('.actions');
+  if (acts) acts.style.display = 'none';
+  let b = null;
+  try {
+    const r = await fetch('/api/business/me');
+    if (r.status === 401) { box.innerHTML = '<p>Please <a href="/account">sign in</a> to create an inspection.</p>'; return; }
+    const d = await r.json().catch(() => ({}));
+    b = d.business || null;
+    if (!b) { box.innerHTML = '<p>Save your business page first, then create an inspection.</p><p><a href="/mechanic">Back to mechanic portal</a></p>'; return; }
+  } catch (e) { box.innerHTML = '<p>Could not load your business page.</p>'; return; }
+  const kindCard = document.createElement('div');
+  kindCard.className = 'page noprint';
+  kindCard.innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin:8px 0"><label style="margin:0"><input type="radio" name="new-kind" value="ppi" checked> Pre-purchase inspection</label><label style="margin:0"><input type="radio" name="new-kind" value="complete"> Complete vehicle inspection</label></div>
+    <p class="muted" id="new-kind-note" style="margin:0 0 8px">${newKindNote('ppi')}</p>`;
+  box.before(kindCard);
+  const saveCard = document.createElement('div');
+  saveCard.className = 'page noprint';
+  saveCard.innerHTML = `
+    <div><label>Customer phone (optional, for texting the link)</label><input id="new-phone" class="w100" maxlength="30"></div>
+    <p><button type="button" id="new-save">Save inspection</button> <button type="button" class="ghost" id="new-cancel">Cancel</button></p>
+    <div class="err" id="new-err"></div>`;
+  box.after(saveCard);
+  box.innerHTML = `
+    <div class="head">
+      ${b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
+      <div><h1>${esc(b.name)}</h1>
+      <div class="sub">${esc(b.city)}, ${esc(b.state)}${b.phone ? ' · ' + esc(b.phone) : ''}</div></div>
+    </div>
+    <div class="type" id="new-type-pill">Pre-Purchase Inspection</div>
+    <div class="meta">
+      <div><span>Customer</span><input id="new-customer" class="w100" maxlength="120" placeholder="Customer name"></div>
+      <div><span>Date</span>${new Date().toLocaleDateString()}</div>
+      <div style="grid-column:1/-1"><span>Vehicle</span><div id="new-veh-type"></div><div style="display:flex;gap:8px"><select id="new-year" style="flex:1"></select><select id="new-make" style="flex:1"></select><select id="new-model" style="flex:1"></select></div></div>
+      <div><span>Mileage</span><input id="new-mileage" class="w100" maxlength="20" placeholder="e.g. 84,500"></div>
+      <div><span>VIN</span><input id="new-vin" class="w100" maxlength="17" placeholder="17 characters"></div>
+    </div>
+    <div id="new-cats"></div>
+    <div class="notes"><strong>Inspector notes:</strong><br><textarea id="new-notes" rows="3" maxlength="2000" style="margin-top:6px"></textarea></div>
+    <div id="new-disclaimer">${newDisclaimer('ppi')}</div>
+    <div class="foot">Prepared by ${esc(b.name)} · via Mobile Mechanic Network</div>`;
+  document.querySelectorAll('input[name="new-kind"]').forEach(el => el.addEventListener('change', () => {
+    const kind = newKind();
+    document.getElementById('new-kind-note').textContent = newKindNote(kind);
+    document.getElementById('new-type-pill').textContent = newKindLabel(kind);
+    document.getElementById('new-disclaimer').innerHTML = newDisclaimer(kind);
+    newPhotos = {}; newBands = {};
+    renderNewCats();
+  }));
+  renderNewCats();
+  if (window.VehiclePicker) {
+    _newPpiVeh = VehiclePicker.attach({ year: 'new-year', make: 'new-make', model: 'new-model', type: 'new-veh-type' });
+  }
+  document.getElementById('new-cancel').onclick = () => { location.href = '/mechanic'; };
+  document.getElementById('new-save').onclick = saveNewReport;
+}
 (async () => {
+  if (new URLSearchParams(location.search).has('new')) { await newReport(); return; }
   const qp = new URLSearchParams(location.search);
   const box = document.getElementById('report');
   try {

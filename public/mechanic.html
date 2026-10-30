@@ -238,58 +238,6 @@
     <h2>Tickets</h2>
     <p class="muted">Create estimates, invoices, and receipts branded with your logo and contact info. Open a ticket to print or save it as a PDF.</p>
     <p style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" type="button" id="t-new">Create new ticket</button> <button class="primary" type="button" id="t-new-insp">Create an inspection</button></p>
-    <form id="ticket-form" hidden>
-      <div class="row">
-        <div><label for="t-customer">Customer name</label><input id="t-customer" required autocomplete="off"><div id="t-customer-suggest" hidden style="border:1px solid #e2e8f0;border-radius:8px;margin-top:4px;max-height:220px;overflow:auto;background:#fff"></div></div>
-      </div>
-      <div><label for="t-phone">Customer phone (optional, for texting the ticket)</label><input id="t-phone" type="tel" autocomplete="tel"></div>
-      <label>Vehicle</label>
-      <div id="t-veh-type"></div>
-      <div class="row"><div><label for="t-year">Year</label><select id="t-year"></select></div><div><label for="t-make">Make</label><select id="t-make"></select></div><div><label for="t-model">Model</label><select id="t-model"></select></div></div>
-      <div id="t-prev-vehicles" hidden><label for="t-prev-select">Customer's previous vehicles</label><select id="t-prev-select"><option value="">Choose…</option></select></div>
-      <label for="t-vin">VIN <span class="muted" id="t-vin-note">(optional)</span></label><input id="t-vin" maxlength="17" placeholder="17 characters" style="text-transform:uppercase">
-      <label for="t-mileage">Vehicle mileage <span class="muted" id="t-mileage-note">(optional)</span></label><input id="t-mileage" type="number" min="0" max="9999999" step="1" placeholder="e.g. 84320">
-      <label>Line items</label>
-      <div id="t-items"></div>
-      <div><button class="ghost" type="button" id="t-additem">+ Add line item</button></div>
-      <label>Mobile expenses & supplies <span class="muted">(optional)</span></label>
-      <div id="t-expenses"></div>
-      <div><button class="ghost" type="button" id="t-addexpense">+ Add expense</button></div>
-      <div class="row">
-        <div><label for="t-labor-desc">Labor description (optional)</label><input id="t-labor-desc" placeholder="e.g. Brake job labor"></div>
-        <div><label for="t-labor">Labor amount ($)</label><input id="t-labor" type="number" min="0" step="0.01" placeholder="0.00"></div>
-      </div>
-      <div class="row">
-        <div><label for="t-taxrate">Tax rate % (optional)</label><input id="t-taxrate" type="number" min="0" max="100" step="0.01" placeholder="0"></div>
-        <div><div id="t-totals" class="muted" style="padding-top:24px"></div></div>
-      </div>
-      <label for="t-notes">Notes (optional)</label><textarea id="t-notes" rows="2"></textarea>
-      <label for="t-warranty">Warranty (optional)</label><textarea id="t-warranty" rows="2" placeholder="e.g. 12 months / 12,000 miles on parts and labor"></textarea>
-      <div style="margin:12px 0"><strong>Send to customer</strong>
-      <label style="display:block;margin-top:6px"><input type="checkbox" id="t-send-text" checked> Text it to the customer</label>
-      <label style="display:block"><input type="checkbox" id="t-send-share" checked> Share the PDF from my phone (opens the ticket)</label>
-      <p class="muted" style="margin:4px 0 0">Texts need a phone number above and texting set up. Customers with an account are also notified in their dashboard automatically.</p></div>
-      <button class="primary" type="submit">Create ticket</button>
-      <button class="ghost" type="button" id="t-cancel">Cancel</button>
-      <div class="err" id="t-err"></div><div class="ok" id="t-ok"></div>
-    </form>
-    <form id="ppi-form" hidden>
-      <h3 id="ppi-form-title">New pre-purchase inspection</h3>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;margin:8px 0"><label style="margin:0"><input type="radio" name="ppi-kind" value="ppi" checked> Pre-purchase inspection</label><label style="margin:0"><input type="radio" name="ppi-kind" value="complete"> Complete vehicle inspection</label></div>
-      <p class="muted" id="ppi-kind-note" style="margin:0 0 8px">For a buyer deciding on a vehicle.</p>
-      <label for="ppi-customer">Customer name</label><input id="ppi-customer" required maxlength="120">
-      <label for="ppi-phone">Customer phone (optional)</label><input id="ppi-phone" maxlength="30">
-      <label>Vehicle (year, make, model)</label>
-      <div id="ppi-type"></div>
-      <div class="row"><div><label for="ppi-year">Year</label><select id="ppi-year"></select></div><div><label for="ppi-make">Make</label><select id="ppi-make"></select></div><div><label for="ppi-model">Model</label><select id="ppi-model"></select></div></div>
-      <label for="ppi-vin">VIN (optional)</label><input id="ppi-vin" maxlength="17" placeholder="17 characters">
-      <label for="ppi-mileage">Mileage (optional)</label><input id="ppi-mileage" maxlength="20" placeholder="e.g. 84,500">
-      <div id="ppi-cats"></div>
-      <label for="ppi-notes">Inspector notes (optional)</label><textarea id="ppi-notes" rows="3" maxlength="2000"></textarea>
-      <p><button class="primary" type="submit" id="ppi-submit">Save inspection</button> <button type="button" class="ghost" id="ppi-cancel">Cancel</button></p>
-      <div class="err" id="ppi-err"></div>
-    </form>
-    <div id="ppi-share" hidden></div>
     <p><input id="ticket-search" placeholder="Search tickets by name, vehicle, or ticket number…" style="width:100%;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"></p>
     <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between"><span id="ticket-chips" style="display:flex;gap:6px;flex-wrap:wrap"></span><select id="ticket-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Newest first</option><option value="oldest">Sort: Oldest first</option><option value="az">Sort: Customer A to Z</option><option value="za">Sort: Customer Z to A</option></select></p>
     <div id="ticket-list"></div>
@@ -369,11 +317,11 @@
       <details>
         <summary>Create a ticket</summary>
         <div class="help-body"><ol>
-          <li>Open the Tickets tab and tap Create new ticket.</li>
-          <li>Add the customer name, phone if you have it, vehicle, and VIN if you have it. A VIN is needed before a job can be marked paid.</li>
+          <li>Open the Tickets tab and tap Create new ticket. The ticket page opens as the branded document your customer will see.</li>
+          <li>Type straight into the document: customer name, vehicle, job address, VIN if you have it, and mileage.</li>
           <li>Add line items with prices. Each line can also carry labor hours and parts.</li>
-          <li>Add labor, a tax rate, and any mobile expenses and supplies, then check Text it or Share PDF if you want it sent.</li>
-          <li>Tap Create ticket. Note: when a customer accepts your quote, an invoice is already created for you, so you do not need to create one.</li>
+          <li>Add labor, a tax rate, and any mobile expenses and supplies, then check Text it to the customer if you want it sent.</li>
+          <li>Tap Create ticket. A VIN is needed before a job can be marked paid. Note: when a customer accepts your quote, an invoice is already created for you, so you do not need to create one.</li>
         </ol></div>
       </details>
       <details>
@@ -408,9 +356,9 @@
       <details>
         <summary>Create an inspection</summary>
         <div class="help-body"><ol>
-          <li>Open the Tickets tab and tap Create an inspection.</li>
+          <li>Open the Tickets tab and tap Create an inspection. The inspection page opens as the branded report your customer will see.</li>
           <li>Pick Pre-purchase inspection or Complete vehicle inspection.</li>
-          <li>Fill in the customer and vehicle, then each category: Good, Needs attention, or Fail, plus urgency, notes, and photos.</li>
+          <li>Type straight into the report: customer and vehicle, then each category: Good, Needs attention, or Fail, plus urgency, notes, and photos.</li>
           <li>Tap Save inspection, then send the customer the link with Copy link or Text link to customer.</li>
           <li>Reports are informational only. They show what concerns the vehicle is presenting now or may present soon.</li>
         </ol></div>
@@ -478,15 +426,10 @@
   <footer style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;color:#64748b;font-size:.9rem"><a href="#" onclick="event.preventDefault();showTab('help');window.scrollTo(0,0);">Help</a></footer>
 </main>
 <script src="/city-autocomplete.js"></script>
-<script src="/vehicle-picker.js"></script>
 <script src="/phone-format.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-if (window.VehiclePicker) {
-  window._tVeh = VehiclePicker.attach({ year: 't-year', make: 't-make', model: 't-model', type: 't-veh-type', onChange: () => { try { fillVinFromVehicle(); } catch (e) {} } });
-  window._ppiVeh = VehiclePicker.attach({ year: 'ppi-year', make: 'ppi-make', model: 'ppi-model', type: 'ppi-type' });
-}
 /* Shared badge renderer: b carries fastResponder, avgRating, reviewCount, certifications */
 function badgeHtml(b) {
   let h = '';
@@ -1422,130 +1365,21 @@ $('g-upload').onclick = async () => {
 };
 
 /* ---------- Tickets ---------- */
-let KNOWN_CUSTOMERS = [];
-async function loadCustomerCache() {
-  // Suggestions come from the full customer history: the Customers tab
-  // (accepted jobs) plus ticket records (which carry VINs). Merged by
-  // name, vehicles deduped, VIN kept when a ticket record has one.
-  try {
-    const [a, b] = await Promise.all([
-      api('/api/mechanic/customers').catch(() => ({ customers: [] })),
-      api('/api/tickets/customers').catch(() => ({ customers: [] }))
-    ]);
-    const map = new Map();
-    const add = (name, vehicles, phone) => {
-      const key = String(name || '').trim().toLowerCase();
-      if (!key) return;
-      if (!map.has(key)) map.set(key, { name: String(name).trim(), vehicles: [], phone: phone || '' });
-      const entry = map.get(key);
-      if (phone && !entry.phone) entry.phone = phone;
-      (vehicles || []).forEach(v => {
-        const veh = typeof v === 'string' ? v : v.vehicle;
-        const vin = (v && typeof v === 'object') ? (v.vin || '') : '';
-        if (!veh) return;
-        const ex = entry.vehicles.find(x => x.vehicle.toLowerCase() === String(veh).toLowerCase());
-        if (ex) { if (vin && !ex.vin) ex.vin = vin; }
-        else entry.vehicles.push({ vehicle: veh, vin });
-      });
-    };
-    (a.customers || []).forEach(c => add(c.name, (c.jobs || []).map(j => j.vehicle), c.phone));
-    (b.customers || []).forEach(c => add(c.name, c.vehicles));
-    KNOWN_CUSTOMERS = [...map.values()].sort((x, y) => x.name.localeCompare(y.name));
-  } catch (e) { /* non-fatal */ }
-}
-function renderCustomerSuggest() {
-  const box = $('t-customer-suggest');
-  if (!box) return;
-  const q = $('t-customer').value.trim().toLowerCase();
-  if (!q) { box.hidden = true; box.innerHTML = ''; return; }
-  const matches = KNOWN_CUSTOMERS.filter(c => c.name.toLowerCase().includes(q) && c.name.toLowerCase() !== q).slice(0, 8);
-  if (!matches.length) { box.hidden = true; box.innerHTML = ''; return; }
-  box.innerHTML = matches.map(c => `<div data-name="${esc(c.name)}" style="padding:10px;cursor:pointer;border-bottom:1px solid #f1f5f9">${esc(c.name)}</div>`).join('');
-  box.hidden = false;
-  box.querySelectorAll('[data-name]').forEach(el => el.addEventListener('click', () => {
-    $('t-customer').value = el.dataset.name;
-    box.hidden = true;
-    refreshVehicleList();
-  }));
-}
-document.addEventListener('click', e => {
-  const box = $('t-customer-suggest');
-  if (box && !$('t-customer').contains(e.target) && !box.contains(e.target)) box.hidden = true;
-});
-function knownCustomer() {
-  const v = $('t-customer').value.trim().toLowerCase();
-  return KNOWN_CUSTOMERS.find(x => x.name.toLowerCase() === v) || null;
-}
-function refreshVehicleList() {
-  const c = knownCustomer();
-  const vs = c ? c.vehicles : [];
-  const wrap = $('t-prev-vehicles'), sel = $('t-prev-select');
-  sel.innerHTML = '<option value="">Choose…</option>';
-  vs.forEach(x => { const o = document.createElement('option'); o.value = x.vehicle; o.textContent = x.vehicle; sel.appendChild(o); });
-  wrap.hidden = !vs.length;
-  if (c && c.phone && $('t-phone')) $('t-phone').value = window.PhoneFmt ? window.PhoneFmt.display(c.phone) : c.phone;
-  fillVinFromVehicle();
-}
-function fillVinFromVehicle() {
-  const c = knownCustomer();
-  const v = (window._tVeh ? window._tVeh.vehicleString() : '').trim().toLowerCase();
-  if (c) {
-    const match = c.vehicles.find(x => x.vehicle.toLowerCase() === v);
-    if (match && match.vin) { $('t-vin').value = match.vin; return; }
-  }
-  if (v && window._cardVins && window._cardVins[v]) $('t-vin').value = window._cardVins[v];
-}
-function showTicketForm(show) {
-  $('ticket-form').hidden = !show;
-  $('t-new').hidden = !!show;
-  if (show) { $('ppi-form').hidden = true; $('ppi-share').hidden = true; window.scrollTo(0, 0); }
-}
-$('t-new').onclick = () => { resetTicketForm(); showTicketForm(true); loadCustomerCache(); };
-// From a Customers card: open the ticket form with this customer's name
-// filled in and their previous vehicles ready to pick from history.
-window.createTicketForCustomer = async (i) => {
+// Creating a ticket or inspection opens its own branded page, and the
+// mechanic types straight into the document the customer will see.
+$('t-new').onclick = () => { location.href = '/ticket?new=1'; };
+$('t-new-insp').onclick = () => { location.href = '/inspection?new=1'; };
+// From a Customers card: open the new-ticket page with this customer's
+// name, phone, and first vehicle on the card prefilled.
+window.createTicketForCustomer = (i) => {
   const c = (window._custList || [])[i];
   if (!c || !c.name) return;
-  document.querySelector('[data-tab="tickets"]').click();
-  resetTicketForm();
-  showTicketForm(true);
-  await loadCustomerCache();
-  $('t-customer').value = c.name;
-  refreshVehicleList();
-  if (c.phone && $('t-phone')) $('t-phone').value = window.PhoneFmt ? window.PhoneFmt.display(c.phone) : c.phone;
-  // Fallback: if the name did not match the suggestion cache, still offer
-  // this customer's vehicles from the card itself, with their VINs.
-  const wrap = $('t-prev-vehicles'), sel = $('t-prev-select');
-  if (wrap && wrap.hidden) {
-    const seen = new Set(); const vs = [];
-    (c.jobs || []).forEach(j => {
-      const v = String(j.vehicle || '').trim();
-      if (v && !seen.has(v.toLowerCase())) { seen.add(v.toLowerCase()); vs.push({ vehicle: v, vin: j.vin || '' }); }
-    });
-    if (vs.length) {
-      window._cardVins = {};
-      vs.forEach(x => { if (x.vin) window._cardVins[x.vehicle.toLowerCase()] = x.vin; });
-      sel.innerHTML = '<option value="">Choose…</option>';
-      vs.forEach(x => { const o = document.createElement('option'); o.value = x.vehicle; o.textContent = x.vehicle; sel.appendChild(o); });
-      wrap.hidden = false;
-    }
-  }
+  const q = new URLSearchParams({ customer: c.name });
+  if (c.phone) q.set('phone', c.phone);
+  const job = (c.jobs || []).find(j => j.vehicle);
+  if (job) { q.set('vehicle', job.vehicle); if (job.vin) q.set('vin', job.vin); }
+  location.href = '/ticket?new=1&' + q.toString();
 };
-$('t-cancel').onclick = () => { resetTicketForm(); showTicketForm(false); };
-function resetTicketForm() {
-  window._cardVins = {};
-  document.querySelector('#ticket-form button[type="submit"]').textContent = 'Create ticket';
-  $('t-customer').value = ''; if ($('t-phone')) $('t-phone').value = ''; if ($('t-send-text')) $('t-send-text').checked = true; if ($('t-send-share')) $('t-send-share').checked = true; if (window._tVeh) window._tVeh.reset(); $('t-vin').value = ''; $('t-mileage').value = ''; $('t-notes').value = ''; $('t-warranty').value = '';
-  $('t-labor-desc').value = ''; $('t-labor').value = ''; $('t-taxrate').value = '';
-  $('t-items').innerHTML = ''; addItemRow('', '', '');
-  $('t-expenses').innerHTML = '';
-  refreshVehicleList();
-}
-$('t-customer').addEventListener('input', () => { refreshVehicleList(); renderCustomerSuggest(); });
-$('t-prev-select').addEventListener('change', async () => {
-  const v = $('t-prev-select').value;
-  if (v && window._tVeh) { await window._tVeh.setFromString(v); fillVinFromVehicle(); }
-});
 
 /* ---------- Help ---------- */
 $('help-form').onsubmit = async (e) => {
@@ -1556,46 +1390,6 @@ $('help-form').onsubmit = async (e) => {
     $('h-ok').textContent = 'Sent. We will take a look.';
   } catch (ex) { $('h-err').textContent = ex.message; }
 };
-function ticketRowTotal(row) {
-  const ins = row.querySelectorAll('input');
-  const qty = Number(ins[1].value) || 0, price = Number(ins[2].value) || 0;
-  return Math.round(qty * price * 100) / 100;
-}
-function updateTicketTotals() {
-  let parts = 0;
-  document.querySelectorAll('#t-items .itemrow').forEach(r => { parts += ticketRowTotal(r); r.querySelector('.rowtotal').textContent = '$' + ticketRowTotal(r).toFixed(2); });
-  const labor = Math.max(0, Number($('t-labor').value) || 0);
-  const rate = Math.max(0, Math.min(100, Number($('t-taxrate').value) || 0));
-  const tax = Math.round((parts + labor) * rate) / 100;
-  let expenses = 0;
-  document.querySelectorAll('#t-expenses > div').forEach(r => { const ins = r.querySelectorAll('input'); expenses += Math.max(0, Number(ins[1].value) || 0); });
-  expenses = Math.round(expenses * 100) / 100;
-  const total = Math.round((parts + labor + tax + expenses) * 100) / 100;
-  $('t-totals').innerHTML = `Parts: $${parts.toFixed(2)} · Labor: $${labor.toFixed(2)} · Tax: $${tax.toFixed(2)} · Expenses: $${expenses.toFixed(2)}<br><strong>Total: $${total.toFixed(2)}</strong>`;
-}
-function addItemRow(desc, qty, price, hours, parts) {
-  const div = document.createElement('div');
-  div.className = 'itemrow';
-  div.style.cssText = 'display:flex;gap:8px;margin:6px 0;align-items:center;flex-wrap:wrap';
-  div.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" required style="flex:3;min-width:140px"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" required style="flex:1;max-width:70px"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" required style="flex:1;max-width:110px"><input type="number" placeholder="Labor hrs" min="0" step="any" value="${hours || ''}" style="flex:1;max-width:90px" title="Labor hours (optional, decimals allowed)"><input type="number" placeholder="Parts" min="0" step="any" value="${parts || ''}" style="flex:1;max-width:70px" title="Parts used (optional, decimals allowed)"><span class="rowtotal muted" style="min-width:70px;text-align:right">$0.00</span><button class="danger" type="button">×</button>`;
-  div.querySelector('button').onclick = () => { div.remove(); updateTicketTotals(); };
-  div.querySelectorAll('input').forEach(i => i.oninput = updateTicketTotals);
-  $('t-items').appendChild(div);
-  updateTicketTotals();
-}
-$('t-additem').onclick = () => addItemRow('', '', '');
-function addExpenseRow(desc, amount) {
-  const div = document.createElement('div');
-  div.style.cssText = 'display:flex;gap:8px;margin:6px 0;align-items:center';
-  div.innerHTML = `<input placeholder="Description (e.g. Shop supplies)" value="${esc(desc || '')}" style="flex:3"><input type="number" placeholder="Amount" min="0" step="0.01" value="${amount || ''}" style="flex:1"><button type="button" class="ghost">×</button>`;
-  div.querySelector('button').onclick = () => { div.remove(); updateTicketTotals(); };
-  div.querySelectorAll('input').forEach(i => i.oninput = updateTicketTotals);
-  $('t-expenses').appendChild(div);
-  updateTicketTotals();
-}
-$('t-addexpense').onclick = () => addExpenseRow('', '');
-$('t-labor').oninput = updateTicketTotals;
-$('t-taxrate').oninput = updateTicketTotals;
 async function loadTickets() {
   const d = await api('/api/tickets/me');
   window._tickets = d.tickets || [];
@@ -1683,32 +1477,6 @@ function renderCustomers() {
   }).join('') : '<p class="muted">No customers yet.</p>';
 }
 document.getElementById('cust-search').addEventListener('input', renderCustomers);
-$('ticket-form').onsubmit = async (e) => {
-  e.preventDefault(); $('t-err').textContent = ''; $('t-ok').textContent = '';
-  const tVeh = window._tVeh ? window._tVeh.vehicleString() : '';
-  if (!tVeh) { $('t-err').textContent = 'Please pick the vehicle year, make, and model.'; return; }
-  const rows = [...document.querySelectorAll('#t-items .itemrow')];
-  const expenseRows = [...document.querySelectorAll('#t-expenses > div')].map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, amount: ins[1].value }; });
-  const items = rows.map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value, hours: ins[3].value, parts: ins[4].value }; });
-  const payload = { type: 'estimate', customerName: $('t-customer').value, phone: $('t-phone') ? $('t-phone').value : '', vehicle: tVeh, vin: $('t-vin').value, mileage: $('t-mileage').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, expenses: expenseRows, notes: $('t-notes').value, warranty: $('t-warranty').value, sendText: $('t-send-text') ? $('t-send-text').checked : false };
-  try {
-    const d = await post('/api/tickets', payload);
-    let msg = 'Ticket created.';
-    if (d.sent) {
-      if (d.sent.text === 'sent') msg += ' Text sent.';
-      else if (d.sent.text === 'no-phone') msg += ' Text skipped: no phone number.';
-      else if (d.sent.text === 'twilio-not-configured') msg += ' Text not sent yet: texting is not set up.';
-      else if (d.sent.text !== 'skipped') msg += ' Text failed to send.';
-      msg += d.sent.notified ? ' Dashboard notice sent.' : ' No dashboard notice (customer has no account).';
-    }
-    $('t-ok').textContent = msg;
-    if ($('t-send-share') ? $('t-send-share').checked : true) window.open('/ticket?id=' + d.ticket.id, '_blank');
-    resetTicketForm();
-    loadTickets();
-    showTicketForm(false);
-  } catch (ex) { $('t-err').textContent = ex.message; }
-};
-
 /* ---------- Billing ---------- */
 async function loadBilling() {
   const box = $('billing-box');
@@ -1742,229 +1510,6 @@ async function loadBilling() {
 }
 
 /* ---------- Pre-purchase inspections ---------- */
-const PPI_CATS = [
-  { key: 'tires', label: 'Tires & tread depth', legend: 'Mark each tire: red = replace, yellow = suggest service soon, green = good', fields: [
-    { k: 'Front left tread', ph: 'e.g. 7/32 in', band: true }, { k: 'Front right tread', ph: 'e.g. 7/32 in', band: true },
-    { k: 'Rear left tread', ph: 'e.g. 7/32 in', band: true }, { k: 'Rear right tread', ph: 'e.g. 7/32 in', band: true } ] },
-  { key: 'brakes', label: 'Brake inspection', legend: 'Mark each pad: red = replace (1–3 mm), yellow = suggest soon (4–7 mm), green = good (8–12 mm)', fields: [
-    { k: 'Front pad thickness', ph: 'e.g. 8 mm', band: true }, { k: 'Rear pad thickness', ph: 'e.g. 6 mm', band: true },
-    { k: 'Rotor condition', ph: 'Good / worn / warped / scored' } ] },
-  { key: 'scan', label: 'Computer scan (all modules)', fields: [
-    { k: 'Modules scanned', ph: 'e.g. Engine, transmission, ABS, airbag' },
-    { k: 'Codes found', ph: 'List any codes, or "none"' } ] },
-  { key: 'leaks', label: 'Current fluid leaks', fields: [
-    { k: 'Leak location', ph: 'e.g. Valve cover, or "none seen"' }, { k: 'Fluid type', ph: 'e.g. Engine oil' } ] },
-  { key: 'belts', label: 'Belt condition', fields: [
-    { k: 'Serpentine belt', ph: 'Good / cracking / worn' }, { k: 'Timing belt or chain', ph: 'If visible or per records' } ] },
-  { key: 'fluids', label: 'Oil level & fluid checks', fields: [
-    { k: 'Engine oil level', ph: 'Full / low' }, { k: 'Engine oil condition', ph: 'Clean / dark / sludge' },
-    { k: 'Coolant', ph: 'OK / low' }, { k: 'Brake fluid', ph: 'OK / low' }, { k: 'Transmission fluid', ph: 'OK / low' } ] },
-  { key: 'suspension', label: 'Suspension & steering', fields: [] },
-  { key: 'battery', label: 'Battery & charging', fields: [ { k: 'Battery voltage', ph: 'e.g. 12.6V' } ] },
-  { key: 'lights', label: 'Lights & electrical', fields: [] },
-  { key: 'cooling', label: 'Cooling system', fields: [] },
-  { key: 'exhaust', label: 'Exhaust system', fields: [] },
-  { key: 'body', label: 'Exterior, body & interior', fields: [] },
-];
-
-/* Complete vehicle inspection: the routine / pre-trip
-   checklist. Same shape as PPI_CATS so both types share one form engine,
-   one report page, print, and the share link. */
-const CVI_CATS = [
-  { key: 'tires', label: 'Tires & wheels', legend: 'Mark each tire: red = replace, yellow = suggest service soon, green = good', fields: [
-    { k: 'Front left tread', ph: 'e.g. 7/32 in', band: true }, { k: 'Front right tread', ph: 'e.g. 7/32 in', band: true },
-    { k: 'Rear left tread', ph: 'e.g. 7/32 in', band: true }, { k: 'Rear right tread', ph: 'e.g. 7/32 in', band: true },
-    { k: 'Tire pressure', ph: 'e.g. 35 psi all around' }, { k: 'Wear & damage', ph: 'Uneven wear, cracks, bulges, or none seen' },
-    { k: 'Spare tire', ph: 'Present and inflated, or missing' } ] },
-  { key: 'brakes', label: 'Brakes', legend: 'Mark each pad: red = replace (1–3 mm), yellow = suggest soon (4–7 mm), green = good (8–12 mm)', fields: [
-    { k: 'Front pad thickness', ph: 'e.g. 8 mm', band: true }, { k: 'Rear pad thickness', ph: 'e.g. 6 mm', band: true },
-    { k: 'Rotor condition', ph: 'Good / worn / warped / scored' }, { k: 'Brake lines & hoses', ph: 'Good / cracked / leaking' },
-    { k: 'Parking brake', ph: 'Holds / weak / not working' } ] },
-  { key: 'fluids', label: 'Fluids', fields: [
-    { k: 'Engine oil level', ph: 'Full / low' }, { k: 'Engine oil condition', ph: 'Clean / dark / sludge' },
-    { k: 'Coolant level', ph: 'Full / low' }, { k: 'Brake fluid', ph: 'OK / low' },
-    { k: 'Power steering fluid', ph: 'OK / low' }, { k: 'Transmission fluid', ph: 'OK / low' },
-    { k: 'Washer fluid', ph: 'Full / low' } ] },
-  { key: 'belts', label: 'Belts & hoses', fields: [
-    { k: 'Serpentine belt', ph: 'Good / cracking / worn' }, { k: 'Hoses & clamps', ph: 'Good / soft / swollen / leaking' },
-    { k: 'Timing belt or chain', ph: 'If visible or per records' } ] },
-  { key: 'battery', label: 'Battery & charging', fields: [
-    { k: 'Battery voltage', ph: 'e.g. 12.6V' }, { k: 'Terminals & corrosion', ph: 'Clean / corroded' },
-    { k: 'Hold-down & cables', ph: 'Secure / loose / damaged' } ] },
-  { key: 'engine', label: 'Engine', fields: [
-    { k: 'Oil leaks', ph: 'None seen / location' }, { k: 'Coolant leaks', ph: 'None seen / location' },
-    { k: 'Unusual noises', ph: 'None / knocking / ticking / other' }, { k: 'Engine air filter', ph: 'Clean / dirty / replace' },
-    { k: 'Mounts', ph: 'Good / worn / broken' } ] },
-  { key: 'drivetrain', label: 'Transmission & drivetrain', fields: [
-    { k: 'Transmission fluid condition', ph: 'Clean / dark / burnt' }, { k: 'Transmission leaks', ph: 'None seen / location' },
-    { k: 'Shifting feel', ph: 'Smooth / harsh / slipping' }, { k: 'CV boots', ph: 'Good / torn / leaking' },
-    { k: 'U-joints', ph: 'Good / loose / noisy' }, { k: 'Differential / transfer case', ph: 'Fluid OK / leaking / noisy' } ] },
-  { key: 'suspension', label: 'Suspension & steering', fields: [
-    { k: 'Shocks & struts', ph: 'Good / leaking / worn' }, { k: 'Ball joints', ph: 'Good / loose' },
-    { k: 'Tie rods', ph: 'Good / loose' }, { k: 'Bushings', ph: 'Good / cracked / worn' },
-    { k: 'Steering play', ph: 'None / slight / excessive' } ] },
-  { key: 'exhaust', label: 'Exhaust system', fields: [
-    { k: 'Muffler', ph: 'Good / rusted / holed' }, { k: 'Pipes & mounts', ph: 'Good / rusted / loose' },
-    { k: 'Catalytic converter', ph: 'Good / rattling / damaged' }, { k: 'Exhaust leaks', ph: 'None / location' } ] },
-  { key: 'cooling', label: 'Cooling system', fields: [
-    { k: 'Radiator', ph: 'Good / leaking / clogged fins' }, { k: 'Fan operation', ph: 'Kicks on / not working' },
-    { k: 'Water pump signs', ph: 'Dry / weeping / noisy' }, { k: 'Temperature behavior', ph: 'Normal / runs hot' } ] },
-  { key: 'lights', label: 'Lights & electrical', fields: [
-    { k: 'Headlights', ph: 'Both working / one out' }, { k: 'Taillights', ph: 'Working / out' },
-    { k: 'Turn signals', ph: 'Working / fast / out' }, { k: 'Brake lights', ph: 'Working / out' },
-    { k: 'Hazard lights', ph: 'Working / out' }, { k: 'Horn', ph: 'Working / weak / not working' },
-    { k: 'Dash warning lights', ph: 'None on / list any lit' } ] },
-  { key: 'wipers', label: 'Wipers, glass & mirrors', fields: [
-    { k: 'Wiper blades', ph: 'Good / streaking / torn' }, { k: 'Washer spray', ph: 'Strong / weak / clogged' },
-    { k: 'Windshield', ph: 'Clear / chips / cracks' }, { k: 'Mirrors', ph: 'Good / cracked / loose' } ] },
-  { key: 'cabin', label: 'Climate, cabin & safety', fields: [
-    { k: 'A/C cooling', ph: 'Cold / weak / not working' }, { k: 'Heat', ph: 'Working / weak' },
-    { k: 'Cabin air filter', ph: 'Clean / dirty / replace' }, { k: 'Seat belts', ph: 'Good / frayed / latch issues' },
-    { k: 'Interior condition', ph: 'Good / wear noted' } ] },
-  { key: 'scan', label: 'Computer scan', fields: [
-    { k: 'Modules scanned', ph: 'e.g. Engine, transmission, ABS, airbag' },
-    { k: 'Codes found', ph: 'List any codes, or "none"' } ] },
-  { key: 'roadtest', label: 'Road test', fields: [
-    { k: 'Braking feel', ph: 'Firm / soft / pulling' }, { k: 'Steering pull or drift', ph: 'Straight / pulls left / pulls right' },
-    { k: 'Acceleration', ph: 'Normal / hesitation / surging' }, { k: 'Unusual noises', ph: 'None / describe' },
-    { k: 'Cruise / driver assists', ph: 'Working / not equipped / fault' } ] },
-];
-let ppiEditingId = null;
-let ppiPhotos = {};
-let ppiBands = {};
-document.addEventListener('click', e => {
-  const d = e.target.closest('.bdot');
-  if (!d || !d.parentElement.classList.contains('banddots')) return;
-  const wrap = d.parentElement;
-  ppiBands[wrap.dataset.key] = d.dataset.band;
-  wrap.querySelectorAll('.bdot').forEach(x => x.classList.toggle('sel', x === d));
-});
-window.ppiPhoto = async (input, i) => {
-  const f = input.files[0];
-  if (!f) return;
-  const fd = new FormData();
-  fd.append('kind', 'inspection');
-  fd.append('file', f);
-  try {
-    const r = await fetch('/api/upload', { method: 'POST', body: fd });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error || 'Upload failed.');
-    (ppiPhotos[i] = ppiPhotos[i] || []).push(d.url);
-    renderPpiThumbs(i);
-  } catch (e) { alert(e.message); }
-  input.value = '';
-};
-window.ppiPhotoRemove = (i, idx) => {
-  if (!confirm('Remove this photo?')) return;
-  ppiPhotos[i].splice(idx, 1);
-  renderPpiThumbs(i);
-};
-function renderPpiThumbs(i) {
-  const wrap = $('ppi-ph-' + i);
-  if (!wrap) return;
-  wrap.innerHTML = (ppiPhotos[i] || []).map((u, idx) =>
-    `<span class="ppi-thumb"><img src="${esc(u)}" alt=""><button type="button" onclick="ppiPhotoRemove(${i},${idx})" title="Remove">×</button></span>`).join('');
-}
-
-function ppiKind() { const el = document.querySelector('input[name="ppi-kind"]:checked'); return el ? el.value : 'ppi'; }
-function ppiCatsFor(kind) { return kind === 'complete' ? CVI_CATS : PPI_CATS; }
-function ppiKindNote(kind) { return kind === 'complete' ? 'A routine checkout: what the owner should know before small concerns become major issues or breakdowns, including before a major trip.' : 'For a buyer deciding on a vehicle.'; }
-function ppiFormTitle(kind, editing) { return (editing ? 'Edit ' : 'New ') + (kind === 'complete' ? 'complete vehicle inspection' : 'pre-purchase inspection'); }
-document.querySelectorAll('input[name="ppi-kind"]').forEach(el => {
-  el.addEventListener('change', () => {
-    const kind = ppiKind();
-    $('ppi-kind-note').textContent = ppiKindNote(kind);
-    $('ppi-form-title').textContent = ppiFormTitle(kind, !!ppiEditingId);
-    if (!ppiEditingId) { ppiPhotos = {}; ppiBands = {}; renderPpiCats([], ppiCatsFor(kind), ppiKind()); }
-  });
-});
-function renderPpiCats(existing, cats, kind) {
-  const byKey = {};
-  (existing || []).forEach(c => { byKey[c.key] = c; });
-  const CATS = cats || ppiCatsFor(ppiKind());
-  $('ppi-cats').innerHTML = CATS.map((c, i) => {
-    const e = byKey[c.key] || {};
-    const det = e.detail || {};
-    return `<div class="card"><strong>${esc(c.label)}</strong>
-      ${c.legend ? `<div class="ppi-legend"><span class="dot red"></span>Replace <span class="dot yellow" style="margin-left:10px"></span>Suggest <span class="dot green" style="margin-left:10px"></span>Good <span class="muted">— ${esc(c.legend)}</span></div>` : ''}
-      <div style="margin:8px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-        <label style="margin:0"><input type="radio" name="ppi-status-${i}" value="good" ${(!e.status || e.status === 'good') ? 'checked' : ''}> Good</label>
-        <label style="margin:0"><input type="radio" name="ppi-status-${i}" value="needs_attention" ${e.status === 'needs_attention' ? 'checked' : ''}> Needs attention</label>
-        <label style="margin:0"><input type="radio" name="ppi-status-${i}" value="fail" ${e.status === 'fail' ? 'checked' : ''}> Fail</label>
-        <label style="margin:0">Urgency <select id="ppi-urg-${i}">
-          <option value="none"${(!e.urgency || e.urgency === 'none') ? ' selected' : ''}>None</option>
-          <option value="monitor"${e.urgency === 'monitor' ? ' selected' : ''}>Monitor</option>
-          <option value="soon"${e.urgency === 'soon' ? ' selected' : ''}>Repair soon</option>
-          <option value="immediate"${e.urgency === 'immediate' ? ' selected' : ''}>Immediate attention</option>
-        </select></label>
-      </div>
-      ${c.fields.map((f, j) => {
-        const bkey = i + '-' + j;
-        const dots = f.band ? `<span class="banddots" data-key="${bkey}">${
-          ['red', 'yellow', 'green'].map(b =>
-            `<span class="bdot ${b}${ppiBands[bkey] === b ? ' sel' : ''}" data-band="${b}" title="${b === 'red' ? 'Replace' : b === 'yellow' ? 'Suggest soon' : 'Good'}"></span>`).join('')
-        }</span>` : '';
-        return `<label>${esc(f.k)}</label><div style="display:flex;gap:8px;align-items:center"><input id="ppi-f-${i}-${j}" placeholder="${esc(f.ph)}" maxlength="300" value="${esc(det[f.k] || '')}" style="margin:0">${dots}</div>`;
-      }).join('')}
-      <label>Notes</label><textarea id="ppi-n-${i}" rows="2" maxlength="1000" placeholder="${(kind || ppiKind()) === 'complete' ? 'Anything the owner should know' : 'Anything the buyer should know'}">${esc(e.notes || '')}</textarea>
-      <label>Photos</label>
-      <div id="ppi-ph-${i}" style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0"></div>
-      <input type="file" accept="image/*" onchange="ppiPhoto(this, ${i})" style="margin-bottom:4px">
-    </div>`;
-  }).join('');
-  CATS.forEach((c, i) => { renderPpiThumbs(i); });
-}
-function ppiShareUrl(r) { return location.origin + '/inspection.html?id=' + r.id + '&token=' + r.shareToken; }
-$('t-new-insp').onclick = () => {
-  showTicketForm(false);
-  ppiEditingId = null;
-  ppiPhotos = {};
-  ppiBands = {};
-  document.querySelectorAll('input[name="ppi-kind"]').forEach(el => { el.disabled = false; el.checked = el.value === 'ppi'; });
-  $('ppi-kind-note').textContent = ppiKindNote('ppi');
-  $('ppi-form-title').textContent = 'New pre-purchase inspection';
-  $('ppi-form').reset(); if (window._ppiVeh) window._ppiVeh.reset(); renderPpiCats([], PPI_CATS, 'ppi');
-  $('ppi-err').textContent = '';
-  $('ppi-form').hidden = false; $('ppi-share').hidden = true;
-  $('ppi-form').scrollIntoView();
-};
-$('ppi-cancel').onclick = () => { $('ppi-form').hidden = true; };
-$('ppi-form').onsubmit = async (e) => {
-  e.preventDefault();
-  $('ppi-err').textContent = '';
-  const ppiVeh = window._ppiVeh ? window._ppiVeh.vehicleString() : '';
-  if (!ppiVeh) { $('ppi-err').textContent = 'Please pick the vehicle year, make, and model.'; return; }
-  try {
-    const categories = ppiCatsFor(ppiKind()).map((c, i) => {
-      const statusEl = document.querySelector('input[name="ppi-status-' + i + '"]:checked');
-      const detail = {};
-      const bands = {};
-      c.fields.forEach((f, j) => {
-        const v = $('ppi-f-' + i + '-' + j).value.trim();
-        if (v) detail[f.k] = v;
-        const b = ppiBands[i + '-' + j];
-        if (f.band && b) bands[f.k] = b;
-      });
-      return { key: c.key, label: c.label, status: statusEl ? statusEl.value : 'good', urgency: $('ppi-urg-' + i).value, detail, bands, photos: ppiPhotos[i] || [], notes: $('ppi-n-' + i).value.trim() };
-    });
-    const body = { kind: ppiKind(), customerName: $('ppi-customer').value, customerPhone: $('ppi-phone').value, vehicle: ppiVeh, vin: $('ppi-vin').value, mileage: $('ppi-mileage').value, categories, generalNotes: $('ppi-notes').value };
-    const r = ppiEditingId
-      ? (await api('/api/ppi/' + ppiEditingId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).report
-      : (await post('/api/ppi', body)).report;
-    ppiEditingId = null;
-    $('ppi-form').hidden = true;
-    const url = ppiShareUrl(r);
-    const sh = $('ppi-share');
-    sh.hidden = false;
-    const tel = String($('ppi-phone').value || '').replace(/[^+\d]/g, '');
-    sh.innerHTML = `<div class="card"><strong>Inspection saved.</strong><p>Send this link to your customer:</p><p><a href="${esc(url)}" target="_blank">${esc(url)}</a></p><p><button type="button" class="primary" id="ppi-copy">Copy link</button>${tel ? ` <button type="button" class="primary" id="ppi-text">Text link to customer</button>` : ''}</p></div>`;
-    const tb = document.getElementById('ppi-text');
-    if (tb) tb.onclick = () => { window.location.href = 'sms:' + tel + '?body=' + encodeURIComponent('Your vehicle inspection report: ' + url); };
-    $('ppi-copy').onclick = async () => { try { await navigator.clipboard.writeText(url); $('ppi-copy').textContent = 'Copied'; } catch (_) { alert(url); } };
-    sh.scrollIntoView();
-  } catch (err) { $('ppi-err').textContent = err.message; }
-};
-
 /* ---------- Earnings ---------- */
 async function loadStats() {
   const box = $('stats-box');
@@ -2020,9 +1565,7 @@ async function loadStats() {
   await safe(loadCustomers);
   await safe(loadStats);
   await safe(loadBilling);
-  await safe(loadCustomerCache);
-  addItemRow('', '');
-  if (window.PhoneFmt) { window.PhoneFmt.attach($('b-phone')); window.PhoneFmt.attach($('ppi-phone')); }
+  if (window.PhoneFmt) { window.PhoneFmt.attach($('b-phone')); }
 })();
 </script>
 </body>
