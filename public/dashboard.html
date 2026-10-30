@@ -50,6 +50,8 @@
     <div id="open-jobs"></div>
     <h2>Repair history</h2>
     <div id="my-requests"></div>
+    <h2>Inspections</h2>
+    <div id="my-inspections"></div>
     <h2>My info</h2>
     <div class="card">
       <div id="o-view">
@@ -173,9 +175,23 @@
   };
   $('notif-read').onclick = async () => { await post('/api/notifications/read', {}); loadOwnerNotifications(); };
   $('notif-clear').onclick = async () => { await post('/api/notifications/clear', {}); loadOwnerNotifications(); };
+  async function loadMyInspections() {
+    const box = document.getElementById('my-inspections');
+    if (!box) return;
+    try {
+      const d = await api('/api/ppi/mine');
+      const list = d.reports || [];
+      box.innerHTML = list.length ? list.map(r => `<div class="card">
+      <div style="text-align:left"><strong>${esc(r.kind === 'complete' ? 'Complete vehicle inspection' : 'Pre-purchase inspection')}</strong>
+      <div class="muted">${esc(r.businessName)} · ${esc(r.vehicle)} · ${r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ''}</div></div>
+      <p style="margin:10px 0 0"><a href="/inspection.html?id=${esc(r.id)}&token=${esc(r.shareToken)}" target="_blank">View report →</a></p></div>`).join('')
+        : '<p class="muted">No inspections saved to your account yet. When a mechanic saves an inspection with your phone number, it shows up here.</p>';
+    } catch (e) { box.innerHTML = '<p class="muted">Could not load inspections.</p>'; }
+  }
   async function loadOwner() { try { await loadOwnerInner(); } catch (e) { const box = document.getElementById('open-jobs'); if (box) box.innerHTML = '<p style="color:#dc2626">Could not load your dashboard. <button type="button" class="ghost" onclick="loadOwner()">Try again</button></p>'; } }
   async function loadOwnerInner() {
     loadOwnerNotifications();
+    loadMyInspections();
     const me = await api('/api/me');
     if (me.user.isAdmin) $('adminLink').innerHTML = '<a href="/admin">Admin</a> · ';
     $('o-email').textContent = me.user.email;

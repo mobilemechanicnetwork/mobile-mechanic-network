@@ -241,6 +241,8 @@
     <p><input id="ticket-search" placeholder="Search tickets by name, vehicle, or ticket number…" style="width:100%;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"></p>
     <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between"><span id="ticket-chips" style="display:flex;gap:6px;flex-wrap:wrap"></span><select id="ticket-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Newest first</option><option value="oldest">Sort: Oldest first</option><option value="az">Sort: Customer A to Z</option><option value="za">Sort: Customer Z to A</option></select></p>
     <div id="ticket-list"></div>
+    <h2 style="margin-top:28px">Past inspections</h2>
+    <div id="insp-list"></div>
   </section>
 
   <section class="tab" id="tab-calendar">
@@ -1395,6 +1397,26 @@ async function loadTickets() {
   window._tickets = d.tickets || [];
   await loadCalByTicket();
   renderTickets();
+  loadInspections();
+}
+async function loadInspections() {
+  const box = $('insp-list');
+  if (!box) return;
+  try {
+    const d = await api('/api/ppi');
+    const list = d.reports || [];
+    box.innerHTML = list.length ? list.map(r => `<div class="card">
+    <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+    <div style="text-align:left"><strong>${esc(r.kind === 'complete' ? 'Complete vehicle inspection' : 'Pre-purchase inspection')}</strong>
+    <div class="muted">${esc(r.customerName)} · ${esc(r.vehicle)} · ${r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ''}</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><a href="/inspection.html?id=${esc(r.id)}&token=${esc(r.shareToken)}" target="_blank">View report →</a><button type="button" class="ghost" onclick="copyInspLink(this, '${esc(r.id)}', '${esc(r.shareToken)}')">Copy link</button></div>
+    </div></div>`).join('')
+      : '<p class="muted">No inspections yet. Saved inspections will show up here.</p>';
+  } catch (e) { box.innerHTML = '<p class="muted">Could not load inspections.</p>'; }
+}
+async function copyInspLink(btn, id, token) {
+  const url = location.origin + '/inspection.html?id=' + id + '&token=' + token;
+  try { await navigator.clipboard.writeText(url); btn.textContent = 'Copied'; } catch (_) { alert(url); }
 }
 function renderTickets() {
   const q = (document.getElementById('ticket-search').value || '').trim().toLowerCase();

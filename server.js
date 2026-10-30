@@ -1742,7 +1742,8 @@ const server = http.createServer(async (req, res) => {
         createdAt: new Date().toISOString(),
       };
       rows.push(row); ppiStore.write(rows);
-      return sendJson(res, 201, { report: row });
+      const savedToCustomerPortal = !!row.customerPhone && !!ownerByPhone(row.customerPhone);
+      return sendJson(res, 201, { report: row, savedToCustomerPortal });
     }
     if (p === '/api/ppi' && req.method === 'GET') {
       const user = getSessionUser(req);
@@ -1751,6 +1752,17 @@ const server = http.createServer(async (req, res) => {
       const mine = ppiStore.read().filter(r => r.mechanicId === user.id)
         .map(r => ({ id: r.id, shareToken: r.shareToken, kind: r.kind || 'ppi', customerName: r.customerName, vehicle: r.vehicle, createdAt: r.createdAt }))
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      return sendJson(res, 200, { reports: mine });
+    }
+    if (p === '/api/ppi/mine' && req.method === 'GET') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'owner') return sendJson(res, 403, { error: 'Owners only.' });
+      const e164 = normalizePhone(user.phone);
+      const bizs = businessesStore.read();
+      const mine = e164 ? ppiStore.read().filter(r => normalizePhone(r.customerPhone) === e164)
+        .map(r => { const b = bizs.find(x => x.id === r.businessId); return { id: r.id, shareToken: r.shareToken, kind: r.kind || 'ppi', businessName: b ? b.name : 'Mobile mechanic', customerName: r.customerName, vehicle: r.vehicle, createdAt: r.createdAt }; })
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)) : [];
       return sendJson(res, 200, { reports: mine });
     }
     const ppiOne = p.match(/^\/api\/ppi\/([0-9a-f-]+)$/);

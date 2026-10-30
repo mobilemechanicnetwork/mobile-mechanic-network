@@ -231,7 +231,7 @@ async function saveNewReport() {
     const url = location.origin + '/inspection.html?id=' + rep.id + '&token=' + rep.shareToken;
     const tel = String(document.getElementById('new-phone').value || '').replace(/[^+\d]/g, '');
     const box = document.getElementById('report');
-    box.innerHTML = `<h2 style="margin-top:0">Inspection saved.</h2><p>Send this link to your customer:</p><p><a href="${esc(url)}" target="_blank">${esc(url)}</a></p><p><button type="button" id="new-copy">Copy link</button>${tel ? ` <button type="button" id="new-text">Text link to customer</button>` : ''}</p><p><a href="${esc(url)}" target="_blank">View report →</a></p>`;
+    box.innerHTML = `<h2 style="margin-top:0">Inspection saved.</h2><p>Send this link to your customer:</p><p><a href="${esc(url)}" target="_blank">${esc(url)}</a></p>${d.savedToCustomerPortal ? `<p>This inspection also appears in your customer's portal.</p>` : ''}<p><button type="button" id="new-copy">Copy link</button>${tel ? ` <button type="button" id="new-text">Text link to customer</button>` : ''}</p><p><a href="${esc(url)}" target="_blank">View report →</a></p>`;
     document.querySelectorAll('.page.noprint').forEach(el => el.remove());
     const tb = document.getElementById('new-text');
     if (tb) tb.onclick = () => { window.location.href = 'sms:' + tel + '?body=' + encodeURIComponent('Your vehicle inspection report: ' + url); };
