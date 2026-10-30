@@ -777,9 +777,9 @@ async function renderNewTicket() {
     <p><button type="button" class="ghost" id="new-add-item">+ Add job</button></p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><div style="flex:1;min-width:120px"><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Tax rate %</span><input id="new-tax" type="number" min="0" max="100" step="0.01" placeholder="0" style="width:100%"></div></div>
     <div><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Mobile expenses &amp; supplies (optional)</span><div id="new-expenses"></div><p><button type="button" class="ghost" id="new-add-expense">+ Add expense</button></p></div>
-    <div class="total" id="new-total">Estimated total: $0.00</div>
     <div class="notes"><strong>Notes:</strong><br><textarea id="new-notes" rows="2" class="autogrow" style="margin-top:6px"></textarea></div>
     <div class="notes"><strong>Warranty:</strong><br><textarea id="new-warranty" rows="2" class="autogrow" style="margin-top:6px" placeholder="e.g. 12 months / 12,000 miles on parts and labor"></textarea></div>
+    <div class="total" id="new-total">Estimated total: $0.00</div>
     <div class="disc">This is an estimate only and is not a final invoice. The work and price listed above are what is quoted. No additional charges will be added without your approval.</div>
     <div class="foot">Prepared by ${esc(b.name)}${b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network</div>`;
   if (window.VehiclePicker) {
