@@ -598,7 +598,7 @@ async function saveNewTicket() {
     desc: r.querySelector('[data-f="desc"]').value,
     amount: r.querySelector('[data-f="amount"]').value
   }));
-  const body = { type: 'estimate', customerName: customer, phone: $n('new-phone').value, vehicle: veh, vin: $n('new-vin').value, mileage: $n('new-mileage').value, jobAddress: $n('new-job').value, items, laborDesc: $n('new-labor-desc').value, laborAmount: $n('new-labor').value, taxRate: $n('new-tax').value, expenses, notes: $n('new-notes').value, warranty: $n('new-warranty').value, sendText: $n('new-send-text').checked };
+  const body = { type: 'estimate', customerName: customer, phone: $n('new-cust-phone').value, vehicle: veh, vin: $n('new-vin').value, mileage: $n('new-mileage').value, jobAddress: $n('new-job').value, items, laborDesc: $n('new-labor-desc').value, laborAmount: $n('new-labor').value, taxRate: $n('new-tax').value, expenses, notes: $n('new-notes').value, warranty: $n('new-warranty').value, sendText: $n('new-send-text').checked };
   try {
     const r = await fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
@@ -637,6 +637,7 @@ async function renderNewTicket() {
       <div><span>Job address</span><input id="new-job" placeholder="Job address"></div>
       <div><span>VIN</span><input id="new-vin" maxlength="17" placeholder="VIN" style="text-transform:uppercase"></div>
       <div><span>Mileage</span><input id="new-mileage" type="number" min="0" placeholder="Mileage" inputmode="numeric"></div>
+      <div><span>Phone</span><input id="new-cust-phone" type="tel" value="${esc(qp.get('phone') || '')}" placeholder="Phone"></div>
     </div>
     <table><tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr><tbody id="new-items"></tbody></table>
     <p><button type="button" class="ghost" id="new-add-item">+ Add line item</button></p>
@@ -661,9 +662,8 @@ async function renderNewTicket() {
   ['new-labor', 'new-tax'].forEach(id => $n(id).addEventListener('input', newTicketTotals));
   const actions = document.getElementById('ticket-actions');
   actions.innerHTML = `<div class="card">
-    <div><label>Customer phone (optional, for texting the ticket)</label><input id="new-phone" type="tel" value="${esc(qp.get('phone') || '')}"></div>
-    <label style="display:block;margin-top:10px"><input type="checkbox" id="new-send-text" checked> Text it to the customer</label>
-    <p class="muted" style="margin:4px 0 0">Texts need a phone number above and texting set up. Customers with an account are also notified in their dashboard automatically. After saving, the ticket opens with the Share PDF button.</p>
+    <label style="display:block"><input type="checkbox" id="new-send-text" checked> Text it to the customer</label>
+    <p class="muted" style="margin:4px 0 0">Texting needs the phone number on the ticket above, and texting set up. Customers with an account are also notified in their dashboard automatically. After saving, the ticket opens with the Share PDF button.</p>
     <p style="margin-top:14px"><button type="button" id="new-save">Create ticket</button> <button type="button" class="ghost" id="new-cancel">Cancel</button></p>
     <div class="err" id="new-err"></div></div>`;
   $n('new-cancel').onclick = () => { location.href = '/mechanic'; };
@@ -715,6 +715,7 @@ async function renderNewTicket() {
       <div class="type" style="${t.type === 'estimate' ? 'background:#2563eb' : t.type === 'receipt' ? 'background:#16a34a' : 'background:#eab308;color:#422006'}">${esc(t.type)}</div>
       <div class="meta">
         ${t.customerName ? `<div><span>Customer</span>${esc(t.customerName)}</div>` : ''}
+        ${t.phone ? `<div><span>Phone</span>${esc(t.phone)}</div>` : ''}
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
         ${t.vehicle ? `<div><span>Vehicle</span>${esc(t.vehicle)}</div>` : ''}
         ${t.type === 'receipt' ? (t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : '') : `<div class="${t.jobAddress ? '' : 'empty-line'}"><span>Job address</span><input id="dt-job-in" value="${esc(t.jobAddress || '')}" placeholder="Job address"></div>`}
