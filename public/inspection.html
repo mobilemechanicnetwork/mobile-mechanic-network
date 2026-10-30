@@ -122,10 +122,45 @@ function renderNewThumbs(i) {
   wrap.innerHTML = (newPhotos[i] || []).map((u, idx) =>
     `<span class="ppi-thumb"><img src="${esc(u)}" alt=""><button type="button" onclick="newPpiPhotoRemove(${i},${idx})" title="Remove">×</button></span>`).join('');
 }
+/* "Spare tire is missing" checkbox: checking it clears and disables the
+   Spare tire text field (restoring the typed text if unchecked again);
+   on save the spare is recorded as Missing. */
+function toggleSpareMissing(i, j) {
+  const cb = document.getElementById('ppi-spare-missing-' + i);
+  const inp = document.getElementById('ppi-f-' + i + '-' + j);
+  if (!cb || !inp) return;
+  if (cb.checked) {
+    inp.dataset.keptValue = inp.value;
+    inp.value = '';
+    inp.disabled = true;
+  } else {
+    inp.disabled = false;
+    if (inp.dataset.keptValue !== undefined) inp.value = inp.dataset.keptValue;
+  }
+}
+/* Extra tires (dually, bus, or any vehicle with more than four tires):
+   each added row is a position label plus a tread reading with the same
+   red/yellow/green dots as the four standard tires. Saved as detail
+   entries under the typed position, so the report view shows them with
+   no extra rendering work. */
+let _extraTireSeq = 0;
+function addExtraTire(i) {
+  const wrap = document.getElementById('ppi-tires-extra-' + i);
+  if (!wrap) return;
+  const bkey = i + '-x' + (_extraTireSeq++);
+  const row = document.createElement('div');
+  row.className = 'extra-tire';
+  row.dataset.bkey = bkey;
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;margin:4px 0';
+  row.innerHTML = `<input class="w100 extra-tire-label" placeholder="Tire position, e.g. Rear inner left" maxlength="60" style="margin:0;flex:1"><input class="w100 extra-tire-tread" placeholder="e.g. 7/32 in" maxlength="60" style="margin:0;flex:1"><span class="banddots" data-key="${bkey}">${['red', 'yellow', 'green'].map(b =>
+    `<span class="bdot ${b}" data-band="${b}" title="${b === 'red' ? 'Replace' : b === 'yellow' ? 'Suggest soon' : 'Good'}"></span>`).join('')}</span><button type="button" class="ghost" onclick="this.closest('.extra-tire').remove()">×</button>`;
+  wrap.appendChild(row);
+}
 function renderNewCats() {
   const kind = newKind();
   const CATS = newCatsFor(kind);
   document.getElementById('new-cats').innerHTML = CATS.map((c, i) => {
+    const spareIdx = c.key === 'tires' ? c.fields.findIndex(f => f.k === 'Spare tire') : -1;
     return `<div class="cat"><strong>${esc(c.label)}</strong>
       ${c.legend ? `<div class="ppi-legend"><span class="dot red"></span>Replace <span class="dot yellow" style="margin-left:10px"></span>Suggest <span class="dot green" style="margin-left:10px"></span>Good <span class="muted">— ${esc(c.legend)}</span></div>` : ''}
       <div style="margin:8px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
@@ -145,6 +180,8 @@ function renderNewCats() {
           `<span class="bdot ${b}${newBands[bkey] === b ? ' sel' : ''}" data-band="${b}" title="${b === 'red' ? 'Replace' : b === 'yellow' ? 'Suggest soon' : 'Good'}"></span>`).join('')}</span>` : '';
         return `<label>${esc(f.k)}</label><div style="display:flex;gap:8px;align-items:center"><input id="ppi-f-${i}-${j}" class="w100" placeholder="${esc(f.ph)}" maxlength="300" style="margin:0">${dots}</div>`;
       }).join('')}
+      ${spareIdx >= 0 ? `<label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" id="ppi-spare-missing-${i}" onchange="toggleSpareMissing(${i}, ${spareIdx})" style="width:18px;height:18px"> Spare tire is missing</label>` : ''}
+      ${c.key === 'tires' ? `<div id="ppi-tires-extra-${i}"></div><button type="button" class="ghost" onclick="addExtraTire(${i})">+ Add tire</button><p class="muted" style="margin:4px 0 0">For a dually, bus, or any vehicle with more than four tires, add each extra tire here.</p>` : ''}
       <label>Notes</label><textarea id="ppi-n-${i}" rows="2" maxlength="1000" placeholder="${kind === 'complete' ? 'Anything the owner should know' : 'Anything the buyer should know'}"></textarea>
       <label>Photos</label>
       <div id="ppi-ph-${i}" style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0"></div>
@@ -170,6 +207,19 @@ async function saveNewReport() {
       const band = newBands[i + '-' + j];
       if (f.band && band) bands[f.k] = band;
     });
+    if (c.key === 'tires') {
+      const missCb = document.getElementById('ppi-spare-missing-' + i);
+      if (missCb && missCb.checked) detail['Spare tire'] = 'Missing';
+      const wrap = document.getElementById('ppi-tires-extra-' + i);
+      if (wrap) wrap.querySelectorAll('.extra-tire').forEach(row => {
+        const label = row.querySelector('.extra-tire-label').value.trim() || 'Additional tire';
+        const tread = row.querySelector('.extra-tire-tread').value.trim();
+        const band = newBands[row.dataset.bkey];
+        if (!tread && !band) return;
+        detail[label] = tread;
+        if (band) bands[label] = band;
+      });
+    }
     return { key: c.key, label: c.label, status: statusEl ? statusEl.value : 'good', urgency: document.getElementById('ppi-urg-' + i).value, detail, bands, photos: newPhotos[i] || [], notes: document.getElementById('ppi-n-' + i).value.trim() };
   });
   const body = { kind: newKind(), customerName: customer, customerPhone: document.getElementById('new-phone').value, vehicle: veh, vin: document.getElementById('new-vin').value, mileage: document.getElementById('new-mileage').value, categories, generalNotes: document.getElementById('new-notes').value };
@@ -238,7 +288,7 @@ async function newReport() {
     document.getElementById('new-kind-note').textContent = newKindNote(kind);
     document.getElementById('new-type-pill').textContent = newKindLabel(kind);
     document.getElementById('new-disclaimer').innerHTML = newDisclaimer(kind);
-    newPhotos = {}; newBands = {};
+    newPhotos = {}; newBands = {}; _extraTireSeq = 0;
     renderNewCats();
   }));
   renderNewCats();

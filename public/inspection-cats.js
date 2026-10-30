@@ -4,7 +4,8 @@
 const PPI_CATS = [
   { key: 'tires', label: 'Tires & tread depth', legend: 'Mark each tire: red = replace, yellow = suggest service soon, green = good', fields: [
     { k: 'Front left tread', ph: 'e.g. 7/32 in', band: true }, { k: 'Front right tread', ph: 'e.g. 7/32 in', band: true },
-    { k: 'Rear left tread', ph: 'e.g. 7/32 in', band: true }, { k: 'Rear right tread', ph: 'e.g. 7/32 in', band: true } ] },
+    { k: 'Rear left tread', ph: 'e.g. 7/32 in', band: true }, { k: 'Rear right tread', ph: 'e.g. 7/32 in', band: true },
+    { k: 'Spare tire', ph: 'Present and inflated, or missing' } ] },
   { key: 'brakes', label: 'Brake inspection', legend: 'Mark each pad: red = replace (1–3 mm), yellow = suggest soon (4–7 mm), green = good (8–12 mm)', fields: [
     { k: 'Front pad thickness', ph: 'e.g. 8 mm', band: true }, { k: 'Rear pad thickness', ph: 'e.g. 6 mm', band: true },
     { k: 'Rotor condition', ph: 'Good / worn / warped / scored' } ] },
