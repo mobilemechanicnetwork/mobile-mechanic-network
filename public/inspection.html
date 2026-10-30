@@ -54,6 +54,7 @@
 <div class="actions"><button onclick="window.print()">Print / Save as PDF</button></div>
 <div class="page" id="report"><p>Loading…</p></div>
 <script src="/vehicle-picker.js"></script>
+<script src="/phone-format.js"></script>
 <script src="/inspection-cats.js"></script>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -246,6 +247,7 @@ async function newReport() {
   }
   document.getElementById('new-cancel').onclick = () => { location.href = '/mechanic'; };
   document.getElementById('new-save').onclick = saveNewReport;
+  if (window.PhoneFmt) { window.PhoneFmt.attach(document.getElementById('new-phone')); }
 }
 (async () => {
   if (new URLSearchParams(location.search).has('new')) { await newReport(); return; }

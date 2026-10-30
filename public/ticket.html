@@ -68,6 +68,7 @@
 <div class="actions noprint" id="ticket-foot-actions"><a href="/mechanic">← Back to mechanic portal</a> &nbsp; <button onclick="window.print()">Print / Save as PDF</button> <button onclick="window.print()">Share PDF</button></div>
 <p class="noprint" id="ticket-foot-hint" style="text-align:center;color:#64748b;font-size:.9rem;margin:0 16px">To share the PDF from your phone: tap Share PDF, then tap Share in the print preview and pick Messages, Mail, or another app.</p>
 <script src="/vehicle-picker.js"></script>
+<script src="/phone-format.js"></script>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money = n => '$' + Number(n).toFixed(2);
@@ -655,6 +656,7 @@ async function renderNewTicket() {
   }
   const preVin = qp.get('vin');
   if (preVin) $n('new-vin').value = preVin;
+  if (window.PhoneFmt) { window.PhoneFmt.attach($n('new-cust-phone')); }
   const itemsBody = $n('new-items');
   itemsBody.appendChild(newItemRowEl());
   $n('new-add-item').onclick = () => { itemsBody.appendChild(newItemRowEl()); };
@@ -715,7 +717,7 @@ async function renderNewTicket() {
       <div class="type" style="${t.type === 'estimate' ? 'background:#2563eb' : t.type === 'receipt' ? 'background:#16a34a' : 'background:#eab308;color:#422006'}">${esc(t.type)}</div>
       <div class="meta">
         ${t.customerName ? `<div><span>Customer</span>${esc(t.customerName)}</div>` : ''}
-        ${t.phone ? `<div><span>Phone</span>${esc(t.phone)}</div>` : ''}
+        ${t.phone ? `<div><span>Phone</span>${esc(window.PhoneFmt ? window.PhoneFmt.display(t.phone) : t.phone)}</div>` : ''}
         ${t.type === 'receipt' ? (t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : '') : `<div class="${t.jobAddress ? '' : 'empty-line'}"><span>Job address</span><input id="dt-job-in" value="${esc(t.jobAddress || '')}" placeholder="Job address"></div>`}
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
         ${t.vehicle ? `<div><span>Vehicle</span>${esc(t.vehicle)}</div>` : ''}
