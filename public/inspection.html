@@ -243,7 +243,7 @@ async function newReport() {
   }));
   renderNewCats();
   if (window.VehiclePicker) {
-    _newPpiVeh = VehiclePicker.attach({ year: 'new-year', make: 'new-make', model: 'new-model', type: 'new-veh-type' });
+    _newPpiVeh = VehiclePicker.attach({ year: 'new-year', make: 'new-make', model: 'new-model', type: 'new-veh-type', allowedTypes: ['car', 'commercial'] });
   }
   document.getElementById('new-cancel').onclick = () => { location.href = '/mechanic'; };
   document.getElementById('new-save').onclick = saveNewReport;

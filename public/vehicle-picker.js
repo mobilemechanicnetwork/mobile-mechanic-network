@@ -87,12 +87,17 @@
     if (!yearSel || !makeSel || !modelSel) return null;
     ensureTypeStyles();
 
-    let curType = 'car';
+    let allowed = TYPES;
+    if (Array.isArray(opts.allowedTypes) && opts.allowedTypes.length) {
+      const kept = TYPES.filter(t => opts.allowedTypes.includes(t.id));
+      if (kept.length) allowed = kept;
+    }
+    let curType = allowed.some(t => t.id === 'car') ? 'car' : allowed[0].id;
     const typeBox = opts.type ? document.getElementById(opts.type) : null;
     if (typeBox) {
       typeBox.className = (typeBox.className + ' vp-type').trim();
       typeBox.innerHTML = '';
-      TYPES.forEach(t => {
+      allowed.forEach(t => {
         const b = document.createElement('button');
         b.type = 'button';
         b.dataset.t = t.id;
@@ -205,7 +210,7 @@
     const api = {
       get type() { return curType; },
       setType(t) {
-        if (!TYPES.some(x => x.id === t) || t === curType) return;
+        if (!allowed.some(x => x.id === t) || t === curType) return;
         curType = t;
         paintType();
         if (isSmallEngine()) { configureForType(); return; }
