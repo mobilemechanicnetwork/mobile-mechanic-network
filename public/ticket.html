@@ -676,14 +676,16 @@ function newTicketTotals() {
   });
   const rate = Math.max(0, Math.min(100, Number($n('new-tax') ? $n('new-tax').value : 0) || 0));
   const tax = Math.round((parts + labor) * rate) / 100;
-  let expenses = 0;
+  let expenses = 0, hasExpenses = false;
   document.querySelectorAll('#new-expenses > div').forEach(r => {
-    expenses += Math.max(0, Number(r.querySelector('[data-f="amount"]').value) || 0);
+    const amt = Math.max(0, Number(r.querySelector('[data-f="amount"]').value) || 0);
+    if (r.querySelector('[data-f="desc"]').value.trim() || amt > 0) hasExpenses = true;
+    expenses += amt;
   });
   expenses = Math.round(expenses * 100) / 100;
   const total = Math.round((parts + labor + tax + expenses) * 100) / 100;
   const el = $n('new-total');
-  if (el) el.innerHTML = `Parts: $${parts.toFixed(2)} · Labor: $${labor.toFixed(2)} · Tax: $${tax.toFixed(2)} · Expenses: $${expenses.toFixed(2)}<br><strong>Estimated total: $${total.toFixed(2)}</strong>`;
+  if (el) el.innerHTML = `Parts: $${parts.toFixed(2)} · Labor: $${labor.toFixed(2)} · Tax: $${tax.toFixed(2)}${hasExpenses ? ` · Expenses: $${expenses.toFixed(2)}` : ''}<br><strong>Estimated total: $${total.toFixed(2)}</strong>`;
 }
 function newJobAddress() {
   const name = $n('new-job-name').value.trim();
