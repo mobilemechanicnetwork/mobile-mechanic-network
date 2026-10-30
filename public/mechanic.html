@@ -240,7 +240,6 @@
     <p style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" type="button" id="t-new">Create new ticket</button> <button class="primary" type="button" id="t-new-insp">Create an inspection</button></p>
     <form id="ticket-form" hidden>
       <div class="row">
-        <div><label for="t-type">Type</label><select id="t-type"><option value="estimate">Estimate</option><option value="invoice">Invoice</option><option value="receipt">Receipt</option></select></div>
         <div><label for="t-customer">Customer name</label><input id="t-customer" required autocomplete="off"><div id="t-customer-suggest" hidden style="border:1px solid #e2e8f0;border-radius:8px;margin-top:4px;max-height:220px;overflow:auto;background:#fff"></div></div>
       </div>
       <div><label for="t-phone">Customer phone (optional, for texting the ticket)</label><input id="t-phone" type="tel" autocomplete="tel"></div>
@@ -248,7 +247,7 @@
       <div id="t-veh-type"></div>
       <div class="row"><div><label for="t-year">Year</label><select id="t-year"></select></div><div><label for="t-make">Make</label><select id="t-make"></select></div><div><label for="t-model">Model</label><select id="t-model"></select></div></div>
       <div id="t-prev-vehicles" hidden><label for="t-prev-select">Customer's previous vehicles</label><select id="t-prev-select"><option value="">Choose…</option></select></div>
-      <label for="t-vin">VIN <span class="muted" id="t-vin-note">(required on invoices and receipts)</span></label><input id="t-vin" maxlength="17" placeholder="17 characters" style="text-transform:uppercase">
+      <label for="t-vin">VIN <span class="muted" id="t-vin-note">(optional)</span></label><input id="t-vin" maxlength="17" placeholder="17 characters" style="text-transform:uppercase">
       <label for="t-mileage">Vehicle mileage <span class="muted" id="t-mileage-note">(optional)</span></label><input id="t-mileage" type="number" min="0" max="9999999" step="1" placeholder="e.g. 84320">
       <label>Line items</label>
       <div id="t-items"></div>
@@ -371,8 +370,7 @@
         <summary>Create a ticket</summary>
         <div class="help-body"><ol>
           <li>Open the Tickets tab and tap Create new ticket.</li>
-          <li>Pick Estimate, Invoice, or Receipt.</li>
-          <li>Add the customer name, phone if you have it, vehicle, and VIN. VIN is required on invoices and receipts.</li>
+          <li>Add the customer name, phone if you have it, vehicle, and VIN if you have it. A VIN is needed before a job can be marked paid.</li>
           <li>Add line items with prices. Each line can also carry labor hours and parts.</li>
           <li>Add labor, a tax rate, and any mobile expenses and supplies, then check Text it or Share PDF if you want it sent.</li>
           <li>Tap Create ticket. Note: when a customer accepts your quote, an invoice is already created for you, so you do not need to create one.</li>
@@ -1536,13 +1534,12 @@ window.createTicketForCustomer = async (i) => {
 $('t-cancel').onclick = () => { resetTicketForm(); showTicketForm(false); };
 function resetTicketForm() {
   window._cardVins = {};
-  $('t-type').disabled = false;
   document.querySelector('#ticket-form button[type="submit"]').textContent = 'Create ticket';
   $('t-customer').value = ''; if ($('t-phone')) $('t-phone').value = ''; if ($('t-send-text')) $('t-send-text').checked = true; if ($('t-send-share')) $('t-send-share').checked = true; if (window._tVeh) window._tVeh.reset(); $('t-vin').value = ''; $('t-mileage').value = ''; $('t-notes').value = ''; $('t-warranty').value = '';
   $('t-labor-desc').value = ''; $('t-labor').value = ''; $('t-taxrate').value = '';
   $('t-items').innerHTML = ''; addItemRow('', '', '');
   $('t-expenses').innerHTML = '';
-  updateVinRequired(); refreshVehicleList();
+  refreshVehicleList();
 }
 $('t-customer').addEventListener('input', () => { refreshVehicleList(); renderCustomerSuggest(); });
 $('t-prev-select').addEventListener('change', async () => {
@@ -1599,16 +1596,6 @@ function addExpenseRow(desc, amount) {
 $('t-addexpense').onclick = () => addExpenseRow('', '');
 $('t-labor').oninput = updateTicketTotals;
 $('t-taxrate').oninput = updateTicketTotals;
-function updateVinRequired() {
-  const need = $('t-type').value === 'invoice' || $('t-type').value === 'receipt';
-  $('t-vin').required = need;
-  $('t-vin-note').textContent = need ? '(required)' : '(optional)';
-  const mileageNeed = $('t-type').value === 'receipt';
-  $('t-mileage').required = mileageNeed;
-  $('t-mileage-note').textContent = mileageNeed ? '(required on receipts)' : '(optional)';
-}
-$('t-type').onchange = updateVinRequired;
-updateVinRequired();
 async function loadTickets() {
   const d = await api('/api/tickets/me');
   window._tickets = d.tickets || [];
@@ -1703,7 +1690,7 @@ $('ticket-form').onsubmit = async (e) => {
   const rows = [...document.querySelectorAll('#t-items .itemrow')];
   const expenseRows = [...document.querySelectorAll('#t-expenses > div')].map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, amount: ins[1].value }; });
   const items = rows.map(r => { const ins = r.querySelectorAll('input'); return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value, hours: ins[3].value, parts: ins[4].value }; });
-  const payload = { type: $('t-type').value, customerName: $('t-customer').value, phone: $('t-phone') ? $('t-phone').value : '', vehicle: tVeh, vin: $('t-vin').value, mileage: $('t-mileage').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, expenses: expenseRows, notes: $('t-notes').value, warranty: $('t-warranty').value, sendText: $('t-send-text') ? $('t-send-text').checked : false };
+  const payload = { type: 'estimate', customerName: $('t-customer').value, phone: $('t-phone') ? $('t-phone').value : '', vehicle: tVeh, vin: $('t-vin').value, mileage: $('t-mileage').value, items, laborDesc: $('t-labor-desc').value, laborAmount: $('t-labor').value, taxRate: $('t-taxrate').value, expenses: expenseRows, notes: $('t-notes').value, warranty: $('t-warranty').value, sendText: $('t-send-text') ? $('t-send-text').checked : false };
   try {
     const d = await post('/api/tickets', payload);
     let msg = 'Ticket created.';
