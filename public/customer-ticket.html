@@ -98,7 +98,8 @@ window.actAll = (action) => act(action, null);
     const groupRows = i => {
       const hasKids = (i.partLines && i.partLines.length) || i.laborLine;
       if (!hasKids) return `<tr><td>${esc(i.desc)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`;
-      const main = `<tr><td>${esc(i.desc)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`;
+      const groupTotal = money((i.partLines || []).reduce((s, p) => s + p.qty * p.price, 0) + (i.laborLine ? (i.laborLine.hours || 0) * (i.laborLine.rate || 0) : 0));
+      const main = `<tr><td colspan="3">${esc(i.desc)}</td><td class="num">${groupTotal}</td></tr>`;
       const parts = (i.partLines || []).map(p => `<tr><td style="padding-left:20px">${esc(p.desc)}</td><td class="num">${esc(p.qty)}</td><td class="num">${money(p.price)}</td><td class="num">${money(p.qty * p.price)}</td></tr>`).join('');
       const lab = i.laborLine ? `<tr><td style="padding-left:20px">${esc(i.laborLine.desc)}</td><td class="num">${i.laborLine.hours ? esc(i.laborLine.hours) + ' hrs' : ''}</td><td class="num">${money(i.laborLine.rate)}</td><td class="num">${money((i.laborLine.hours || 0) * (i.laborLine.rate || 0))}</td></tr>` : '';
       return main + parts + lab;

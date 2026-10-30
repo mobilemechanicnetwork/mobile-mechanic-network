@@ -259,15 +259,19 @@ function pushOwnerNote(ownerId, note) {
     return true;
   } catch (e) { return false; }
 }
-// A ticket line's full value: its own qty x price, plus its parts lines
-// and its labor line when grouped. Legacy and quote lines carry no
-// children, so they total exactly as before.
+// A ticket line's full value. A grouped job's main line is not a price
+// of its own: it totals its parts lines plus its labor line (hours x
+// rate). Legacy and quote lines carry no children, so they total exactly
+// as before (qty x price).
 function ticketItemTotal(it) {
   const r2 = n => Math.round(n * 100) / 100;
-  const main = (it.qty != null ? Number(it.qty) : 1) * Number(it.price != null ? it.price : (it.amount || 0));
-  const parts = (it.partLines || []).reduce((s, p) => s + Number(p.qty || 0) * Number(p.price || 0), 0);
-  const labor = it.laborLine ? Number(it.laborLine.hours || 0) * Number(it.laborLine.rate || 0) : 0;
-  return r2(main + parts + labor);
+  const hasKids = (it.partLines && it.partLines.length) || it.laborLine;
+  if (hasKids) {
+    const parts = (it.partLines || []).reduce((s, p) => s + Number(p.qty || 0) * Number(p.price || 0), 0);
+    const labor = it.laborLine ? Number(it.laborLine.hours || 0) * Number(it.laborLine.rate || 0) : 0;
+    return r2(parts + labor);
+  }
+  return r2((it.qty != null ? Number(it.qty) : 1) * Number(it.price != null ? it.price : (it.amount || 0)));
 }
 function cleanTicketBody(body, type) {
   const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage, paymentMethod, jobAddress, comments, phone, expenses } = body || {};
