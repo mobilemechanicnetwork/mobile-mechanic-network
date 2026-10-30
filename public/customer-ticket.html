@@ -114,9 +114,9 @@ window.actAll = (action) => act(action, null);
       <div class="type" style="${t.type === 'estimate' ? 'background:#2563eb' : t.type === 'receipt' ? 'background:#16a34a' : 'background:#eab308;color:#422006'}">${esc(t.type)}</div>
       <div class="meta">
         <div><span>Customer</span>${esc(t.customerName)}</div>
+        ${t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : ''}
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
         ${t.vehicle ? `<div><span>Vehicle</span>${esc(t.vehicle)}</div>` : ''}
-        ${t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : ''}
         ${t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : ''}
         ${(t.mileage !== '' && t.mileage != null) ? `<div><span>Mileage</span>${Number(t.mileage).toLocaleString('en-US')} mi</div>` : ''}
         <div><span>Ticket</span>${t.label ? esc(t.label) : '#' + esc(t.id.slice(0, 8))}</div>

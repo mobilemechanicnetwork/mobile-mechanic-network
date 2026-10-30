@@ -632,12 +632,12 @@ async function renderNewTicket() {
     <div class="type" style="background:#2563eb">estimate</div>
     <div class="meta">
       <div><span>Customer</span><input id="new-customer" value="${esc(qp.get('customer') || '')}" placeholder="Customer name"></div>
+      <div><span>Phone</span><input id="new-cust-phone" type="tel" value="${esc(qp.get('phone') || '')}" placeholder="Phone"></div>
+      <div><span>Job address</span><input id="new-job" placeholder="Job address"></div>
       <div><span>Date</span>${new Date().toLocaleDateString()}</div>
       <div style="grid-column:1/-1"><span>Vehicle</span><div id="new-veh-type"></div><div style="display:flex;gap:8px"><select id="new-year" style="flex:1"></select><select id="new-make" style="flex:1"></select><select id="new-model" style="flex:1"></select></div></div>
-      <div><span>Job address</span><input id="new-job" placeholder="Job address"></div>
       <div><span>VIN</span><input id="new-vin" maxlength="17" placeholder="VIN" style="text-transform:uppercase"></div>
       <div><span>Mileage</span><input id="new-mileage" type="number" min="0" placeholder="Mileage" inputmode="numeric"></div>
-      <div><span>Phone</span><input id="new-cust-phone" type="tel" value="${esc(qp.get('phone') || '')}" placeholder="Phone"></div>
     </div>
     <table><tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr><tbody id="new-items"></tbody></table>
     <p><button type="button" class="ghost" id="new-add-item">+ Add line item</button></p>
@@ -716,9 +716,9 @@ async function renderNewTicket() {
       <div class="meta">
         ${t.customerName ? `<div><span>Customer</span>${esc(t.customerName)}</div>` : ''}
         ${t.phone ? `<div><span>Phone</span>${esc(t.phone)}</div>` : ''}
+        ${t.type === 'receipt' ? (t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : '') : `<div class="${t.jobAddress ? '' : 'empty-line'}"><span>Job address</span><input id="dt-job-in" value="${esc(t.jobAddress || '')}" placeholder="Job address"></div>`}
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
         ${t.vehicle ? `<div><span>Vehicle</span>${esc(t.vehicle)}</div>` : ''}
-        ${t.type === 'receipt' ? (t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : '') : `<div class="${t.jobAddress ? '' : 'empty-line'}"><span>Job address</span><input id="dt-job-in" value="${esc(t.jobAddress || '')}" placeholder="Job address"></div>`}
         ${t.type === 'receipt' ? (t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : '') : `<div class="${t.vin ? '' : 'empty-line'}"><span>VIN</span><input id="dt-vin-in" value="${esc(t.vin || '')}" placeholder="VIN"></div>`}
         ${t.type === 'receipt' ? ((t.mileage !== '' && t.mileage != null) ? `<div><span>Mileage</span>${Number(t.mileage).toLocaleString('en-US')} mi</div>` : '') : `<div class="${(t.mileage !== '' && t.mileage != null) ? '' : 'empty-line'}"><span>Mileage</span><input id="dt-mile-in" value="${(t.mileage !== '' && t.mileage != null) ? t.mileage : ''}" placeholder="Mileage" inputmode="numeric"></div>`}
         ${t.type === 'receipt' ? (t.paymentMethod ? `<div><span>Payment type</span>${esc(t.paymentMethod)}</div>` : '') : `<div class="${t.paymentMethod ? '' : 'empty-line'}"><span>Payment type</span><input id="dt-pm-in" value="${esc(t.paymentMethod || '')}" placeholder="e.g. cash, card, check"></div>`}
