@@ -259,6 +259,16 @@ function pushOwnerNote(ownerId, note) {
     return true;
   } catch (e) { return false; }
 }
+// A ticket line's full value: its own qty x price, plus its parts lines
+// and its labor line when grouped. Legacy and quote lines carry no
+// children, so they total exactly as before.
+function ticketItemTotal(it) {
+  const r2 = n => Math.round(n * 100) / 100;
+  const main = (it.qty != null ? Number(it.qty) : 1) * Number(it.price != null ? it.price : (it.amount || 0));
+  const parts = (it.partLines || []).reduce((s, p) => s + Number(p.qty || 0) * Number(p.price || 0), 0);
+  const labor = it.laborLine ? Number(it.laborLine.hours || 0) * Number(it.laborLine.rate || 0) : 0;
+  return r2(main + parts + labor);
+}
 function cleanTicketBody(body, type) {
   const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage, paymentMethod, jobAddress, comments, phone, expenses } = body || {};
   if (!customerName || !String(customerName).trim()) return { error: 'Customer name is required.' };
@@ -280,10 +290,19 @@ function cleanTicketBody(body, type) {
     return { error: 'A vehicle mileage is required on receipts.' };
   const r2 = n => Math.round(n * 100) / 100;
   const cleanItems = items.slice(0, 50)
-    .map(it => ({ desc: String(it.desc || '').trim().slice(0, 200), qty: Math.max(0, Number(it.qty) || 0), price: Math.max(0, Number(it.price) || 0), hours: Math.max(0, Math.min(999, Math.round((Number(it.hours) || 0) * 100) / 100)), parts: Math.max(0, Math.min(999, Math.round((Number(it.parts) || 0) * 100) / 100)) }))
-    .filter(it => it.desc && it.qty > 0 && it.price >= 0);
+    .map(it => {
+      const partLines = Array.isArray(it.partLines) ? it.partLines.slice(0, 20)
+        .map(p => ({ desc: String(p.desc || '').trim().slice(0, 200), qty: Math.max(0, Number(p.qty) || 0), price: Math.max(0, Number(p.price) || 0) }))
+        .filter(p => p.desc && p.qty > 0) : [];
+      const rawLab = it.laborLine;
+      const laborLine = rawLab && (String(rawLab.desc || '').trim() || Number(rawLab.hours) > 0 || Number(rawLab.rate) > 0)
+        ? { desc: String(rawLab.desc || '').trim().slice(0, 200), hours: Math.max(0, Math.min(999, Math.round((Number(rawLab.hours) || 0) * 100) / 100)), rate: Math.max(0, Number(rawLab.rate) || 0) }
+        : null;
+      return { desc: String(it.desc || '').trim().slice(0, 200), qty: Math.max(0, Number(it.qty) || 0), price: Math.max(0, Number(it.price) || 0), hours: Math.max(0, Math.min(999, Math.round((Number(it.hours) || 0) * 100) / 100)), parts: Math.max(0, Math.min(999, Math.round((Number(it.parts) || 0) * 100) / 100)), partLines, laborLine };
+    })
+    .filter(it => (it.desc && it.qty > 0) || it.partLines.length || it.laborLine);
   if (!cleanItems.length) return { error: 'Add at least one line item with a quantity and price.' };
-  const partsSubtotal = r2(cleanItems.reduce((s, it) => s + it.qty * it.price, 0));
+  const partsSubtotal = r2(cleanItems.reduce((s, it) => s + ticketItemTotal(it), 0));
   const laborAmountNum = r2(Math.max(0, Number(laborAmount) || 0));
   const rate = Math.max(0, Math.min(100, Number(taxRate) || 0));
   const taxAmount = r2(r2(partsSubtotal + laborAmountNum) * rate / 100);
@@ -398,7 +417,7 @@ async function finalizeQuoteAccept(quotes, rows, quote, row, approvedItems, deni
     if (!newLines.length && !approvedItems && Number(quote.total) > 0) newLines.push({ desc: row.service, qty: 1, price: r2(Number(quote.total)) });
     if (inv) {
       inv.items = [...(inv.items || []), ...newLines];
-      const parts = r2(inv.items.reduce((s, it) => s + it.qty * it.price, 0));
+      const parts = r2(inv.items.reduce((s, it) => s + ticketItemTotal(it), 0));
       inv.subtotal = parts;
       inv.taxAmount = r2(r2(parts + (inv.laborAmount || 0)) * (inv.taxRate || 0) / 100);
       inv.total = r2(parts + (inv.laborAmount || 0) + inv.taxAmount + (inv.expensesTotal || 0));
@@ -467,7 +486,7 @@ function finalizeQuoteDecline(quotes, rows, quote, row, deniedItems) {
 // customer sees before approving is the total they get after approving.
 function invoiceTotalsAfter(t, lines) {
   const r2 = n => Math.round(n * 100) / 100;
-  const itemsSum = (t.items || []).reduce((s, it) => s + (it.qty != null ? Number(it.qty) : 1) * Number(it.price != null ? it.price : (it.amount || 0)), 0);
+  const itemsSum = (t.items || []).reduce((s, it) => s + ticketItemTotal(it), 0);
   const parts = r2(itemsSum);
   const labor = Number(t.laborAmount || 0);
   const rate = Number(t.taxRate || 0);
@@ -1315,7 +1334,7 @@ const server = http.createServer(async (req, res) => {
           // the accepted quote's lines. Pending estimate lines are not
           // included: they are not on the invoice until approved.
           const lines = jobTicket
-            ? [...(jobTicket.items || []).map(it => ({ desc: it.desc, amount: (it.qty != null && it.price != null) ? Number(it.qty) * Number(it.price) : (it.amount != null ? it.amount : it.price) })),
+            ? [...(jobTicket.items || []).map(it => ({ desc: it.desc, amount: ticketItemTotal(it) })),
                ...(jobTicket.laborAmount > 0 ? [{ desc: 'Labor' + (jobTicket.laborDesc ? ' — ' + jobTicket.laborDesc : ''), amount: jobTicket.laborAmount }] : []),
                ...(jobTicket.taxAmount > 0 ? [{ desc: 'Tax (' + jobTicket.taxRate + '%)', amount: jobTicket.taxAmount }] : []),
                ...(jobTicket.expensesTotal > 0 ? [{ desc: 'Mobile expenses & supplies', amount: jobTicket.expensesTotal }] : [])]
@@ -1961,8 +1980,21 @@ const server = http.createServer(async (req, res) => {
         // Legacy tickets store {desc, amount} with no qty/price and may lack
         // labor/tax fields; normalize the stored side so unchanged old
         // invoices don't trip the lock when only details change.
+        // A grouped labor line's cost is hours x rate, so its hours and
+        // rate are both part of the price and both locked. (The old
+        // per-line hours number is still plain metadata and stays exempt.)
+        const samePartLines = (a, b) => {
+          const pa = a.partLines || [], pb = b.partLines || [];
+          return pa.length === pb.length && pa.every((p, j) => pb[j] && p.desc === pb[j].desc && Number(p.qty) === Number(pb[j].qty ?? 1) && Number(p.price) === Number(pb[j].price ?? 0));
+        };
+        const sameLaborLine = (a, b) => {
+          const la = a.laborLine || null, lb = b.laborLine || null;
+          if (!la && !lb) return true;
+          if (!la || !lb) return false;
+          return la.desc === lb.desc && Number(la.hours) === Number(lb.hours ?? 0) && Number(la.rate) === Number(lb.rate ?? 0);
+        };
         const sameItems = (clean.items || []).length === (t.items || []).length &&
-          (clean.items || []).every((it, i) => t.items[i] && it.desc === t.items[i].desc && Number(it.qty) === Number(t.items[i].qty ?? 1) && Number(it.price) === Number(t.items[i].price ?? t.items[i].amount ?? 0));
+          (clean.items || []).every((it, i) => t.items[i] && it.desc === t.items[i].desc && Number(it.qty) === Number(t.items[i].qty ?? 1) && Number(it.price) === Number(t.items[i].price ?? t.items[i].amount ?? 0) && samePartLines(it, t.items[i]) && sameLaborLine(it, t.items[i]));
         const sameExpenses = (clean.expenses || []).length === (t.expenses || []).length &&
           (clean.expenses || []).every((e, i) => t.expenses[i] && e.desc === t.expenses[i].desc && Number(e.amount) === Number(t.expenses[i].amount ?? 0));
         if (!sameItems || !sameExpenses || clean.laborAmount !== Number(t.laborAmount ?? 0) || clean.taxRate !== Number(t.taxRate ?? 0))
@@ -2170,7 +2202,7 @@ const server = http.createServer(async (req, res) => {
         if (action === 'accept') {
           const r2 = n => Math.round(n * 100) / 100;
           t.items = [...(t.items || []), ...acted.map(l => ({ desc: l.desc, qty: 1, price: l.price }))];
-          const parts = r2(t.items.reduce((s, it) => s + it.qty * it.price, 0));
+          const parts = r2(t.items.reduce((s, it) => s + ticketItemTotal(it), 0));
           t.subtotal = parts;
           t.taxAmount = r2(r2(parts + (t.laborAmount || 0)) * (t.taxRate || 0) / 100);
           t.total = r2(parts + (t.laborAmount || 0) + t.taxAmount + (t.expensesTotal || 0));

@@ -95,8 +95,16 @@ window.actAll = (action) => act(action, null);
         <div class="err" id="appr-msg"></div></div>`;
     }
     const isNew = t.items && t.items.length && t.items[0].qty !== undefined;
+    const groupRows = i => {
+      const hasKids = (i.partLines && i.partLines.length) || i.laborLine;
+      if (!hasKids) return `<tr><td>${esc(i.desc)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`;
+      const main = `<tr><td>${esc(i.desc)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`;
+      const parts = (i.partLines || []).map(p => `<tr><td style="padding-left:20px">${esc(p.desc)}</td><td class="num">${esc(p.qty)}</td><td class="num">${money(p.price)}</td><td class="num">${money(p.qty * p.price)}</td></tr>`).join('');
+      const lab = i.laborLine ? `<tr><td style="padding-left:20px">${esc(i.laborLine.desc)}</td><td class="num">${i.laborLine.hours ? esc(i.laborLine.hours) + ' hrs' : ''}</td><td class="num">${money(i.laborLine.rate)}</td><td class="num">${money((i.laborLine.hours || 0) * (i.laborLine.rate || 0))}</td></tr>` : '';
+      return main + parts + lab;
+    };
     const itemRows = (t.items || []).map(i => isNew
-      ? `<tr><td>${esc(i.desc)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`
+      ? groupRows(i)
       : `<tr><td>${esc(i.desc)}</td><td class="num">${money(i.amount)}</td></tr>`).join('');
     const headRow = isNew
       ? `<tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr>`
@@ -104,7 +112,7 @@ window.actAll = (action) => act(action, null);
     const laborRow = (t.laborAmount > 0) ? `<tr><td>Labor${t.laborDesc ? ' — ' + esc(t.laborDesc) : ''}</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.laborAmount)}</td></tr>` : '';
     const taxRow = (t.taxAmount > 0) ? `<tr><td>Tax (${esc(t.taxRate)}%)</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.taxAmount)}</td></tr>` : '';
     const expensesRows = (t.expenses || []).map(e => `<tr><td>Mobile expense — ${esc(e.desc)}</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(e.amount)}</td></tr>`).join('');
-    const subRow = (isNew && (t.laborAmount > 0 || t.taxAmount > 0)) ? `<tr><td>Parts subtotal</td><td class="num"></td><td class="num"></td><td class="num">${money(t.subtotal)}</td></tr>` : '';
+    const subRow = (isNew && (t.laborAmount > 0 || t.taxAmount > 0)) ? `<tr><td>Subtotal</td><td class="num"></td><td class="num"></td><td class="num">${money(t.subtotal)}</td></tr>` : '';
     box.innerHTML = `
       <div class="head">
         ${b && b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}

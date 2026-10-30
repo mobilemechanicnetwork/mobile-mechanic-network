@@ -50,10 +50,14 @@
   @media (max-width:520px){
     .newdoc table td, .newdoc table th{ padding:6px 4px }
     .newdoc table input[data-f="desc"]{ width:118px }
+    .newdoc table input[data-f="pdesc"]{ width:118px }
+    .newdoc table input[data-f="ldesc"]{ width:118px }
     .newdoc table input[data-f="qty"]{ width:44px !important }
+    .newdoc table input[data-f="pqty"]{ width:44px !important }
+    .newdoc table input[data-f="lhours"]{ width:44px !important }
     .newdoc table input[data-f="price"]{ width:60px !important }
-    .newdoc table input[data-f="hours"]{ width:44px !important }
-    .newdoc table input[data-f="parts"]{ width:44px !important }
+    .newdoc table input[data-f="pprice"]{ width:60px !important }
+    .newdoc table input[data-f="lrate"]{ width:60px !important }
     .newdoc table td > div{ flex-wrap:wrap }
   }
   .newdoc textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:.95rem}
@@ -110,6 +114,18 @@ function expenseRows() {
 }
 function itemRows() {
   return [...document.querySelectorAll('#edit-items > div')].map(r => {
+    if (r.classList.contains('edit-group')) {
+      const main = r.querySelector('.edit-main');
+      const mins = main.querySelectorAll('input');
+      const partLines = [...r.querySelectorAll('.edit-part')].map(pr => {
+        const ins = pr.querySelectorAll('input');
+        return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value };
+      }).filter(p => p.desc.trim() && Number(p.qty) > 0);
+      const lab = r.querySelector('.edit-labor');
+      const lins = lab.querySelectorAll('input');
+      const laborLine = (lins[0].value.trim() || Number(lins[1].value) > 0 || Number(lins[2].value) > 0) ? { desc: lins[0].value, hours: lins[1].value, rate: lins[2].value } : null;
+      return { desc: mins[0].value, qty: mins[1].value, price: mins[2].value, partLines, laborLine };
+    }
     const ins = r.querySelectorAll('input');
     return { desc: ins[0].value, qty: ins[1].value, price: ins[2].value, hours: ins[3].value, parts: ins[4].value };
   });
@@ -118,9 +134,41 @@ function addItemRow(desc, qty, price, hours, parts) {
   const w = document.getElementById('edit-items');
   if (!w) return;
   const row = document.createElement('div');
+  row.className = 'edit-legacy';
   row.style.cssText = 'display:flex;gap:8px;margin:6px 0;flex-wrap:wrap';
   row.innerHTML = `<input placeholder="Description (e.g. Brake pads)" value="${esc(desc || '')}" style="flex:3;min-width:140px" aria-label="Line description"><input type="number" placeholder="Qty" min="0" step="1" value="${qty || ''}" style="flex:1;max-width:70px" aria-label="Quantity"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price || ''}" style="flex:1;max-width:110px" aria-label="Price"><input type="number" placeholder="Labor hrs" min="0" step="any" value="${hours || ''}" style="flex:1;max-width:90px" aria-label="Labor hours"><input type="number" placeholder="Parts" min="0" step="any" value="${parts || ''}" style="flex:1;max-width:70px" aria-label="Parts used"><button type="button" class="ghost" onclick="this.parentElement.remove()">✕</button>`;
   w.appendChild(row);
+}
+function addEditPartRowTo(g, desc, qty, price) {
+  const row = document.createElement('div');
+  row.className = 'edit-part';
+  row.style.cssText = 'display:flex;gap:8px;margin:6px 0 6px 20px;flex-wrap:wrap';
+  row.innerHTML = `<input placeholder="Part (e.g. Brake pads)" value="${esc(desc || '')}" style="flex:3;min-width:140px" aria-label="Part description"><input type="number" placeholder="Qty" min="0" step="1" value="${qty ?? ''}" style="flex:1;max-width:70px" aria-label="Part quantity"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price ?? ''}" style="flex:1;max-width:110px" aria-label="Part price"><button type="button" class="ghost" onclick="this.parentElement.remove()">✕</button>`;
+  g.querySelector('.edit-parts').appendChild(row);
+}
+function addEditPartRow(btn) { addEditPartRowTo(btn.closest('.edit-group'), '', '', ''); }
+function addGroupRow(desc, qty, price, partLines, laborLine) {
+  const w = document.getElementById('edit-items');
+  if (!w) return;
+  const g = document.createElement('div');
+  g.className = 'edit-group';
+  g.style.cssText = 'border:1px solid #e2e8f0;border-radius:8px;padding:8px;margin:6px 0';
+  g.innerHTML = `<div class="edit-main" style="display:flex;gap:8px;margin:6px 0;flex-wrap:wrap"><input placeholder="Job (e.g. Brake job)" value="${esc(desc || '')}" style="flex:3;min-width:140px" aria-label="Job description"><input type="number" placeholder="Qty" min="0" step="1" value="${qty ?? ''}" style="flex:1;max-width:70px" aria-label="Quantity"><input type="number" placeholder="Price $" min="0" step="0.01" value="${price ?? ''}" style="flex:1;max-width:110px" aria-label="Price"><button type="button" class="ghost" onclick="this.closest('.edit-group').remove()">✕</button></div>
+    <div class="edit-parts"></div>
+    <div class="edit-labor" style="display:flex;gap:8px;margin:6px 0 6px 20px;flex-wrap:wrap"><input placeholder="Labor (e.g. Brake job labor)" value="${esc(laborLine ? laborLine.desc : '')}" style="flex:3;min-width:140px" aria-label="Labor description"><input type="number" placeholder="hrs" min="0" step="any" value="${laborLine ? (laborLine.hours ?? '') : ''}" style="flex:1;max-width:90px" aria-label="Labor hours"><input type="number" placeholder="Rate $" min="0" step="0.01" value="${laborLine ? (laborLine.rate ?? '') : ''}" style="flex:1;max-width:110px" aria-label="Labor rate"></div>
+    <p style="margin:6px 0 0 20px"><button type="button" class="ghost" onclick="addEditPartRow(this)">+ Add part</button></p>`;
+  (partLines || []).forEach(p => addEditPartRowTo(g, p.desc, p.qty, p.price));
+  w.appendChild(g);
+}
+// Full item passthrough for detail auto-saves: grouped children must
+// survive a save that only touches the address, VIN, or mileage.
+function passItems(items) {
+  return (items || []).map(it => ({
+    desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount,
+    hours: it.hours, parts: it.parts,
+    partLines: (it.partLines || []).map(p => ({ desc: p.desc, qty: p.qty, price: p.price })),
+    laborLine: it.laborLine ? { desc: it.laborLine.desc, hours: it.laborLine.hours, rate: it.laborLine.rate } : null
+  }));
 }
 // Details are editable directly on the ticket itself: the Job address,
 // VIN, Mileage, and Payment type lines are inputs as soon as the ticket
@@ -136,7 +184,7 @@ window.saveDetails = async () => {
     if (T.type === 'receipt') {
       body = { vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value };
     } else {
-      body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, items: (T.items || []).map(it => ({ desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, hours: it.hours, parts: it.parts })), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value, expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
+      body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, items: passItems(T.items), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value, expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
     }
     const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
@@ -367,12 +415,11 @@ function bindLineWorkDetails() {
       const idx = Number(inp.dataset.whours !== undefined ? inp.dataset.whours : inp.dataset.wparts);
       try {
         const dv = id => { const el = document.getElementById(id); return el ? el.value : ''; };
-        const items = (T.items || []).map((it, i) => {
-          if (i !== idx) return { desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, hours: it.hours, parts: it.parts };
-          const hrsEl = document.querySelector('[data-whours="' + idx + '"]');
-          const partsEl = document.querySelector('[data-wparts="' + idx + '"]');
-          return { desc: it.desc, qty: it.qty != null ? it.qty : 1, price: it.price != null ? it.price : it.amount, hours: hrsEl ? hrsEl.value : it.hours, parts: partsEl ? partsEl.value : it.parts };
-        });
+        const items = passItems(T.items);
+        const hrsEl = document.querySelector('[data-whours="' + idx + '"]');
+        const partsEl = document.querySelector('[data-wparts="' + idx + '"]');
+        if (hrsEl) items[idx].hours = hrsEl.value;
+        if (partsEl) items[idx].parts = partsEl.value;
         const body = { customerName: T.customerName, vehicle: T.vehicle, vin: dv('dt-vin-in') || T.vin || '', mileage: dv('dt-mile-in') || T.mileage || '', items, laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: dv('dt-pm-in') || T.paymentMethod || '', jobAddress: dv('dt-job-in') || T.jobAddress || '', expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
         const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const d = await r.json().catch(() => ({}));
@@ -461,8 +508,11 @@ function renderActions() {
       document.getElementById('ed-customer').value = T.customerName || '';
       document.getElementById('ed-vehicle').value = T.vehicle || '';
       document.getElementById('edit-items').innerHTML = '';
-      (T.items || []).forEach(it => addItemRow(it.desc, it.qty ?? 1, it.price ?? it.amount, it.hours, it.parts));
-      if (!(T.items || []).length) addItemRow('', '', '');
+      (T.items || []).forEach(it => {
+        if ((it.partLines && it.partLines.length) || it.laborLine) addGroupRow(it.desc, it.qty ?? 1, it.price ?? it.amount, it.partLines, it.laborLine);
+        else addItemRow(it.desc, it.qty ?? 1, it.price ?? it.amount, it.hours, it.parts);
+      });
+      if (!(T.items || []).length) addGroupRow('', '', '');
       document.getElementById('ed-labor-desc').value = T.laborDesc || '';
       document.getElementById('ed-labor').value = T.laborAmount || '';
       document.getElementById('ed-tax').value = T.taxRate || '';
@@ -473,7 +523,7 @@ function renderActions() {
       editForm.hidden = false;
       editForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
-    document.getElementById('btn-add-item').onclick = () => addItemRow('', '', '');
+    document.getElementById('btn-add-item').onclick = () => addGroupRow('', '', '');
     document.getElementById('btn-add-expense').onclick = () => addExpenseRow('', '');
     document.getElementById('btn-cancel-edit').onclick = () => { editForm.hidden = true; };
     document.getElementById('btn-save-edit').onclick = async () => {
@@ -544,14 +594,37 @@ function renderActions() {
    posts an estimate (never asks a type) and opens the ticket workspace. */
 const $n = id => document.getElementById(id);
 let _newVeh = null;
-function newItemRowEl() {
+function newPartRowEl() {
   const tr = document.createElement('tr');
-  tr.innerHTML = `<td><input data-f="desc" placeholder="Description (e.g. Brake pads)"><div style="display:flex;gap:6px;margin-top:6px;align-items:center"><label style="font-size:.8rem;color:#64748b">Labor <input data-f="hours" type="number" step="any" min="0" placeholder="hrs" style="width:70px"></label><label style="font-size:.8rem;color:#64748b">Parts <input data-f="parts" type="number" step="any" min="0" placeholder="qty" style="width:60px"></label><button type="button" class="ghost" style="margin-left:auto" onclick="this.closest('tr').remove();newTicketTotals()">×</button></div></td>
-    <td class="num"><input data-f="qty" type="number" min="0" step="1" placeholder="Qty" style="width:70px"></td>
-    <td class="num"><input data-f="price" type="number" min="0" step="0.01" placeholder="Price $" style="width:100px"></td>
+  tr.className = 'part';
+  tr.innerHTML = `<td style="padding-left:20px"><div style="display:flex;gap:6px;align-items:center"><input data-f="pdesc" placeholder="Part (e.g. Brake pads)" style="flex:1"><button type="button" class="ghost" onclick="this.closest('tr').remove();newTicketTotals()">×</button></div></td>
+    <td class="num"><input data-f="pqty" type="number" min="0" step="1" placeholder="Qty" style="width:70px"></td>
+    <td class="num"><input data-f="pprice" type="number" min="0" step="0.01" placeholder="Price $" style="width:100px"></td>
     <td class="num"><span class="nrowtotal">$0.00</span></td>`;
   tr.querySelectorAll('input').forEach(i => i.addEventListener('input', newTicketTotals));
   return tr;
+}
+function newGroupEl() {
+  const tb = document.createElement('tbody');
+  tb.className = 'job-group';
+  tb.innerHTML = `<tr class="main">
+      <td><input data-f="desc" placeholder="Job (e.g. Brake job)"></td>
+      <td class="num"><input data-f="qty" type="number" min="0" step="1" value="1" style="width:70px"></td>
+      <td class="num"><input data-f="price" type="number" min="0" step="0.01" placeholder="Price $" style="width:100px"></td>
+      <td class="num"><span class="nrowtotal">$0.00</span></td></tr>
+    <tr class="labor">
+      <td style="padding-left:20px"><input data-f="ldesc" placeholder="Labor (e.g. Brake job labor)"></td>
+      <td class="num"><input data-f="lhours" type="number" min="0" step="any" placeholder="hrs" style="width:70px"></td>
+      <td class="num"><input data-f="lrate" type="number" min="0" step="0.01" placeholder="Rate $" style="width:100px"></td>
+      <td class="num"><span class="nrowtotal">$0.00</span></td></tr>
+    <tr class="controls"><td colspan="4"><div style="display:flex;gap:8px;align-items:center"><button type="button" class="ghost" onclick="newPartBefore(this)">+ Add part</button><span class="job-total muted" style="margin-left:auto"></span><button type="button" class="ghost" onclick="this.closest('tbody').remove();newTicketTotals()">Remove job</button></div></td></tr>`;
+  tb.querySelectorAll('input').forEach(i => i.addEventListener('input', newTicketTotals));
+  return tb;
+}
+function newPartBefore(btn) {
+  const tb = btn.closest('tbody');
+  tb.insertBefore(newPartRowEl(), tb.querySelector('tr.labor'));
+  newTicketTotals();
 }
 function newExpenseRowEl() {
   const div = document.createElement('div');
@@ -561,15 +634,23 @@ function newExpenseRowEl() {
   return div;
 }
 function newTicketTotals() {
-  let parts = 0;
-  document.querySelectorAll('#new-items tr').forEach(tr => {
-    const qty = Number(tr.querySelector('[data-f="qty"]').value) || 0;
-    const price = Number(tr.querySelector('[data-f="price"]').value) || 0;
-    const row = Math.round(qty * price * 100) / 100;
-    parts += row;
-    tr.querySelector('.nrowtotal').textContent = '$' + row.toFixed(2);
+  const rowMoney = (q, p) => Math.round(q * p * 100) / 100;
+  let parts = 0, labor = 0;
+  document.querySelectorAll('#new-lines-table tbody.job-group').forEach(tb => {
+    let g = 0;
+    tb.querySelectorAll('tr').forEach(tr => {
+      let v = 0;
+      if (tr.classList.contains('main')) v = rowMoney(Number(tr.querySelector('[data-f="qty"]').value) || 0, Number(tr.querySelector('[data-f="price"]').value) || 0);
+      else if (tr.classList.contains('part')) v = rowMoney(Number(tr.querySelector('[data-f="pqty"]').value) || 0, Number(tr.querySelector('[data-f="pprice"]').value) || 0);
+      else if (tr.classList.contains('labor')) v = rowMoney(Number(tr.querySelector('[data-f="lhours"]').value) || 0, Number(tr.querySelector('[data-f="lrate"]').value) || 0);
+      else return;
+      if (tr.classList.contains('labor')) labor += v; else parts += v;
+      g += v;
+      tr.querySelector('.nrowtotal').textContent = '$' + v.toFixed(2);
+    });
+    const jt = tb.querySelector('.job-total');
+    if (jt) jt.textContent = g > 0 ? 'Job total: $' + g.toFixed(2) : '';
   });
-  const labor = Math.max(0, Number($n('new-labor') ? $n('new-labor').value : 0) || 0);
   const rate = Math.max(0, Math.min(100, Number($n('new-tax') ? $n('new-tax').value : 0) || 0));
   const tax = Math.round((parts + labor) * rate) / 100;
   let expenses = 0;
@@ -603,18 +684,25 @@ async function saveNewTicket() {
   if (!customer) { err.textContent = 'Enter the customer name.'; return; }
   const veh = _newVeh ? _newVeh.vehicleString() : '';
   if (!veh) { err.textContent = 'Please pick the vehicle year, make, and model.'; return; }
-  const items = [...document.querySelectorAll('#new-items tr')].map(tr => ({
-    desc: tr.querySelector('[data-f="desc"]').value,
-    qty: tr.querySelector('[data-f="qty"]').value,
-    price: tr.querySelector('[data-f="price"]').value,
-    hours: tr.querySelector('[data-f="hours"]').value,
-    parts: tr.querySelector('[data-f="parts"]').value
-  }));
+  const items = [...document.querySelectorAll('#new-lines-table tbody.job-group')].map(tb => {
+    const main = tb.querySelector('tr.main');
+    const partLines = [...tb.querySelectorAll('tr.part')].map(tr => ({
+      desc: tr.querySelector('[data-f="pdesc"]').value,
+      qty: tr.querySelector('[data-f="pqty"]').value,
+      price: tr.querySelector('[data-f="pprice"]').value
+    })).filter(p => p.desc.trim() && Number(p.qty) > 0);
+    const lrow = tb.querySelector('tr.labor');
+    const ldesc = lrow.querySelector('[data-f="ldesc"]').value;
+    const lhours = lrow.querySelector('[data-f="lhours"]').value;
+    const lrate = lrow.querySelector('[data-f="lrate"]').value;
+    const laborLine = (ldesc.trim() || Number(lhours) > 0 || Number(lrate) > 0) ? { desc: ldesc, hours: lhours, rate: lrate } : null;
+    return { desc: main.querySelector('[data-f="desc"]').value, qty: main.querySelector('[data-f="qty"]').value, price: main.querySelector('[data-f="price"]').value, partLines, laborLine };
+  });
   const expenses = [...document.querySelectorAll('#new-expenses > div')].map(r => ({
     desc: r.querySelector('[data-f="desc"]').value,
     amount: r.querySelector('[data-f="amount"]').value
   }));
-  const body = { type: 'estimate', customerName: customer, phone: $n('new-cust-phone').value, vehicle: veh, vin: $n('new-vin').value, mileage: $n('new-mileage').value, jobAddress: newJobAddress(), items, laborDesc: $n('new-labor-desc').value, laborAmount: $n('new-labor').value, taxRate: $n('new-tax').value, expenses, notes: $n('new-notes').value, warranty: $n('new-warranty').value, sendText: $n('new-send-text').checked };
+  const body = { type: 'estimate', customerName: customer, phone: $n('new-cust-phone').value, vehicle: veh, vin: $n('new-vin').value, mileage: $n('new-mileage').value, jobAddress: newJobAddress(), items, taxRate: $n('new-tax').value, expenses, notes: $n('new-notes').value, warranty: $n('new-warranty').value, sendText: $n('new-send-text').checked };
   try {
     const r = await fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
@@ -660,9 +748,9 @@ async function renderNewTicket() {
       <div><span>VIN</span><input id="new-vin" maxlength="17" placeholder="VIN" style="text-transform:uppercase"></div>
       <div><span>Mileage</span><input id="new-mileage" type="number" min="0" placeholder="Mileage" inputmode="numeric"></div>
     </div>
-    <table><tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr><tbody id="new-items"></tbody></table>
-    <p><button type="button" class="ghost" id="new-add-item">+ Add line item</button></p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><div style="flex:2;min-width:180px"><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Labor description</span><input id="new-labor-desc" placeholder="e.g. Brake job labor" style="width:100%"></div><div style="flex:1;min-width:120px"><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Labor amount</span><input id="new-labor" type="number" min="0" step="0.01" placeholder="0.00" style="width:100%"></div><div style="flex:1;min-width:120px"><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Tax rate %</span><input id="new-tax" type="number" min="0" max="100" step="0.01" placeholder="0" style="width:100%"></div></div>
+    <table id="new-lines-table"><tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr></table>
+    <p><button type="button" class="ghost" id="new-add-item">+ Add job</button></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><div style="flex:1;min-width:120px"><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Tax rate %</span><input id="new-tax" type="number" min="0" max="100" step="0.01" placeholder="0" style="width:100%"></div></div>
     <div><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Mobile expenses &amp; supplies (optional)</span><div id="new-expenses"></div><p><button type="button" class="ghost" id="new-add-expense">+ Add expense</button></p></div>
     <div class="total" id="new-total">Estimated total: $0.00</div>
     <div class="notes"><strong>Notes:</strong><br><textarea id="new-notes" rows="2" style="margin-top:6px"></textarea></div>
@@ -681,11 +769,11 @@ async function renderNewTicket() {
   const jobNameCell = $n('new-job-name-cell');
   const syncJobName = () => { const type = jobTypeEl.value; const show = type === 'apt' || type === 'business'; jobNameCell.hidden = !show; if (show) { const label = type === 'apt' ? 'Apartment name' : 'Business name'; $n('new-job-name-label').textContent = label; $n('new-job-name').placeholder = label; } else { $n('new-job-name').value = ''; } };
   jobTypeEl.addEventListener('change', syncJobName);
-  const itemsBody = $n('new-items');
-  itemsBody.appendChild(newItemRowEl());
-  $n('new-add-item').onclick = () => { itemsBody.appendChild(newItemRowEl()); };
+  const linesTable = $n('new-lines-table');
+  linesTable.appendChild(newGroupEl());
+  $n('new-add-item').onclick = () => { linesTable.appendChild(newGroupEl()); };
   $n('new-add-expense').onclick = () => { $n('new-expenses').appendChild(newExpenseRowEl()); };
-  ['new-labor', 'new-tax'].forEach(id => $n(id).addEventListener('input', newTicketTotals));
+  $n('new-tax').addEventListener('input', newTicketTotals);
   const actions = document.getElementById('ticket-actions');
   actions.innerHTML = `<div class="card">
     <label style="display:block"><input type="checkbox" id="new-send-text" checked> Text it to the customer</label>
@@ -721,8 +809,16 @@ async function renderNewTicket() {
       if (t.type !== 'invoice') return lineDetail(i);
       return `<div class="noprint" style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><label style="font-size:.8rem;color:#64748b">Labor <input data-whours="${idx}" type="number" step="any" min="0" value="${i.hours || ''}" style="width:70px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:6px"> hrs</label><label style="font-size:.8rem;color:#64748b">Parts <input data-wparts="${idx}" type="number" step="any" min="0" value="${i.parts || ''}" style="width:60px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:6px"></label></div><div class="wdetail-text" id="wdetail-text-${idx}" style="font-size:.85rem;color:#64748b">${lineDetailText(i)}</div>`;
     };
+    const groupRows = (i, idx) => {
+      const hasKids = (i.partLines && i.partLines.length) || i.laborLine;
+      if (!hasKids) return `<tr><td>${esc(i.desc)}${cellDetail(i, idx)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`;
+      const main = `<tr><td>${esc(i.desc)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`;
+      const parts = (i.partLines || []).map(p => `<tr><td style="padding-left:20px">${esc(p.desc)}</td><td class="num">${esc(p.qty)}</td><td class="num">${money(p.price)}</td><td class="num">${money(p.qty * p.price)}</td></tr>`).join('');
+      const lab = i.laborLine ? `<tr><td style="padding-left:20px">${esc(i.laborLine.desc)}</td><td class="num">${i.laborLine.hours ? esc(i.laborLine.hours) + ' hrs' : ''}</td><td class="num">${money(i.laborLine.rate)}</td><td class="num">${money((i.laborLine.hours || 0) * (i.laborLine.rate || 0))}</td></tr>` : '';
+      return main + parts + lab;
+    };
     const itemRows = (t.items || []).map((i, idx) => isNew
-      ? `<tr><td>${esc(i.desc)}${cellDetail(i, idx)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`
+      ? groupRows(i, idx)
       : `<tr><td>${esc(i.desc)}${cellDetail(i, idx)}</td><td class="num">${money(i.amount)}</td></tr>`).join('');
     const headRow = isNew
       ? `<tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr>`
@@ -730,7 +826,7 @@ async function renderNewTicket() {
     const laborRow = (t.laborAmount > 0) ? `<tr><td>Labor${t.laborDesc ? ' — ' + esc(t.laborDesc) : ''}</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.laborAmount)}</td></tr>` : '';
     const taxRow = (t.taxAmount > 0) ? `<tr><td>Tax (${esc(t.taxRate)}%)</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(t.taxAmount)}</td></tr>` : '';
     const expensesRows = (t.expenses || []).map(e => `<tr><td>Mobile expense — ${esc(e.desc)}</td>${isNew ? '<td class="num"></td><td class="num"></td>' : ''}<td class="num">${money(e.amount)}</td></tr>`).join('');
-    const subRow = (isNew && (t.laborAmount > 0 || t.taxAmount > 0)) ? `<tr><td>Parts subtotal</td><td class="num"></td><td class="num"></td><td class="num">${money(t.subtotal)}</td></tr>` : '';
+    const subRow = (isNew && (t.laborAmount > 0 || t.taxAmount > 0)) ? `<tr><td>Subtotal</td><td class="num"></td><td class="num"></td><td class="num">${money(t.subtotal)}</td></tr>` : '';
     box.innerHTML = `
       ${t.type === 'receipt' ? '' : `<div class="noprint" style="text-align:right;margin-bottom:8px;min-height:1.2em"><span id="details-msg"></span></div>`}
       <div class="head">
