@@ -571,7 +571,7 @@ function renderActions() {
     loadLinkedInsp();
     return;
   }
-  let html = '<div class="card"><div id="linked-insp"></div>';
+  let html = '<div class="card"><div id="linked-insp"></div><p><button type="button" id="btn-add-insp">Add inspection</button></p>';
   if (T.type === 'estimate') {
     html += `<button type="button" id="btn-edit">Edit lines</button> <button type="button" id="btn-convert">Convert to invoice</button>`;
     html += `<div id="edit-form" hidden style="margin-top:16px">
@@ -625,6 +625,12 @@ function renderActions() {
   bindSend();
   bindCalendar();
   bindAppointments();
+  // Adding an inspection to this ticket starts here, like creating a
+  // new ticket does: the inspection form opens with this ticket
+  // preselected and its customer and vehicle filled in, ready to
+  // complete there.
+  const addInspBtn = document.getElementById('btn-add-insp');
+  if (addInspBtn) addInspBtn.onclick = () => { location.href = '/inspection.html?new=1&ticket=' + encodeURIComponent(T.id); };
   const editForm = document.getElementById('edit-form');
   if (editForm) {
     document.getElementById('btn-edit').onclick = () => {

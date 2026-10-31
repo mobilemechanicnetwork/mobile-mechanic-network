@@ -199,7 +199,7 @@ async function saveNewReport() {
   if (!customer) { setErr('Enter the customer name.'); return; }
   const veh = _newPpiVeh ? _newPpiVeh.vehicleString() : '';
   if (!veh) { setErr('Please pick the vehicle year, make, and model.'); return; }
-  const ticketSel = document.getElementById('new-ticket');
+  const ticketSel = document.getElementById('top-ticket');
   const ticketVal = ticketSel ? ticketSel.value : '';
   let createTicket = false;
   let ticketId = null;
@@ -234,14 +234,14 @@ async function saveNewReport() {
     }
     return { key: c.key, label: c.label, status: statusEl ? statusEl.value : '', urgency: document.getElementById('ppi-urg-' + i).value, detail, bands, photos: newPhotos[i] || [], notes: document.getElementById('ppi-n-' + i).value.trim() };
   });
-  const body = { kind: newKind(), customerName: customer, customerPhone: document.getElementById('new-phone').value, vehicle: veh, vin: document.getElementById('new-vin').value, mileage: document.getElementById('new-mileage').value, categories, generalNotes: document.getElementById('new-notes').value, ticketId, createTicket };
+  const body = { kind: newKind(), customerName: customer, customerPhone: document.getElementById('top-phone').value, vehicle: veh, vin: document.getElementById('new-vin').value, mileage: document.getElementById('new-mileage').value, categories, generalNotes: document.getElementById('new-notes').value, ticketId, createTicket };
   try {
     const r = await fetch('/api/ppi', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || 'Could not save.');
     const rep = d.report;
     const url = location.origin + '/inspection.html?id=' + rep.id + '&token=' + rep.shareToken;
-    const tel = String(document.getElementById('new-phone').value || '').replace(/[^+\d]/g, '');
+    const tel = String(document.getElementById('top-phone').value || '').replace(/[^+\d]/g, '');
     const box = document.getElementById('report');
     box.innerHTML = `<h2 style="margin-top:0">Inspection saved.</h2><p>Send this link to your customer:</p><p><a href="${esc(url)}" target="_blank">${esc(url)}</a></p>${d.savedToCustomerPortal ? `<p>This inspection also appears in your customer's portal.</p>` : ''}<p><button type="button" id="new-copy">Copy link</button>${tel ? ` <button type="button" id="new-text">Text link to customer</button>` : ''}</p><p><a href="${esc(url)}" target="_blank">View report →</a></p>${d.ticket ? `<p><a href="/ticket?id=${esc(d.ticket.id)}" target="_blank">Open ticket ${esc(d.ticket.label)} →</a></p>` : ''}`;
     document.querySelectorAll('.page.noprint').forEach(el => el.remove());
@@ -277,15 +277,13 @@ async function newReport() {
   const saveCard = document.createElement('div');
   saveCard.className = 'page noprint';
   saveCard.innerHTML = `
-    <div><label>Customer phone (optional, for texting the link)</label><input id="new-phone" class="w100" maxlength="30"></div>
-    <div><label>Attach to ticket (optional)</label><select id="new-ticket" style="width:100%"><option value="">No ticket — standalone inspection</option><option value="__new__">Create a new ticket for this inspection</option></select></div>
-    <p class="muted" style="margin:4px 0 0">Attach it to a ticket so the work can be charged, invoiced, and turned into a receipt. Choosing a ticket fills in its customer and vehicle. You price the inspection on the ticket.</p>
     <p><button type="button" id="new-save">Save inspection</button> <button type="button" class="ghost" id="new-cancel">Cancel</button></p>
     <div class="err" id="new-err"></div>`;
   box.after(saveCard);
   const qp = new URLSearchParams(location.search);
-  // Same save card at the top, mirrored with the bottom one, so the
-  // mechanic can attach a ticket before scrolling through the form.
+  // Phone and attach live only on the top card, so the mechanic can
+  // attach a ticket before scrolling through the form. The bottom card
+  // keeps just Save and Cancel.
   const topCard = document.createElement('div');
   topCard.className = 'page noprint';
   topCard.innerHTML = `
@@ -295,12 +293,8 @@ async function newReport() {
     <p><button type="button" id="top-save">Save inspection</button> <button type="button" class="ghost" id="top-cancel">Cancel</button></p>
     <div class="err" id="top-err"></div>`;
   box.before(topCard);
-  const ticketSel = document.getElementById('new-ticket');
   const topTicket = document.getElementById('top-ticket');
   const topPhone = document.getElementById('top-phone');
-  const botPhone = document.getElementById('new-phone');
-  topPhone.addEventListener('input', () => { botPhone.value = topPhone.value; });
-  botPhone.addEventListener('input', () => { topPhone.value = botPhone.value; });
   document.getElementById('top-save').onclick = saveNewReport;
   document.getElementById('top-cancel').onclick = () => { location.href = '/mechanic'; };
   // Work that would be lost by leaving the form: category findings,
@@ -320,7 +314,7 @@ async function newReport() {
   function goCreateTicket() {
     const params = new URLSearchParams({ addInspection: '1', kind: newKind() });
     const cust = document.getElementById('new-customer').value.trim();
-    const phone = botPhone.value.trim();
+    const phone = topPhone.value.trim();
     const veh = _newPpiVeh ? _newPpiVeh.vehicleString() : '';
     const vin = document.getElementById('new-vin').value.trim();
     const mile = document.getElementById('new-mileage').value.trim();
@@ -367,16 +361,15 @@ async function newReport() {
   }
   document.getElementById('new-cancel').onclick = () => { location.href = '/mechanic'; };
   document.getElementById('new-save').onclick = saveNewReport;
-  if (window.PhoneFmt) { window.PhoneFmt.attach(document.getElementById('new-phone')); window.PhoneFmt.attach(topPhone); }
+  if (window.PhoneFmt) { window.PhoneFmt.attach(topPhone); }
   // Ticket attachment: your unpaid tickets, plus create-new. A ?ticket=
   // link from a ticket creation preselects that ticket, and the ticket's
   // customer, phone, vehicle, VIN, and mileage prefill the form.
   if (qp.get('customer')) document.getElementById('new-customer').value = qp.get('customer');
-  if (qp.get('phone')) document.getElementById('new-phone').value = qp.get('phone');
+  if (qp.get('phone')) topPhone.value = qp.get('phone');
   if (qp.get('vin')) document.getElementById('new-vin').value = qp.get('vin');
   if (qp.get('mileage')) document.getElementById('new-mileage').value = qp.get('mileage');
   if (qp.get('vehicle') && _newPpiVeh) { try { await _newPpiVeh.setFromString(qp.get('vehicle')); } catch (e) {} }
-  topPhone.value = document.getElementById('new-phone').value;
   // Selecting a ticket fills the form from it: customer, phone, vehicle,
   // VIN, mileage. Fields the mechanic already typed are left alone;
   // fields filled from a previous ticket follow the newly selected one.
@@ -397,7 +390,7 @@ async function newReport() {
     };
     setIf(document.getElementById('new-customer'), 'customer', tk.customerName);
     const dispPhone = (window.PhoneFmt && window.PhoneFmt.display) ? window.PhoneFmt.display(tk.phone || '') : (tk.phone || '');
-    setIf(document.getElementById('new-phone'), 'phone', dispPhone);
+    setIf(topPhone, 'phone', dispPhone);
     setIf(document.getElementById('new-vin'), 'vin', tk.vin);
     setIf(document.getElementById('new-mileage'), 'mileage', tk.mileage);
     if (tk.vehicle && _newPpiVeh) {
@@ -406,15 +399,13 @@ async function newReport() {
         try { await _newPpiVeh.setFromString(tk.vehicle); _ticketFill.vehicle = _newPpiVeh.vehicleString() || tk.vehicle; } catch (e) {}
       }
     }
-    topPhone.value = document.getElementById('new-phone').value;
   }
   let _prevTicketVal = '';
-  ticketSel.addEventListener('change', async () => {
-    const v = ticketSel.value;
-    topTicket.value = v;
+  topTicket.addEventListener('change', async () => {
+    const v = topTicket.value;
     if (v === '__new__') {
       if (inspectionHasWork() && !confirm('You have unsaved inspection work. Creating a ticket first will leave this inspection and that work will be lost. Continue?')) {
-        ticketSel.value = _prevTicketVal; topTicket.value = _prevTicketVal;
+        topTicket.value = _prevTicketVal;
         return;
       }
       goCreateTicket();
@@ -423,7 +414,6 @@ async function newReport() {
     await fillFormFromTicket(v);
     _prevTicketVal = v;
   });
-  topTicket.addEventListener('change', () => { ticketSel.value = topTicket.value; ticketSel.dispatchEvent(new Event('change')); });
   try {
     const tr = await fetch('/api/tickets/me');
     const td = await tr.json().catch(() => ({}));
@@ -433,14 +423,10 @@ async function newReport() {
       const o = document.createElement('option');
       o.value = t.id;
       o.textContent = label;
-      ticketSel.appendChild(o);
-      const o2 = document.createElement('option');
-      o2.value = t.id;
-      o2.textContent = label;
-      topTicket.appendChild(o2);
+      topTicket.appendChild(o);
     });
     const want = qp.get('ticket');
-    if (want && [...ticketSel.options].some(o => o.value === want)) { ticketSel.value = want; ticketSel.dispatchEvent(new Event('change')); }
+    if (want && [...topTicket.options].some(o => o.value === want)) { topTicket.value = want; topTicket.dispatchEvent(new Event('change')); }
   } catch (e) {}
 }
 (async () => {
