@@ -328,6 +328,7 @@
           <li>Add each job as a main line, with its parts lines and its labor line underneath. The job line totals its parts and labor automatically. A labor line is hours times your labor rate.</li>
           <li>Add a tax rate and any mobile expenses and supplies, then check Text it to the customer if you want it sent.</li>
           <li>Tap Create ticket. A VIN is needed before a job can be marked paid. Note: when a customer accepts your quote, an invoice is already created for you, so you do not need to create one.</li>
+          <li>Tick "Also create an inspection" to open the inspection form for this job after the ticket saves, with the customer and vehicle already filled in.</li>
         </ol></div>
       </details>
       <details>
@@ -367,6 +368,7 @@
           <li>Type straight into the report: customer and vehicle, then each category: Good, Needs attention, or Fail, plus urgency, notes, and photos.</li>
           <li>Tap Save inspection, then send the customer the link with Copy link or Text link to customer.</li>
           <li>Reports are informational only. They show what concerns the vehicle is presenting now or may present soon.</li>
+          <li>Attach the inspection to a ticket so the work can be charged, invoiced, and turned into a receipt. From the ticket you can add repairs from the inspection's failed findings and price them there.</li>
         </ol></div>
       </details>
       <details>
@@ -1392,7 +1394,7 @@ async function loadInspections() {
     <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
     <div style="text-align:left"><strong>${esc(r.kind === 'complete' ? 'Complete vehicle inspection' : 'Pre-purchase inspection')}</strong>
     <div class="muted">${esc(r.customerName)} · ${esc(r.vehicle)} · ${r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ''}</div></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><a href="/inspection.html?id=${esc(r.id)}&token=${esc(r.shareToken)}" target="_blank">View report →</a><button type="button" class="ghost" onclick="copyInspLink(this, '${esc(r.id)}', '${esc(r.shareToken)}')">Copy link</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><a href="/inspection.html?id=${esc(r.id)}&token=${esc(r.shareToken)}" target="_blank">View report →</a>${r.ticketId ? `<a href="/ticket?id=${esc(r.ticketId)}" target="_blank">${r.ticketLabel ? 'Ticket ' + esc(r.ticketLabel) : 'Ticket'} →</a>` : ''}<button type="button" class="ghost" onclick="copyInspLink(this, '${esc(r.id)}', '${esc(r.shareToken)}')">Copy link</button></div>
     </div></div>`).join('')
       : '<p class="muted">No inspections yet. Saved inspections will show up here.</p>';
   } catch (e) { box.innerHTML = '<p class="muted">Could not load inspections.</p>'; }

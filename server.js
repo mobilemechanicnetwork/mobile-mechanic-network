@@ -1719,7 +1719,7 @@ const server = http.createServer(async (req, res) => {
       if (mechanicFrozen(user)) return frozenError(res);
       const biz = myBusiness(user.id);
       if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
-      const { customerName, customerPhone, vehicle, vin, mileage, categories, generalNotes, kind } = await parseBody(req);
+      const { customerName, customerPhone, vehicle, vin, mileage, categories, generalNotes, kind, ticketId, createTicket } = await parseBody(req);
       if (kind !== undefined && kind !== 'ppi' && kind !== 'complete')
         return sendJson(res, 400, { error: 'Unknown inspection type.' });
       if (!customerName || !String(customerName).trim() || !vehicle || !String(vehicle).trim())
@@ -1729,11 +1729,34 @@ const server = http.createServer(async (req, res) => {
         cleanVinValue = cleanVin(vin);
         if (!cleanVinValue) return sendJson(res, 400, { error: 'VIN must be 17 characters (letters and numbers, no I, O, or Q).' });
       }
+      // Optional ticket attachment: an existing unpaid ticket of this
+      // business, or a fresh estimate ticket built from the inspection
+      // itself. The mechanic prices the inspection on the ticket; no
+      // owner notice or text goes out for the blank estimate, the
+      // mechanic sends the ticket once it is priced.
+      let linkedTicket = null;
+      if (createTicket) {
+        const tickets = ticketsStore.read();
+        const number = nextTicketNumber(biz.id, tickets);
+        let ticketMileage = '';
+        if (mileage !== undefined && mileage !== null && String(mileage).trim() !== '') {
+          const m = Number(String(mileage).replace(/[^0-9]/g, ''));
+          if (Number.isFinite(m) && m >= 0 && m <= 9999999) ticketMileage = m;
+        }
+        linkedTicket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type: 'estimate', number, label: businessAbbrev(biz.name) + '-' + number, customerName: String(customerName).trim().slice(0, 120), phone: String(customerPhone || '').trim().slice(0, 30), vehicle: String(vehicle).trim().slice(0, 120), vin: cleanVinValue, mileage: ticketMileage, items: [], laborDesc: '', laborAmount: 0, taxRate: 0, subtotal: 0, taxAmount: 0, expenses: [], expensesTotal: 0, total: 0, notes: '', warranty: biz.warranty ? String(biz.warranty).slice(0, 2000) : '', jobAddress: '', requestId: null, createdAt: new Date().toISOString() };
+        tickets.push(linkedTicket); ticketsStore.write(tickets);
+      } else if (ticketId) {
+        const t = ticketsStore.read().find(x => x.id === String(ticketId));
+        if (!t || t.businessId !== biz.id) return sendJson(res, 400, { error: 'That ticket was not found.' });
+        if (t.type === 'receipt') return sendJson(res, 400, { error: 'That ticket is already paid, so nothing more can be charged to it.' });
+        linkedTicket = t;
+      }
       const rows = ppiStore.read();
       const row = {
         id: crypto.randomUUID(), shareToken: crypto.randomBytes(16).toString('hex'),
         kind: kind === 'complete' ? 'complete' : 'ppi',
         businessId: biz.id, mechanicId: user.id,
+        ticketId: linkedTicket ? linkedTicket.id : null,
         customerName: String(customerName).trim(), customerPhone: String(customerPhone || '').trim().slice(0, 30),
         vehicle: String(vehicle).trim().slice(0, 120), vin: cleanVinValue,
         mileage: String(mileage || '').trim().slice(0, 20),
@@ -1743,14 +1766,15 @@ const server = http.createServer(async (req, res) => {
       };
       rows.push(row); ppiStore.write(rows);
       const savedToCustomerPortal = !!row.customerPhone && !!ownerByPhone(row.customerPhone);
-      return sendJson(res, 201, { report: row, savedToCustomerPortal });
+      return sendJson(res, 201, { report: row, savedToCustomerPortal, ticket: linkedTicket ? { id: linkedTicket.id, label: linkedTicket.label } : null });
     }
     if (p === '/api/ppi' && req.method === 'GET') {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const tickets = ticketsStore.read();
       const mine = ppiStore.read().filter(r => r.mechanicId === user.id)
-        .map(r => ({ id: r.id, shareToken: r.shareToken, kind: r.kind || 'ppi', customerName: r.customerName, vehicle: r.vehicle, createdAt: r.createdAt }))
+        .map(r => { const t = r.ticketId ? tickets.find(x => x.id === r.ticketId) : null; return { id: r.id, shareToken: r.shareToken, kind: r.kind || 'ppi', customerName: r.customerName, vehicle: r.vehicle, createdAt: r.createdAt, ticketId: r.ticketId || null, ticketLabel: t ? t.label : null }; })
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       return sendJson(res, 200, { reports: mine });
     }
@@ -1802,12 +1826,63 @@ const server = http.createServer(async (req, res) => {
       rows.splice(idx, 1); ppiStore.write(rows);
       return sendJson(res, 200, {});
     }
+    // Add one inspection finding as a repair line on the attached ticket.
+    // Estimates take the line directly (the mechanic prices it in Edit
+    // lines). Invoices from an accepted quote take it as a draft estimate
+    // line for customer approval; the $0 placeholder survives in the
+    // draft until the mechanic prices it, and a sent estimate still
+    // requires priced lines, so a $0 line can never reach the customer.
+    // Manual invoices have no estimate path (invoice prices are locked),
+    // so they cannot take repair lines at all.
+    const ppiAddRepair = p.match(/^\/api\/ppi\/([0-9a-f-]+)\/add-repair$/);
+    if (ppiAddRepair && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
+      const rows = ppiStore.read();
+      const row = rows.find(r => r.id === ppiAddRepair[1] && r.mechanicId === user.id);
+      if (!row) return sendJson(res, 404, { error: 'Not found.' });
+      const { categoryKey } = await parseBody(req);
+      const cat = (row.categories || []).find(c => c.key === String(categoryKey));
+      if (!cat) return sendJson(res, 400, { error: 'That inspection item was not found.' });
+      if (cat.status !== 'fail' && cat.status !== 'needs_attention') return sendJson(res, 400, { error: 'Only failed or needs-attention items can be added as repairs.' });
+      if (!row.ticketId) return sendJson(res, 400, { error: 'Attach this inspection to a ticket first.' });
+      const tickets = ticketsStore.read();
+      const t = tickets.find(x => x.id === row.ticketId);
+      if (!t || t.mechanicId !== user.id) return sendJson(res, 400, { error: 'That ticket was not found.' });
+      if (t.type === 'receipt') return sendJson(res, 400, { error: 'That ticket is already paid, so repairs cannot be added to it.' });
+      const added = row.addedRepairs || [];
+      if (added.includes(cat.key)) return sendJson(res, 400, { error: 'That repair was already added to the ticket.' });
+      const detailEntries = Object.entries(cat.detail || {});
+      const summary = cat.notes ? (cat.label + ': ' + cat.notes) : (detailEntries.length ? (cat.label + ': ' + detailEntries[0][0] + ' ' + detailEntries[0][1]) : cat.label);
+      const desc = String(summary).slice(0, 200);
+      const r2 = n => Math.round(n * 100) / 100;
+      if (t.type === 'estimate') {
+        t.items = [...(t.items || []), { desc, qty: 1, price: 0, hours: 0, parts: 0, partLines: [], laborLine: null }];
+        const parts = r2(t.items.reduce((s, it) => s + ticketItemTotal(it), 0));
+        t.subtotal = parts;
+        t.taxAmount = r2(r2(parts + (t.laborAmount || 0)) * (t.taxRate || 0) / 100);
+        t.total = r2(parts + (t.laborAmount || 0) + t.taxAmount + (t.expensesTotal || 0));
+      } else if (t.type === 'invoice') {
+        if (!t.requestId) return sendJson(res, 400, { error: 'This invoice is locked. Add repairs to the estimate before converting it to an invoice.' });
+        if (t.estimateStatus === 'pending') return sendJson(res, 409, { error: 'An estimate is already awaiting approval for this job.' });
+        t.estimateLines = [...(t.estimateLines || []), { desc, price: 0 }];
+        t.estimateStatus = 'draft';
+      } else {
+        return sendJson(res, 400, { error: 'Repairs cannot be added to this ticket.' });
+      }
+      row.addedRepairs = [...added, cat.key];
+      ticketsStore.write(tickets); ppiStore.write(rows);
+      return sendJson(res, 200, { ticket: t, inspection: row });
+    }
     if (p === '/api/ppi/public' && req.method === 'GET') {
       const id = String(url.searchParams.get('id') || ''), token = String(url.searchParams.get('token') || '');
       const row = ppiStore.read().find(r => r.id === id && r.shareToken === token);
       if (!row) return sendJson(res, 404, { error: 'Report not found.' });
       const biz = businessesStore.read().find(b => b.id === row.businessId);
-      return sendJson(res, 200, { report: row, business: biz ? publicBusiness(biz) : null });
+      const t = row.ticketId ? ticketsStore.read().find(x => x.id === row.ticketId) : null;
+      return sendJson(res, 200, { report: row, business: biz ? publicBusiness(biz) : null, ticketLabel: t ? t.label : null });
     }
     if (p === '/api/upload' && req.method === 'POST') {
       const user = getSessionUser(req);

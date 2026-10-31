@@ -458,17 +458,72 @@ function bindLineWorkDetails() {
     });
   });
 }
+/* ---------- Linked inspections: findings feed repair lines ---------- */
+function inspFindingSummary(c) {
+  const entries = Object.entries(c.detail || {});
+  const s = c.notes ? (c.label + ': ' + c.notes) : (entries.length ? (c.label + ': ' + entries[0][0] + ' ' + entries[0][1]) : c.label);
+  return String(s).slice(0, 200);
+}
+async function loadLinkedInsp() {
+  const box = document.getElementById('linked-insp');
+  if (!box || !T) return;
+  let list = [];
+  try { const d = await api('/api/ppi'); list = (d.reports || []).filter(r => r.ticketId === T.id); } catch (e) {}
+  if (!list.length) { box.innerHTML = ''; return; }
+  let html = '';
+  for (const r of list) {
+    let full = null;
+    try { const d = await api('/api/ppi/' + r.id); full = d.report || null; } catch (e) {}
+    const kindLabel = r.kind === 'complete' ? 'Complete vehicle inspection' : 'Pre-purchase inspection';
+    const url = '/inspection.html?id=' + encodeURIComponent(r.id) + '&token=' + encodeURIComponent(r.shareToken);
+    html += `<div style="margin-bottom:16px"><h3 style="margin:0 0 6px">Linked inspection</h3><p style="margin:0 0 8px"><a href="${url}" target="_blank">${esc(kindLabel)} — ${esc(r.vehicle)} →</a></p>`;
+    if (T.type !== 'receipt' && full) {
+      const added = full.addedRepairs || [];
+      const findings = (full.categories || []).filter(c => c.status === 'fail' || c.status === 'needs_attention');
+      if (!findings.length) {
+        html += `<p class="muted" style="margin:0">No failed or needs-attention items on this inspection.</p>`;
+      } else {
+        if (T.type === 'invoice' && !T.requestId) html += `<p class="muted" style="margin:0 0 8px">This invoice is locked. Add repairs to the estimate before converting it to an invoice.</p>`;
+        else if (T.type === 'invoice' && T.estimateStatus === 'pending') html += `<p class="muted" style="margin:0 0 8px">An estimate is already awaiting approval. Add more repairs once the customer has decided.</p>`;
+        else html += `<p class="muted" style="margin:0 0 8px">Add repairs from the inspection findings. Each one lands on the ticket for you to price.</p>`;
+        const canAdd = !((T.type === 'invoice' && !T.requestId) || (T.type === 'invoice' && T.estimateStatus === 'pending'));
+        html += findings.map(c => {
+          const pill = c.status === 'fail'
+            ? '<span style="background:#fee2e2;color:#991b1b;font-weight:700;font-size:.75rem;padding:2px 8px;border-radius:6px">Fail</span>'
+            : '<span style="background:#fef08a;color:#854d0e;font-weight:700;font-size:.75rem;padding:2px 8px;border-radius:6px">Needs attention</span>';
+          const done = added.includes(c.key);
+          const action = !canAdd ? '' : (done ? '<span class="ok">Added ✓</span>' : `<button type="button" class="ghost" onclick="addRepairFromInspection('${r.id}','${esc(c.key)}',this)">${T.type === 'invoice' ? 'Add to estimate' : 'Add to ticket'}</button>`);
+          return `<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #e2e8f0;align-items:center"><span>${pill} ${esc(inspFindingSummary(c))}</span>${action}</div>`;
+        }).join('');
+      }
+    }
+    html += `</div>`;
+  }
+  box.innerHTML = html;
+}
+window.addRepairFromInspection = async (inspId, key, btn) => {
+  if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
+  try {
+    await api('/api/ppi/' + inspId + '/add-repair', { categoryKey: key });
+    if (T.type === 'estimate') { try { sessionStorage.setItem('mmn_open_edit', '1'); } catch (e) {} }
+    location.reload();
+  } catch (e) {
+    alert(e.message);
+    if (btn) { btn.disabled = false; btn.textContent = T.type === 'invoice' ? 'Add to estimate' : 'Add to ticket'; }
+  }
+};
 function renderActions() {
   const box = document.getElementById('ticket-actions');
   if (!T) { box.innerHTML = ''; return; }
   if (T.type === 'receipt') {
     // No separate paid note: the receipt document itself already says
     // "Paid in full" with a $0.00 balance.
-    box.innerHTML = sendHtml();
+    box.innerHTML = '<div id="linked-insp"></div>' + sendHtml();
     bindSend();
+    loadLinkedInsp();
     return;
   }
-  let html = '<div class="card">';
+  let html = '<div class="card"><div id="linked-insp"></div>';
   if (T.type === 'estimate') {
     html += `<button type="button" id="btn-edit">Edit lines</button> <button type="button" id="btn-convert">Convert to invoice</button>`;
     html += `<div id="edit-form" hidden style="margin-top:16px">
@@ -608,6 +663,16 @@ function renderActions() {
       catch (e) { alert(e.message); }
     };
   }
+  loadLinkedInsp();
+  // After adding a repair to an estimate, land straight in Edit lines so
+  // the mechanic can price the new line.
+  try {
+    if (sessionStorage.getItem('mmn_open_edit')) {
+      sessionStorage.removeItem('mmn_open_edit');
+      const be = document.getElementById('btn-edit');
+      if (be) be.click();
+    }
+  } catch (e) {}
 }
 /* ---------- New ticket: type straight into the branded document ----------
    /ticket?new=1 renders the same branded document the customer will see,
@@ -732,7 +797,12 @@ async function saveNewTicket() {
     const r = await fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || 'Could not create the ticket.');
-    location.href = '/ticket?id=' + d.ticket.id;
+    if ($n('new-add-insp') && $n('new-add-insp').checked) {
+      const q = new URLSearchParams({ ticket: d.ticket.id, customer, phone: $n('new-cust-phone').value, vehicle: veh, vin: $n('new-vin').value, mileage: $n('new-mileage').value });
+      location.href = '/inspection.html?new=1&' + q.toString();
+    } else {
+      location.href = '/ticket?id=' + d.ticket.id;
+    }
   } catch (e) { err.textContent = e.message; }
 }
 async function renderNewTicket() {
@@ -803,6 +873,8 @@ async function renderNewTicket() {
   actions.innerHTML = `<div class="card">
     <label style="display:block"><input type="checkbox" id="new-send-text" checked> Text it to the customer</label>
     <p class="muted" style="margin:4px 0 0">Texting needs the phone number on the ticket above, and texting set up. Customers with an account are also notified in their dashboard automatically. After saving, the ticket opens with the Share PDF button.</p>
+    <label style="display:block;margin-top:10px"><input type="checkbox" id="new-add-insp"> Also create an inspection for this job</label>
+    <p class="muted" style="margin:4px 0 0">After the ticket saves, the inspection form opens with this customer and vehicle already filled in, and the inspection is attached to this ticket.</p>
     <p style="margin-top:14px"><button type="button" id="new-save">Create ticket</button> <button type="button" class="ghost" id="new-cancel">Cancel</button></p>
     <div class="err" id="new-err"></div></div>`;
   $n('new-cancel').onclick = () => { location.href = '/mechanic'; };
