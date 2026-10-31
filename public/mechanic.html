@@ -236,7 +236,7 @@
   <section class="tab" id="tab-tickets">
     <h2>Job tickets</h2>
     <p class="muted">Create estimates, invoices, and receipts branded with your logo and contact info. Open a ticket to print or save it as a PDF. Booked jobs live here once they have a ticket.</p>
-    <p style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" type="button" id="t-new">Create new ticket</button> <button class="primary" type="button" id="t-new-insp">Create an inspection</button></p>
+    <p style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" type="button" id="t-new">Create new ticket</button></p>
     <div id="waiting-wrap">
     <h3 style="margin-top:28px">Booked jobs waiting for a ticket</h3>
     <p class="muted">These customers accepted your quote, but no ticket exists yet. Create one to start the paperwork.</p>
@@ -361,14 +361,14 @@
         </ol></div>
       </details>
       <details>
-        <summary>Create an inspection</summary>
+        <summary>Add an inspection to a ticket</summary>
         <div class="help-body"><ol>
-          <li>Open the Job tickets tab and tap Create an inspection. The inspection page opens as the branded report your customer will see.</li>
+          <li>Open a ticket and tap Add inspection. The inspection page opens with that ticket selected and its customer and vehicle filled in.</li>
           <li>Pick Pre-purchase inspection or Complete vehicle inspection.</li>
           <li>Type straight into the report: customer and vehicle, then each category: Good, Needs attention, or Fail, plus urgency, notes, and photos.</li>
           <li>Tap Save inspection, then send the customer the link with Copy link or Text link to customer.</li>
           <li>Reports are informational only. They show what concerns the vehicle is presenting now or may present soon.</li>
-          <li>Attach the inspection to a ticket so the work can be charged, invoiced, and turned into a receipt. From the ticket you can add repairs from the inspection's failed findings and price them there.</li>
+          <li>The inspection is priced on its ticket as one flat price, not labor or parts. From the ticket you can add repairs from the inspection's failed findings and price them there.</li>
         </ol></div>
       </details>
       <details>
@@ -1352,10 +1352,9 @@ $('g-upload').onclick = async () => {
 };
 
 /* ---------- Tickets ---------- */
-// Creating a ticket or inspection opens its own branded page, and the
+// Creating a ticket opens its own branded page, and the
 // mechanic types straight into the document the customer will see.
 $('t-new').onclick = () => { location.href = '/ticket?new=1'; };
-$('t-new-insp').onclick = () => { location.href = '/inspection.html?new=1'; };
 // From a Customers card: open the new-ticket page with this customer's
 // name, phone, and first vehicle on the card prefilled.
 window.createTicketForCustomer = (i) => {

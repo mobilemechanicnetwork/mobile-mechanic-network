@@ -201,6 +201,8 @@ async function saveNewReport() {
   if (!veh) { setErr('Please pick the vehicle year, make, and model.'); return; }
   const ticketSel = document.getElementById('top-ticket');
   const ticketVal = ticketSel ? ticketSel.value : '';
+  // Inspections only live on tickets: no ticket picked means no save.
+  if (!ticketVal) { setErr('Pick a ticket for this inspection, or create a new ticket.'); return; }
   let createTicket = false;
   let ticketId = null;
   if (ticketVal === '__new__') createTicket = true;
@@ -288,7 +290,7 @@ async function newReport() {
   topCard.className = 'page noprint';
   topCard.innerHTML = `
     <div><label>Customer phone (optional, for texting the link)</label><input id="top-phone" class="w100" maxlength="30"></div>
-    <div><label>Attach to ticket (optional)</label><select id="top-ticket" style="width:100%"><option value="">No ticket — standalone inspection</option><option value="__new__">Create a new ticket for this inspection</option></select></div>
+    <div><label>Attach to ticket</label><select id="top-ticket" style="width:100%"><option value="">Select a ticket</option><option value="__new__">Create a new ticket for this inspection</option></select></div>
     <p class="muted" style="margin:4px 0 0">Attach it to a ticket so the work can be charged, invoiced, and turned into a receipt. Choosing a ticket fills in its customer and vehicle. You price the inspection on the ticket.</p>
     <p><button type="button" id="top-save">Save inspection</button> <button type="button" class="ghost" id="top-cancel">Cancel</button></p>
     <div class="err" id="top-err"></div>`;
