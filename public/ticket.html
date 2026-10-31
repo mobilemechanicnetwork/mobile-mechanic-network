@@ -859,6 +859,8 @@ async function renderNewTicket() {
   }
   const preVin = qp.get('vin');
   if (preVin) $n('new-vin').value = preVin;
+  const preMileage = qp.get('mileage');
+  if (preMileage) $n('new-mileage').value = preMileage;
   if (window.PhoneFmt) { window.PhoneFmt.attach($n('new-cust-phone')); }
   const jobTypeEl = $n('new-job-type');
   const jobNameCell = $n('new-job-name-cell');
@@ -879,6 +881,9 @@ async function renderNewTicket() {
     <div class="err" id="new-err"></div></div>`;
   $n('new-cancel').onclick = () => { location.href = '/mechanic'; };
   $n('new-save').onclick = saveNewTicket;
+  // An inspection that sent the mechanic here (?addInspection=1) has its
+  // box already checked, so saving the ticket brings the inspection back.
+  if (qp.get('addInspection') && $n('new-add-insp')) $n('new-add-insp').checked = true;
   bindAutogrow(box);
   newTicketTotals();
 }

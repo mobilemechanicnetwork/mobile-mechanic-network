@@ -192,11 +192,13 @@ function renderNewCats() {
 }
 async function saveNewReport() {
   const err = document.getElementById('new-err');
-  err.textContent = '';
+  const errTop = document.getElementById('top-err');
+  const setErr = m => { err.textContent = m; if (errTop) errTop.textContent = m; };
+  setErr('');
   const customer = document.getElementById('new-customer').value.trim();
-  if (!customer) { err.textContent = 'Enter the customer name.'; return; }
+  if (!customer) { setErr('Enter the customer name.'); return; }
   const veh = _newPpiVeh ? _newPpiVeh.vehicleString() : '';
-  if (!veh) { err.textContent = 'Please pick the vehicle year, make, and model.'; return; }
+  if (!veh) { setErr('Please pick the vehicle year, make, and model.'); return; }
   const ticketSel = document.getElementById('new-ticket');
   const ticketVal = ticketSel ? ticketSel.value : '';
   let createTicket = false;
@@ -205,7 +207,7 @@ async function saveNewReport() {
   else if (ticketVal) {
     ticketId = ticketVal;
     const picked = (window._attachTickets || []).find(t => t.id === ticketVal);
-    if (picked && picked.customerName && picked.customerName.trim().toLowerCase() !== customer.toLowerCase()) { err.textContent = 'That ticket belongs to a different customer.'; return; }
+    if (picked && picked.customerName && picked.customerName.trim().toLowerCase() !== customer.toLowerCase()) { setErr('That ticket belongs to a different customer.'); return; }
   }
   const categories = newCatsFor(newKind()).map((c, i) => {
     const statusEl = document.querySelector('input[name="ppi-status-' + i + '"]:checked');
@@ -247,7 +249,7 @@ async function saveNewReport() {
     if (tb) tb.onclick = () => { window.location.href = 'sms:' + tel + '?body=' + encodeURIComponent('Your vehicle inspection report: ' + url); };
     document.getElementById('new-copy').onclick = async () => { try { await navigator.clipboard.writeText(url); document.getElementById('new-copy').textContent = 'Copied'; } catch (_) { alert(url); } };
     window.scrollTo(0, 0);
-  } catch (e) { err.textContent = e.message; }
+  } catch (e) { setErr(e.message); }
 }
 async function newReport() {
   const box = document.getElementById('report');
@@ -281,6 +283,54 @@ async function newReport() {
     <p><button type="button" id="new-save">Save inspection</button> <button type="button" class="ghost" id="new-cancel">Cancel</button></p>
     <div class="err" id="new-err"></div>`;
   box.after(saveCard);
+  const qp = new URLSearchParams(location.search);
+  // Same save card at the top, mirrored with the bottom one, so the
+  // mechanic can attach a ticket before scrolling through the form.
+  const topCard = document.createElement('div');
+  topCard.className = 'page noprint';
+  topCard.innerHTML = `
+    <div><label>Customer phone (optional, for texting the link)</label><input id="top-phone" class="w100" maxlength="30"></div>
+    <div><label>Attach to ticket (optional)</label><select id="top-ticket" style="width:100%"><option value="">No ticket — standalone inspection</option><option value="__new__">Create a new ticket for this inspection</option></select></div>
+    <p class="muted" style="margin:4px 0 0">Attach it to a ticket so the work can be charged, invoiced, and turned into a receipt. Choosing a ticket fills in its customer and vehicle. You price the inspection on the ticket.</p>
+    <p><button type="button" id="top-save">Save inspection</button> <button type="button" class="ghost" id="top-cancel">Cancel</button></p>
+    <div class="err" id="top-err"></div>`;
+  box.before(topCard);
+  const ticketSel = document.getElementById('new-ticket');
+  const topTicket = document.getElementById('top-ticket');
+  const topPhone = document.getElementById('top-phone');
+  const botPhone = document.getElementById('new-phone');
+  topPhone.addEventListener('input', () => { botPhone.value = topPhone.value; });
+  botPhone.addEventListener('input', () => { topPhone.value = botPhone.value; });
+  document.getElementById('top-save').onclick = saveNewReport;
+  document.getElementById('top-cancel').onclick = () => { location.href = '/mechanic'; };
+  // Work that would be lost by leaving the form: category findings,
+  // notes, and photos. Header fields are preserved: they travel to the
+  // ticket as URL parameters and come back with it.
+  function inspectionHasWork() {
+    if (document.getElementById('new-notes').value.trim()) return true;
+    if (document.querySelector('input[name^="ppi-status-"]:checked')) return true;
+    if ([...document.querySelectorAll('textarea[id^="ppi-n-"]')].some(t => t.value.trim())) return true;
+    if ([...document.querySelectorAll('input[id^="ppi-f-"]')].some(t => t.value.trim())) return true;
+    if (document.querySelector('input[id^="ppi-spare-missing-"]:checked')) return true;
+    if (document.querySelector('.extra-tire')) return true;
+    if (typeof newPhotos !== 'undefined' && Object.values(newPhotos).some(a => a && a.length)) return true;
+    if (typeof newBands !== 'undefined' && Object.keys(newBands).length) return true;
+    return false;
+  }
+  function goCreateTicket() {
+    const params = new URLSearchParams({ addInspection: '1', kind: newKind() });
+    const cust = document.getElementById('new-customer').value.trim();
+    const phone = botPhone.value.trim();
+    const veh = _newPpiVeh ? _newPpiVeh.vehicleString() : '';
+    const vin = document.getElementById('new-vin').value.trim();
+    const mile = document.getElementById('new-mileage').value.trim();
+    if (cust) params.set('customer', cust);
+    if (phone) params.set('phone', phone);
+    if (veh) params.set('vehicle', veh);
+    if (vin) params.set('vin', vin);
+    if (mile) params.set('mileage', mile);
+    location.href = '/ticket?new=1&' + params.toString();
+  }
   box.innerHTML = `
     <div class="head">
       ${b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
@@ -307,25 +357,31 @@ async function newReport() {
     renderNewCats();
   }));
   renderNewCats();
+  // A ticket creation that came from here (?kind=) keeps the kind picked.
+  if (qp.get('kind') === 'complete') {
+    const cr = document.querySelector('input[name="new-kind"][value="complete"]');
+    if (cr) { cr.checked = true; cr.dispatchEvent(new Event('change')); }
+  }
   if (window.VehiclePicker) {
     _newPpiVeh = VehiclePicker.attach({ year: 'new-year', make: 'new-make', model: 'new-model', type: 'new-veh-type', allowedTypes: ['car', 'commercial'] });
   }
   document.getElementById('new-cancel').onclick = () => { location.href = '/mechanic'; };
   document.getElementById('new-save').onclick = saveNewReport;
-  if (window.PhoneFmt) { window.PhoneFmt.attach(document.getElementById('new-phone')); }
+  if (window.PhoneFmt) { window.PhoneFmt.attach(document.getElementById('new-phone')); window.PhoneFmt.attach(topPhone); }
   // Ticket attachment: your unpaid tickets, plus create-new. A ?ticket=
   // link from a ticket creation preselects that ticket, and the ticket's
   // customer, phone, vehicle, VIN, and mileage prefill the form.
-  const qp = new URLSearchParams(location.search);
   if (qp.get('customer')) document.getElementById('new-customer').value = qp.get('customer');
   if (qp.get('phone')) document.getElementById('new-phone').value = qp.get('phone');
   if (qp.get('vin')) document.getElementById('new-vin').value = qp.get('vin');
   if (qp.get('mileage')) document.getElementById('new-mileage').value = qp.get('mileage');
   if (qp.get('vehicle') && _newPpiVeh) { try { await _newPpiVeh.setFromString(qp.get('vehicle')); } catch (e) {} }
-  const ticketSel = document.getElementById('new-ticket');
+  topPhone.value = document.getElementById('new-phone').value;
   // Selecting a ticket fills the form from it: customer, phone, vehicle,
   // VIN, mileage. Fields the mechanic already typed are left alone;
   // fields filled from a previous ticket follow the newly selected one.
+  // "Create a new ticket" instead sends the mechanic to build the ticket;
+  // the ticket creation then brings the inspection back, attached to it.
   let _ticketFill = {};
   async function fillFormFromTicket(ticketId) {
     if (!ticketId || ticketId === '__new__') return;
@@ -350,17 +406,38 @@ async function newReport() {
         try { await _newPpiVeh.setFromString(tk.vehicle); _ticketFill.vehicle = _newPpiVeh.vehicleString() || tk.vehicle; } catch (e) {}
       }
     }
+    topPhone.value = document.getElementById('new-phone').value;
   }
-  ticketSel.addEventListener('change', () => { fillFormFromTicket(ticketSel.value); });
+  let _prevTicketVal = '';
+  ticketSel.addEventListener('change', async () => {
+    const v = ticketSel.value;
+    topTicket.value = v;
+    if (v === '__new__') {
+      if (inspectionHasWork() && !confirm('You have unsaved inspection work. Creating a ticket first will leave this inspection and that work will be lost. Continue?')) {
+        ticketSel.value = _prevTicketVal; topTicket.value = _prevTicketVal;
+        return;
+      }
+      goCreateTicket();
+      return;
+    }
+    await fillFormFromTicket(v);
+    _prevTicketVal = v;
+  });
+  topTicket.addEventListener('change', () => { ticketSel.value = topTicket.value; ticketSel.dispatchEvent(new Event('change')); });
   try {
     const tr = await fetch('/api/tickets/me');
     const td = await tr.json().catch(() => ({}));
     window._attachTickets = (td.tickets || []).filter(t => t.type !== 'receipt');
     window._attachTickets.forEach(t => {
+      const label = `${t.label || 'Ticket'} · ${t.customerName || ''} · ${t.vehicle || ''} (${t.type === 'estimate' ? 'Estimate' : 'Invoice'})`;
       const o = document.createElement('option');
       o.value = t.id;
-      o.textContent = `${t.label || 'Ticket'} · ${t.customerName || ''} · ${t.vehicle || ''} (${t.type === 'estimate' ? 'Estimate' : 'Invoice'})`;
+      o.textContent = label;
       ticketSel.appendChild(o);
+      const o2 = document.createElement('option');
+      o2.value = t.id;
+      o2.textContent = label;
+      topTicket.appendChild(o2);
     });
     const want = qp.get('ticket');
     if (want && [...ticketSel.options].some(o => o.value === want)) { ticketSel.value = want; ticketSel.dispatchEvent(new Event('change')); }
