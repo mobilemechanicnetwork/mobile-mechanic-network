@@ -424,12 +424,6 @@
       .founder-grid p:last-child { margin-bottom: 0; }
 
       /* ---------- Nationwide ---------- */
-      .nation-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 18px;
-        margin-top: 8px;
-      }
       .nation-card {
         border: 1px solid rgba(255, 255, 255, 0.16);
         border-radius: 12px;
@@ -786,7 +780,6 @@
       @media (max-width: 720px) {
         section { padding: 48px 0; }
         .steps-grid, .plans, .founder-grid, .promise-grid { grid-template-columns: 1fr; }
-        .nation-grid { grid-template-columns: 1fr; }
         .tour-item { grid-template-columns: 1fr; gap: 22px; padding: 30px 0; }
         .flow { grid-template-columns: 1fr; }
         .flow-arrow { transform: rotate(90deg); }
@@ -910,50 +903,8 @@
 
       <section class="alt">
         <div class="wrap">
-          <div class="section-head">
-            <h2>Why the network works for you</h2>
-            <p>Most ways of getting work take something off the top of yours: a cut of the job, a fee for the lead, a bill for the advertising. Mobile Mechanic Network was built the other way around.</p>
-          </div>
-          <ol class="why-list">
-            <li>
-              <span class="num">01</span>
-              <div>
-                <h3>Keep 100 percent of every job</h3>
-                <p>What you quote is what you earn. The network takes no percentage of your labor, your parts, or your invoice total. Your money stays your money.</p>
-              </div>
-            </li>
-            <li>
-              <span class="num">02</span>
-              <div>
-                <h3>Set your own prices, always</h3>
-                <p>Every quote that leaves your account carries your number. There is no platform price book and no house rate undercutting you. You price the job the way you see it.</p>
-              </div>
-            </li>
-            <li>
-              <span class="num">03</span>
-              <div>
-                <h3>No paying for leads, ever</h3>
-                <p>Quote requests come to you because you are a member, not because you bought them. There are no lead fees, no per quote charges, no per click or per phone call charges, and no commissions on the jobs you win. Your subscription is the only thing you ever pay, and the first 60 days are free.</p>
-              </div>
-            </li>
-            <li>
-              <span class="num">04</span>
-              <div>
-                <h3>Your customers pay nothing to use it</h3>
-                <p>Vehicle owners are never charged a fee: not to request a quote, not to compare mechanics, not to book. They pay you directly for the work, and the platform takes nothing from either side of the job.</p>
-              </div>
-            </li>
-            <li>
-              <span class="num">05</span>
-              <div>
-                <h3>We do the advertising, you do the work</h3>
-                <p>Your business profile is your storefront on the network. You get a platform to showcase your business without an ad budget of your own.</p>
-              </div>
-            </li>
-          </ol>
-
           <div class="compare" role="img" aria-label="Comparison: on the same job, a traditional shop takes a cut and a lead service charges per lead, while on Mobile Mechanic Network you keep 100 percent of the job.">
-            <h3>The same job, three ways</h3>
+            <h2>The same job, three ways</h2>
             <p class="compare-sub">Take one job, quoted at the mechanic's own price. Here is what happens to that money depending on where the job came from.</p>
             <div class="compare-rows">
               <div class="compare-row">
@@ -976,33 +927,7 @@
         </div>
       </section>
 
-      <section class="navy-band">
-        <div class="wrap">
-          <div class="section-head">
-            <h2>We bring the customers to you</h2>
-            <p>Finding work should not be a second job. Quote requests from vehicle owners come straight to you by text message. No chasing leads, no paying for leads, no refreshing a job board all day.</p>
-          </div>
-          <div class="flow">
-            <div class="flow-step">
-              <span class="f-num">STEP ONE</span>
-              <h3>We do the advertising</h3>
-              <p>The network advertises to vehicle owners, and they come to the platform looking for a mobile mechanic in their area.</p>
-            </div>
-            <div class="flow-arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
-            <div class="flow-step">
-              <span class="f-num">STEP TWO</span>
-              <h3>The request lands on your phone</h3>
-              <p>When an owner's job matches your services and service area, or they pick you straight from your profile, you get a text message right away.</p>
-            </div>
-            <div class="flow-arrow"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
-            <div class="flow-step">
-              <span class="f-num">STEP THREE</span>
-              <h3>You quote it and get to work</h3>
-              <p>Send your quote at your price, and if the customer accepts, the job is on your calendar. The customer came to you, not the other way around.</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      
 
       <section>
         <div class="wrap">
@@ -1022,7 +947,7 @@
               <div class="shield"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/></svg></div>
               <div>
                 <h3>No card asked for during the trial</h3>
-                <p>No credit card or payment information is collected at any point during your 90 day free trial. You decide about paying only after you have seen the network work.</p>
+                <p>No credit card or payment information is collected at any point during your 60 day free trial. You decide about paying only after you have seen the network work.</p>
               </div>
             </li>
             <li>
@@ -1138,15 +1063,8 @@
               <li>
                 <div class="f-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></div>
                 <div>
-                  <h4>Pre-purchase inspection reports</h4>
-                  <p>Offer inspections to buyers before they commit, with a structured report that documents the condition of the vehicle category by category, so the buyer can see what needs attention and plan for it.</p>
-                </div>
-              </li>
-              <li>
-                <div class="f-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></div>
-                <div>
-                  <h4>Complete vehicle inspections</h4>
-                  <p>Offer routine complete-vehicle inspections that keep owners informed about concerns before they become major issues or breakdowns, and before major trips. Same structured report as the pre-purchase inspection, printable and shareable, with a link you can text to the customer.</p>
+                  <h4>Vehicle inspections</h4>
+                  <p>Offer inspections for buyers before they commit and for owners keeping up with their own vehicle, with a structured report that documents the condition of the vehicle category by category. Every item is rated Good, Needs attention, or Fail, with photos and notes, and your customer gets a printable, shareable report by text link.</p>
                 </div>
               </li>
               <li>
@@ -1172,14 +1090,14 @@
       <section>
          <div class="wrap">
            <div class="section-head">
-             <h2>Complete vehicle inspections</h2>
-             <p>Offer routine complete-vehicle inspections alongside pre-purchase reports. Owners book them to stay ahead of breakdowns and before major trips: steady work that is not tied to something already being broken. You fill out the same structured form, and your customer gets a printable, shareable report by text link.</p>
+             <h2>Vehicle inspections</h2>
+             <p>Owners book inspections to stay ahead of breakdowns and before major trips, and buyers book them before committing to a vehicle: steady work that is not tied to something already being broken. It is the same inspection either way; only the reason changes. You fill out the same structured form, and your customer gets a printable, shareable report by text link.</p>
            </div>
            <p>Every item is rated Good, Needs attention, or Fail, with a timeline: monitor it, repair it soon, or fix it now. Photos and notes ride along on every section.</p>
 <div style="background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin:24px 0;max-width:640px;box-shadow:0 2px 12px rgba(0,0,0,.06)">
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:4px"><strong style="font-size:1.05rem">Example report</strong><span style="font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:20px;background:var(--surface-2);color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Sample only</span></div>
         <div style="border-bottom:2px solid var(--ink);padding-bottom:16px;margin-bottom:16px"><h3 style="margin:0;font-size:1.5rem">Rivera Mobile Auto</h3><div style="color:var(--muted);font-size:.9rem">Slidell, LA &middot; (504) 555-0100</div></div>
-        <div style="display:inline-block;background:#0f172a;color:#fff;border-radius:6px;padding:4px 12px;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Complete Vehicle Inspection</div>
+        <div style="display:inline-block;background:#0f172a;color:#fff;border-radius:6px;padding:4px 12px;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Vehicle Inspection</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 20px;font-size:.95rem">
           <div><span style="color:var(--muted);font-size:.8rem;display:block;text-transform:uppercase;letter-spacing:.04em">Customer</span>Jordan Lee</div>
           <div><span style="color:var(--muted);font-size:.8rem;display:block;text-transform:uppercase;letter-spacing:.04em">Date</span>10/26/2026</div>
@@ -1194,7 +1112,7 @@
         <div style="border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><strong style="font-size:1.05rem">Battery &amp; charging</strong> <span style="font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:20px;background:#dcfce7;color:#166534;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">Good</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin:8px 0;font-size:.92rem"><div><span style="color:var(--muted);font-size:.78rem;display:block">Voltage</span>12.6V</div><div><span style="color:var(--muted);font-size:.78rem;display:block">Terminals</span>Clean</div></div></div>
         <div style="border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><strong style="font-size:1.05rem">Exhaust system</strong> <span style="font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:20px;background:#fee2e2;color:#991b1b;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">Fail</span> <span style="font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:20px;background:#e0e7ff;color:#3730a3;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap">Immediate attention</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin:8px 0;font-size:.92rem"><div><span style="color:var(--muted);font-size:.78rem;display:block">Muffler</span>Rusted through</div><div><span style="color:var(--muted);font-size:.78rem;display:block">Tailpipe</span>Surface rust</div></div><div style="background:var(--surface-2);border-radius:8px;padding:10px 12px;font-size:.92rem;margin-top:8px">Muffler needs replacement &mdash; exhaust leak.</div></div>
         <div style="background:var(--surface-2);border-radius:8px;padding:10px 12px;font-size:.92rem;margin-top:8px"><strong>Inspector notes:</strong> Front tires and exhaust need attention soon; everything else looks good for the trip.</div>
-        <div style="margin-top:24px;padding:14px 16px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;font-size:.9rem;color:#78350f"><strong>Please read:</strong> This complete vehicle inspection is informational only. It describes the concerns this vehicle is presenting now, or may present soon, based on a visual inspection at the time of service. It is meant to help you stay informed about your vehicle, keep up with your vehicle&rsquo;s routine maintenance, and catch concerns before they become major issues or breakdowns &mdash; including before a major trip. It does not promise the vehicle will not develop problems later.</div>
+        <div style="margin-top:24px;padding:14px 16px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;font-size:.9rem;color:#78350f"><strong>Please read:</strong> This vehicle inspection is informational only. It is not a recommendation to buy or not buy a vehicle. It describes the concerns this vehicle is presenting now, or may present soon, based on a visual inspection at the time of service. It is meant to help you stay informed about your vehicle, keep up with your vehicle&rsquo;s routine maintenance, and catch concerns before they become major issues or breakdowns &mdash; including before a major trip. It does not promise the vehicle will not develop problems later. Neither Mobile Mechanic Network nor the inspecting mechanic is liable for any buying decision.</div>
         <div style="margin-top:24px;padding-top:12px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;text-align:center">Prepared by Rivera Mobile Auto &middot; via Mobile Mechanic Network</div>
         <p style="text-align:center;margin:16px 0 0"><button type="button" style="background:#2563eb;color:#fff;border:0;border-radius:8px;padding:11px 24px;font-size:1rem;cursor:pointer">Print / Save as PDF</button></p>
       </div>
@@ -1212,15 +1130,15 @@
             <div class="tour-text">
               <span class="tour-kicker">Your home base</span>
               <h3>Example mechanic portal</h3>
-              <p>This is the screen you will open every morning: quote requests in your area, each showing the vehicle, the job, and the customer&apos;s contact information. Build an itemized quote right on the request and send it under your business name.</p>
-              <p>Urgent jobs are flagged, requests sent straight from your public page are marked, and your <strong>Fast Responder</strong> and <strong>Highly Rated</strong> badges show where customers look. Accepted jobs move to <strong>Booked</strong>, ready to become tickets.</p>
+              <p>This is the portal you will open every morning. Under Quote requests, each request shows the vehicle, the job, and the customer&apos;s contact information. Build an itemized quote right on the request and send it under your business name.</p>
+              <p>Urgent jobs are flagged, requests sent straight from your public page are marked, and your <strong>Fast Responder</strong> and <strong>Highly Rated</strong> badges show where customers look. Accepted jobs show up as <strong>booked jobs waiting for a ticket</strong>, ready to become tickets.</p>
             </div>
-            <div class="mock" role="img" aria-label="Example mechanic portal showing quote requests, a quote builder, and booked jobs.">
+            <div class="mock" role="img" aria-label="Example mechanic portal showing quote requests, a quote builder, and booked jobs waiting for a ticket.">
               <div class="mock-bar"><span class="mock-title">Mechanic portal</span><span class="example-chip">Example</span></div>
               <div class="mock-app"><p class="muted" style="margin:0 0 12px">Preview with sample data. The live page will show your real requests and jobs.</p>
-<div class="top"><div><h1>Rivera Mobile Auto</h1><div class="muted"><span>Home</span> &middot; <span>Sign out</span></div></div></div>
-<div class="tabs"><button class="active">Requests</button><button>Notifications</button><button>Business profile</button><button>Promotions</button><button>Photos</button><button>Tickets</button><button>Calendar</button><button>Customers</button><button>Earnings</button><button>Inspections</button><button>Billing</button><button>Help</button></div>
-<h2>Requests</h2>
+<div class="top"><div><h1>Rivera Mobile Auto</h1><div class="muted"><span>Help</span> &middot; <span>Security</span> &middot; <span>Sign out</span></div></div></div>
+<div class="tabs"><button class="active">Today</button><button>Quote requests</button><button>Profile</button><button>Job tickets</button><button>Calendar</button><button>Customers</button><button>Finances</button></div>
+<h2>Quote requests</h2>
 <p style="display:flex;gap:8px;flex-wrap:wrap"><input placeholder="Search requests by name, phone, service, or vehicle&hellip;" style="flex:1;min-width:220px;max-width:420px"><button type="button" class="ghost">Refresh requests</button></p>
 <div class="card" style="border:2px solid #b91c1c;background:#fef2f2">
 <div style="font-size:1.3rem;font-weight:800;line-height:1.3">Jane Smith</div><div style="margin:2px 0 6px"><span style="background:#f1f5f9;color:#475569;font-weight:700;font-size:.75rem;padding:2px 8px;border-radius:6px">New customer</span></div><span class="urgent-badge">URGENT &mdash; NEEDS HELP NOW</span> <strong>Brake repair</strong> &mdash; 2019 Honda Accord<div class="muted">Slidell, LA &middot; (504) 555-0100 &middot; <span>Text</span> &middot; Needed by 10/27/2026</div>
@@ -1234,7 +1152,7 @@
 <p style="margin:8px 0"><strong>Total: $164.99</strong></p>
 <p><button class="primary" type="button">Send quote</button></p></div>
 </div>
-<h2 style="margin-top:28px">Booked jobs</h2>
+<h2 style="margin-top:28px">Booked jobs waiting for a ticket</h2>
 <div class="card"><div style="font-size:1.3rem;font-weight:800;line-height:1.3">Sarah Lee</div><div style="margin:2px 0 6px"><span style="background:#dcfce7;color:#15803d;font-weight:700;font-size:.75rem;padding:2px 8px;border-radius:6px">Returning customer</span><button type="button" class="ghost" style="margin-left:8px">Service history (2)</button></div><strong>Alternator replacement</strong> &mdash; 2018 Toyota Camry <span class="ok">Booked</span>
 <div style="margin:6px 0"><div>Alternator &mdash; $325.00</div><div>Labor &mdash; $100.00</div></div>
 <p><strong>Accepted quote: $425.00</strong></p>
@@ -1289,6 +1207,8 @@
 <textarea rows="2" placeholder="Tell others about your experience (optional)" style="width:100%;margin-top:8px"></textarea>
 <div style="margin-top:8px"><button>Submit review</button></div></div>
 </div>
+<h2>Inspections</h2>
+<div class="card"><strong>Vehicle inspection</strong> &mdash; 2020 Honda Accord<div class="muted">10/26/2026 &middot; <span>View report &rarr;</span></div></div>
 <h2>My info</h2>
 <div class="card"><div class="muted">jordan@example.com</div>
 <div><strong>Jordan Lee</strong></div>
@@ -1296,12 +1216,7 @@
 <p><button type="button" class="ghost">Edit</button></p></div>
 <h2>My vehicles</h2>
 <div class="card"><strong>2019 Honda Accord</strong>
-<div style="margin-top:12px;text-align:left">
-<div class="muted" style="margin-bottom:4px">Service history:</div>
-<div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>Brake repair</strong><div class="muted">10/20/2026 &middot; <span style="color:#dc2626">Completed</span> &middot; $289.99</div></div>
-<div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>Full synthetic oil change</strong><div class="muted">09/15/2026 &middot; <span style="color:#dc2626">Completed</span> &middot; $89.99</div></div>
-<div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>Total spent: $379.98</strong></div>
-</div>
+
 <div style="margin-top:6px"><button class="ghost">Upload my own photo</button> <button class="ghost">Remove</button></div></div>
 <div class="card"><div class="muted">Add a vehicle</div>
 <label>Year</label><input placeholder="2019" maxlength="10">
@@ -1310,8 +1225,7 @@
 <p><button type="button">Add vehicle</button></p></div>
 <h2>Recent mechanics</h2>
 <div class="card"><div><strong>Rivera Mobile Auto</strong> <span class="muted">(Slidell)</span> &middot; <span>(504) 555-0100</span></div>
-<div style="margin-top:8px"><strong>Brake repair</strong><div class="muted">10/20/2026 &middot; <span style="color:#dc2626">Completed</span> &middot; $289.99</div></div>
-<div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>Total spent: $289.99</strong></div>
+
 <p><button type="button" class="ghost">Request a quote</button></p></div>
 <h2>Help</h2>
 <p class="muted">Something not working or have a question? Describe it below and it goes straight to us.</p>
@@ -1389,20 +1303,7 @@
             <h2>One network, nationwide</h2>
             <p>Mobile Mechanic Network is a nationwide network across America, expanding as mechanics join. Wherever you run your business, your profile, your prices, and your reputation travel with the network.</p>
           </div>
-          <div class="nation-grid">
-            <div class="nation-card">
-              <h3>Your storefront, everywhere</h3>
-              <p>One professional profile page presents your business the same strong way to every customer who finds you, anywhere in the country.</p>
-            </div>
-            <div class="nation-card">
-              <h3>Your area, your rules</h3>
-              <p>You choose the cities you serve and the services you offer. The network matches you with the work around you, on your terms.</p>
-            </div>
-            <div class="nation-card">
-              <h3>Growing with its mechanics</h3>
-              <p>The network expands as mechanics join, bringing more vehicle owners to the platform and more requests to the mechanics on it.</p>
-            </div>
-          </div>
+          <p>One professional profile page presents your business the same strong way to every customer who finds you, anywhere in the country. You choose the cities you serve and the services you offer, and the network matches you with the work around you, on your terms. The network expands as mechanics join, bringing more vehicle owners to the platform and more requests to the mechanics on it.</p>
         </div>
       </section>
 
@@ -1420,7 +1321,7 @@
             <div class="plan">
               <div class="plan-name">Monthly</div>
               <div class="price">$39.99<span> /month</span></div>
-              <p>Starts after your free 60 days. Cancel anytime, right from your account.</p>
+              <p>Starts after your free 60 days. Cancel anytime.</p>
             </div>
             <div class="plan">
               <div class="plan-name">Yearly</div>
