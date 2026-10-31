@@ -42,7 +42,7 @@
   <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600;text-align:left">Add your phone number below so mechanics can reach you with quotes. <a href="#owner" id="phone-banner-link" style="color:#b91c1c">Add it in My info ↓</a></div>
 
   <section id="owner" hidden>
-    <p class="top-actions"><button type="button" onclick="location.href='/request'">Request quotes</button> <button type="button" class="ghost" onclick="location.href='/mechanics'">Find a mobile mechanic</button></p>
+    <p class="top-actions"><button type="button" onclick="location.href='/find'">Find a mobile mechanic</button></p>
     <h2>Notifications <span id="notif-count" class="muted" style="font-size:1rem"></span></h2>
     <div id="notif-list"><p class="muted">Loading…</p></div>
     <p><button type="button" class="ghost" id="notif-read">Mark all read</button> <button type="button" class="ghost" id="notif-clear">Clear all</button></p>
@@ -161,17 +161,29 @@
         if (n.vehicle) bits.push(esc(n.vehicle));
         if (n.total != null) bits.push('$' + Number(n.total).toFixed(2));
         bits.push(new Date(n.createdAt).toLocaleDateString());
-        return `<div class="card" style="${n.read ? '' : 'border-left:4px solid #2563eb'}"><strong>${esc(n.title)}</strong><div class="muted">${bits.join(' · ')}</div>${n.requestId ? `<p style="margin:8px 0 0"><button type="button" class="ghost" onclick="viewOwnerJob('${n.requestId}', '${n.ticketId || ''}')">View job →</button></p>` : ''}${n.ticketId ? `<p style="margin:8px 0 0"><a href="/job-ticket?id=${n.ticketId}">View ticket →</a></p>` : ''}</div>`;
+        return `<div style="padding:10px 0;border-bottom:1px solid #e2e8f0;display:flex;gap:10px;align-items:center;justify-content:space-between;${n.read ? '' : 'border-left:4px solid #2563eb;padding-left:8px'}"><div style="text-align:left;flex:1"><strong>${esc(n.title)}</strong><div class="muted">${bits.join(' · ')}</div></div>${n.requestId ? `<button type="button" class="ghost" style="flex:none" onclick="viewOwnerJob('${n.requestId}', '${n.ticketId || ''}')">View job →</button>` : ''}</div>`;
       }).join('') : '<p class="muted">No notifications yet. New quotes, estimates, and tickets from your mechanics will show up here.</p>';
     } catch (e) { $('notif-list').innerHTML = '<p class="muted">Notifications could not be loaded.</p>'; }
   }
   window.viewOwnerJob = (requestId, ticketId) => {
     // A job with a ticket opens the ticket; anything else keeps the old
-    // behavior of scrolling to the job's own card.
+    // behavior of scrolling to the job's own card, expanding it first
+    // since job cards now start collapsed.
     if (ticketId) { window.open('/job-ticket?id=' + ticketId, '_blank'); return; }
     const r = (window._ownerRequests || []).find(x => x.id === requestId);
     if (r && r.ticketId) { window.open('/job-ticket?id=' + r.ticketId, '_blank'); return; }
-    (document.getElementById('job-' + requestId) || document.getElementById('open-jobs')).scrollIntoView();
+    const el = document.getElementById('job-' + requestId) || document.getElementById('open-jobs');
+    if (el.id === 'job-' + requestId) { const d = document.getElementById('jobd-' + requestId); if (d && d.hidden) window.toggleJobDetail(requestId); }
+    el.scrollIntoView();
+  };
+  // Job cards start collapsed; the header button expands the full detail.
+  // Cards needing the owner's decision start expanded so nothing is missed.
+  window.toggleJobDetail = (id) => {
+    const d = document.getElementById('jobd-' + id);
+    const b = document.getElementById('jobd-btn-' + id);
+    if (!d) return;
+    d.hidden = !d.hidden;
+    if (b) b.textContent = d.hidden ? 'Show details ▾' : 'Hide details ▴';
   };
   $('notif-read').onclick = async () => { await post('/api/notifications/read', {}); loadOwnerNotifications(); };
   $('notif-clear').onclick = async () => { await post('/api/notifications/clear', {}); loadOwnerNotifications(); };
@@ -208,16 +220,6 @@
     window._ownerRequests = d.requests || [];
     $('my-vehicles').innerHTML = v.vehicles.length ? v.vehicles.map(x => {
       const imgStyle = x.photoKind === 'logo' ? 'width:88px;height:88px;object-fit:contain;background:#ffffff;padding:8px;box-sizing:border-box;border-radius:12px;flex:none' : 'width:88px;height:88px;object-fit:cover;border-radius:12px;flex:none';
-      // Service history for this vehicle only: its accepted jobs on the
-      // network, newest first, with what was spent on it (paid jobs only).
-      const gs = x.type === 'smallengine' ? (x.make + ' ' + x.model) : (x.year + ' ' + x.make + ' ' + x.model);
-      const vjobs = (d.requests || []).map(r => {
-        const aq = (r.quotes || []).find(q => q.status === 'accepted');
-        if (!aq) return null;
-        if (String(r.vehicle || '').toLowerCase() !== gs.toLowerCase()) return null;
-        return { service: r.service, createdAt: r.createdAt || '', paid: !!r.paid, total: (r.paid && r.ticketTotal != null) ? r.ticketTotal : (aq.total != null ? aq.total : aq.price) };
-      }).filter(Boolean).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-      const vspent = vjobs.filter(j => j.paid).reduce((s, j) => s + Number(j.total || 0), 0);
       return `<div class="card">
       <div style="display:flex;gap:14px;align-items:center;justify-content:center">
       ${x.photoUrl ? `<img src="${x.photoUrl}" alt="" style="${imgStyle}">` : ''}
@@ -226,41 +228,25 @@
       <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap"><button class="ghost" onclick="document.getElementById('photo-${x.id}').click()">${x.photoSource === 'upload' ? 'Change photo' : x.photoSource === 'commons' ? 'Upload my own photo' : 'Add photo'}</button><input type="file" id="photo-${x.id}" accept="image/*" hidden onchange="uploadVehiclePhoto('${x.id}', this)">${x.photoSource === 'upload' ? `<button class="ghost" onclick="delVehiclePhoto('${x.id}')">Remove photo</button>` : ''}<button class="ghost" onclick="delVehicle('${x.id}')">Remove</button></div>
       </div>
       </div>
-      ${vjobs.length ? `<div style="margin-top:12px;text-align:left">
-      <div class="muted" style="margin-bottom:4px">Service history:</div>
-      ${vjobs.map(j => `<div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>${esc(j.service)}</strong><div class="muted">${j.createdAt ? new Date(j.createdAt).toLocaleDateString() : ''} · ${j.paid ? '<span style="color:#dc2626">Completed</span>' : '<span style="color:#16a34a">Booked</span>'} · $${Number(j.total || 0).toFixed(2)}</div></div>`).join('')}
-      <div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>Total spent: $${vspent.toFixed(2)}</strong></div>
-      </div>` : ''}
     </div>`;
     }).join('') : '<p class="muted">No vehicles saved yet.</p>';
     const seenMech = new Map();
     (d.requests || []).forEach(r => (r.quotes || []).forEach(q => {
       if (q.status === 'accepted' && q.businessId) {
-        if (!seenMech.has(q.businessId)) seenMech.set(q.businessId, { id: q.businessId, name: q.businessName || 'Mobile mechanic', city: q.businessCity || '', logo: q.businessLogo || '', when: r.createdAt || '', jobs: [] });
+        if (!seenMech.has(q.businessId)) seenMech.set(q.businessId, { id: q.businessId, name: q.businessName || 'Mobile mechanic', city: q.businessCity || '', logo: q.businessLogo || '', when: r.createdAt || '' });
         const m = seenMech.get(q.businessId);
-        m.jobs.push({ service: r.service, vehicle: r.vehicle, createdAt: r.createdAt || '', status: r.status, paid: !!r.paid, total: (r.paid && r.ticketTotal != null) ? r.ticketTotal : (q.total != null ? q.total : q.price) });
         if ((r.createdAt || '') > (m.when || '')) m.when = r.createdAt;
       }
     }));
     const recent = [...seenMech.values()].sort((a, b) => (b.when || '').localeCompare(a.when || ''));
     window._recentMechs = recent;
     $('recent-mechanics').innerHTML = recent.length ? recent.map(b => {
-      const jobs = b.jobs.slice().sort((a, c) => (c.createdAt || '').localeCompare(a.createdAt || ''));
-      const spent = jobs.filter(j => j.paid).reduce((s, j) => s + Number(j.total || 0), 0);
       return `<div class="card">
       <div style="display:flex;gap:12px;align-items:center;justify-content:center">
       ${b.logo ? `<img src="${esc(b.logo)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:10px;flex:none">` : ''}
       <div style="text-align:left;flex:1"><strong>${esc(b.name)}</strong><div class="muted">${esc(b.city)}</div></div>
       <button type="button" class="ghost" onclick="openRecentRequest('${b.id}')">Request a quote</button>
       </div>
-      ${jobs.length ? `<div style="margin-top:12px;text-align:left">
-      <div class="muted" style="margin-bottom:4px">Repair history with ${esc(b.name)}:</div>
-      ${jobs.map(j => {
-        const st = j.paid ? '<span style="color:#dc2626">Completed</span>' : j.status === 'accepted' ? '<span style="color:#16a34a">Booked</span>' : j.status === 'open' ? '<span style="color:#16a34a">Active</span>' : esc(j.status);
-        return `<div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>${esc(j.service)}</strong> — ${esc(j.vehicle)}<div class="muted">${j.createdAt ? new Date(j.createdAt).toLocaleDateString() : ''} · ${st} · $${Number(j.total || 0).toFixed(2)}</div></div>`;
-      }).join('')}
-      <div style="padding:8px 0;border-top:1px solid #e2e8f0"><strong>Total spent: $${spent.toFixed(2)}</strong></div>
-      </div>` : ''}
     </div>`;
     }).join('') : '<p class="muted">Mechanics you have worked with will show up here.</p>';
     const box = $('my-requests');
@@ -278,7 +264,24 @@
     if (!d.requests.length) { openBox.innerHTML = '<p class="muted">No open jobs right now.</p>'; box.innerHTML = '<p class="muted">No repair history yet. Send your first request and mechanics in your area can quote it.</p>'; return; }
     const pill = r => r.paid ? '<span style="color:#dc2626">Completed</span>' : r.status === 'accepted' ? '<span style="color:#16a34a">Booked</span>' : r.status === 'open' ? '<span style="color:#16a34a">Active</span>' : `<span class="muted">${r.status}</span>`;
     const sortedReqs = [...d.requests].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-    const card = r => `<div class="card" id="job-${r.id}">
+    const card = r => {
+      const e0 = histExtra[r.id] || {};
+      const m0 = e0.mech;
+      const aq0 = (r.quotes || []).find(q => q.status === 'accepted');
+      const headMech = aq0 ? aq0.businessName : (m0 && m0.name ? m0.name : '');
+      const rowTotal = r.paid && r.ticketTotal != null ? r.ticketTotal : (aq0 ? (aq0.total != null ? aq0.total : aq0.price) : null);
+      const badgeBits = [];
+      if ((r.quotes || []).some(q => q.status === 'pending')) badgeBits.push('<span style="color:#2563eb;font-weight:700">Needs your decision</span>');
+      if (r.pendingEstimate) badgeBits.push('<span style="color:#2563eb;font-weight:700">Estimate needs approval</span>');
+      if (r.paid && !r.reviewed) badgeBits.push('<span style="color:#2563eb;font-weight:700">Leave a review</span>');
+      const startsOpen = (r.quotes || []).some(q => q.status === 'pending') || !!r.pendingEstimate;
+      return `<div class="card" id="job-${r.id}">
+      <div style="display:flex;gap:12px;align-items:center;justify-content:space-between">
+      <div style="text-align:left;flex:1"><strong>${r.service}</strong> — ${r.vehicle}<div class="muted">${headMech ? esc(headMech) + ' · ' : ''}${r.city}, ${r.state} · ${new Date(r.createdAt).toLocaleDateString()} · ${pill(r)}${badgeBits.length ? ' · ' + badgeBits.join(' · ') : ''}</div></div>
+      ${rowTotal != null ? `<strong style="flex:none">$${Number(rowTotal).toFixed(2)}</strong>` : ''}
+      <button type="button" class="ghost" id="jobd-btn-${r.id}" style="flex:none" onclick="toggleJobDetail('${r.id}')">${startsOpen ? 'Hide details ▴' : 'Show details ▾'}</button>
+      </div>
+      <div id="jobd-${r.id}" ${startsOpen ? '' : 'hidden'}>
       <div style="display:flex;gap:12px;align-items:center">
       ${(() => { const e = histExtra[r.id]; if (!e || !e.gv || !e.gv.photoUrl) return ''; const st = e.gv.photoKind === 'logo' ? 'width:72px;height:72px;object-fit:contain;background:#ffffff;padding:6px;box-sizing:border-box;border-radius:10px;flex:none' : 'width:72px;height:72px;object-fit:cover;border-radius:10px;flex:none'; return `<img src="${esc(e.gv.photoUrl)}" alt="" style="${st}">`; })()}
       <div style="text-align:left;flex:1">
@@ -316,7 +319,9 @@
       </div>` : ''}
       ${r.paid && r.reviewed ? '<p class="muted">Thanks, you reviewed this job.</p>' : ''}
       ${r.status === 'accepted' && !r.paid && !r.reviewed ? '<p class="muted">You can leave a review once this job is paid.</p>' : ''}
+      </div>
     </div>`;
+    };
     openBox.innerHTML = sortedReqs.filter(r => !r.paid).map(card).join('') || '<p class="muted">No open jobs right now.</p>';
     const paidReqs = sortedReqs.filter(r => r.paid);
     const spentAll = paidReqs.reduce((s, r) => {

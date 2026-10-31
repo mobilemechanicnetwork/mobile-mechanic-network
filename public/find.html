@@ -152,6 +152,8 @@ const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABE
   try {
     const me2 = await (await fetch('/api/me')).json();
     if (me2.user) {
+      if (me2.user.name && !$('f-name').value) $('f-name').value = me2.user.name;
+      if (me2.user.phone && !$('f-phone').value) $('f-phone').value = window.PhoneFmt ? window.PhoneFmt.display(me2.user.phone) : me2.user.phone;
       const v = await (await fetch('/api/vehicles/me')).json().catch(() => ({}));
       if (v.vehicles && v.vehicles.length) {
         const sel = $('f-garage-select');
@@ -292,17 +294,48 @@ $('find-form').onsubmit = async (e) => {
   else if (m.reviewCount > 0) badges += `<span class="badge">★ ${m.avgRating} (${m.reviewCount} review${m.reviewCount === 1 ? '' : 's'})</span>`;
   (m.certifications || []).forEach(c => { badges += `<span class="badge badge-cert">${esc(c)}</span>`; });
   if (badges) badges = `<div class="badges">${badges}</div>`;
-  return `<div class="card">${m.coverUrl ? `<div style="margin:-16px -16px 12px;border-radius:10px 10px 0 0;overflow:hidden;max-height:140px"><img src="${esc(m.coverUrl)}" alt="" style="width:100%;display:block;object-fit:cover"></div>` : ''}<h3>${m.logoUrl ? `<img src="${esc(m.logoUrl)}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}${esc(m.name)}</h3><div class="muted">${esc(m.city)}, ${esc(m.state)} — ${esc(m.mechanicName)}</div>${badges}${m.phone ? `<div style="margin-top:6px"><a href="tel:${esc(m.phone.replace(/[^+\d]/g, ''))}">Call ${esc(window.PhoneFmt ? window.PhoneFmt.display(m.phone) : m.phone)}</a></div>` : ''}${socialLinks(m.socials)}${m.promotion ? `<div style="margin-top:8px;border-left:4px solid #2563eb;padding:6px 10px;background:#eff6ff;border-radius:0 8px 8px 0"><strong style="font-size:.85rem">Special:</strong> <strong>${esc(m.promotion.title)}</strong></div>` : ''}<div class="muted">Serves: ${esc([(m.city + ', ' + m.state), ...(m.serviceCities || [])].join('; '))}</div><div>${(m.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('')}</div><div style="margin-top:10px"><a href="/shop.html?id=${esc(m.id)}">View full profile →</a></div></div>`;
+  return `<div class="card">${m.coverUrl ? `<div style="margin:-16px -16px 12px;border-radius:10px 10px 0 0;overflow:hidden;max-height:140px"><img src="${esc(m.coverUrl)}" alt="" style="width:100%;display:block;object-fit:cover"></div>` : ''}<h3>${m.logoUrl ? `<img src="${esc(m.logoUrl)}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;vertical-align:middle;margin-right:8px">` : ''}${esc(m.name)}</h3><div class="muted">${esc(m.city)}, ${esc(m.state)} — ${esc(m.mechanicName)}</div>${badges}${m.phone ? `<div style="margin-top:6px"><a href="tel:${esc(m.phone.replace(/[^+\d]/g, ''))}">Call ${esc(window.PhoneFmt ? window.PhoneFmt.display(m.phone) : m.phone)}</a></div>` : ''}${socialLinks(m.socials)}${m.promotion ? `<div style="margin-top:8px;border-left:4px solid #2563eb;padding:6px 10px;background:#eff6ff;border-radius:0 8px 8px 0"><strong style="font-size:.85rem">Special:</strong> <strong>${esc(m.promotion.title)}</strong></div>` : ''}<div class="muted">Serves: ${esc([(m.city + ', ' + m.state), ...(m.serviceCities || [])].join('; '))}</div><div>${(m.services || []).map(s => `<span class="tag">${esc(s)}</span>`).join('')}</div><div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center"><a href="/shop.html?id=${esc(m.id)}">View full profile →</a><button type="button" class="ghost" style="width:auto;margin-top:0" onclick="sendToOne('${esc(m.id)}', this)">Request from this mechanic</button></div></div>`;
   };
   const greet = q.name ? `Thanks, ${esc(q.name)} — here are` : 'Here are';
+  window._findResults = d.mechanics;
   $('results').innerHTML = d.mechanics.length
     ? `<p class="muted">${greet} mobile mechanics that serve your area for <strong>${esc(q.service)}</strong>.</p>` + d.mechanics.map(card).join('')
     : `<p class="muted">We are sorry, mobile mechanics in your area coming soon.</p>`;
-  $('req-send').textContent = d.mechanics.length ? 'Send quote request' : 'Send a quote request anyway';
+  $('req-send').textContent = d.mechanics.length ? 'Send to all mechanics' : 'Send a quote request anyway';
   $('req-send').disabled = false;
   $('req-err').textContent = '';
   $('req-cta').hidden = false;
   window.scrollTo(0, 0);
+};
+// Request from one mechanic in the results: same direct-send rule as a
+// profile (saved find info goes straight to that mechanic, no form),
+// falling back to the request form when the saved info is incomplete.
+window.sendToOne = async (id, btn) => {
+  let pre = {};
+  try { pre = JSON.parse(sessionStorage.getItem('mmn_find') || '{}'); } catch (e) {}
+  const complete = pre.phone && pre.vehicle && pre.service && pre.city && pre.state && pre.date && pre.description && pre.vehicleLocation && pre.vehicleLocationType;
+  if (!complete) { location.href = '/request?business=' + encodeURIComponent(id); return; }
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    const body = { name: pre.name || '', service: pre.service, vehicle: pre.vehicle, vehicleType: pre.vehicleType || 'car', vehicleYear: pre.vehicleYear || '', vehicleMake: pre.vehicleMake || '', vehicleModel: pre.vehicleModel || '', vin: '', city: pre.city, state: pre.state, description: pre.description, phone: pre.phone, date: pre.date, urgent: pre.urgent === true, zip: pre.zip || '', vehicleLocation: pre.vehicleLocation, vehicleLocationType: pre.vehicleLocationType, businessId: id, fromProfile: true };
+    const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Something went wrong.');
+    const mech = (window._findResults || []).find(x => x.id === id);
+    const name = mech ? mech.name : 'this mechanic';
+    const me = await (await fetch('/api/me')).json().catch(() => ({}));
+    const isGuest = !me.user;
+    btn.disabled = true;
+    btn.textContent = 'Request sent ✓';
+    try { sessionStorage.removeItem('mmn_find'); } catch (e) {}
+    $('req-cta').innerHTML = `<div class="card" style="border:1px solid #2563eb;text-align:left"><h3 style="margin-top:0">Request sent!</h3><p class="muted" style="margin-bottom:0">${isGuest ? 'Request sent directly to ' + esc(name) + ' — you\'ll get their quote by text.' : 'Request sent directly to ' + esc(name) + '. Watch your dashboard for their quote.'}</p></div>` + (isGuest ? `<div style="margin-top:14px;border:1px solid #2563eb;border-radius:10px;padding:14px;font-size:.95rem;background:#fff;text-align:left"><strong>Create a free account to get the most out of it:</strong><ul style="margin:8px 0;padding-left:20px;line-height:1.6"><li><strong>Your quotes in one place</strong> — compare them side by side and accept with one tap</li><li><strong>Your vehicles saved</strong> — no retyping year, make, and model every time</li><li><strong>Repair history</strong> — a running record of every job done on your vehicles</li><li><strong>This request follows you</strong> — it will be waiting in your dashboard the moment you sign up</li></ul><span class="muted">Free for vehicle owners, forever. Your phone number is already filled in.</span><br><br><a href="/account?phone=${encodeURIComponent(pre.phone)}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;padding:10px 18px;font-weight:700">Create my free account</a></div>` : '');
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = origText;
+    $('req-err').innerHTML = `<span style="color:#b91c1c">${esc(err.message)}</span> <a href="/request?business=${encodeURIComponent(id)}">Fill out the request form instead</a>`;
+  }
 };
 $('req-send').onclick = async () => {
   const errEl = $('req-err');
@@ -358,7 +391,7 @@ $('req-send').onclick = async () => {
   try {
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) { errEl.textContent = d.error || 'Something went wrong.'; btn.disabled = false; btn.textContent = 'Send quote request'; return; }
+    if (!r.ok) { errEl.textContent = d.error || 'Something went wrong.'; btn.disabled = false; btn.textContent = 'Send to all mechanics'; return; }
     window._lastSent = sentKey;
     const me = await (await fetch('/api/me')).json().catch(() => ({}));
     const isGuest = !me.user;
@@ -371,7 +404,7 @@ $('req-send').onclick = async () => {
   } catch (e) {
     errEl.textContent = 'Something went wrong. Please try again.';
     btn.disabled = false;
-    btn.textContent = 'Send quote request';
+    btn.textContent = 'Send to all mechanics';
   }
 };
 $('back').onclick = (e) => { e.preventDefault(); $('results-view').hidden = true; $('form-view').hidden = false; };
