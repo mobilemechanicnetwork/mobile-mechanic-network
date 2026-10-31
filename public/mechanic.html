@@ -124,9 +124,9 @@
   <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600">Add your phone number so you get new requests by text. <a href="/security" style="color:#b91c1c">Add it now →</a></div>
   <div class="tabs noprint">
     <button data-tab="today" class="active">Today <span id="notif-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700;margin-left:4px;vertical-align:middle"></span></button>
-    <button data-tab="requests">Requests</button>
+    <button data-tab="requests">Quote requests</button>
     <button data-tab="profile">Profile</button>
-    <button data-tab="tickets">Tickets</button>
+    <button data-tab="tickets">Job tickets</button>
     <button data-tab="calendar">Calendar</button>
     <button data-tab="customers">Customers</button>
     <button data-tab="finances">Finances</button>
@@ -146,12 +146,11 @@
   </section>
 
   <section class="tab" id="tab-requests">
-    <h2>Requests</h2>
+    <h2>Quote requests</h2>
+    <p class="muted">Requests that don't have a ticket yet. Once a job has a ticket, it lives under Job tickets.</p>
     <p style="display:flex;gap:8px;flex-wrap:wrap"><input id="req-search" placeholder="Search requests by name, phone, service, or vehicle…" style="flex:1;min-width:220px;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"><button type="button" class="ghost" id="req-refresh">Refresh requests</button></p>
-    <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between"><span id="req-chips" style="display:flex;gap:6px;flex-wrap:wrap"></span><select id="req-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Default order</option><option value="newest">Sort: Newest first</option><option value="oldest">Sort: Oldest first</option><option value="az">Sort: Customer A to Z</option><option value="za">Sort: Customer Z to A</option><option value="due">Sort: Due date</option></select></p>
+    <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end"><select id="req-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Default order</option><option value="newest">Sort: Newest first</option><option value="oldest">Sort: Oldest first</option><option value="az">Sort: Customer A to Z</option><option value="za">Sort: Customer Z to A</option><option value="due">Sort: Due date</option></select></p>
     <div id="inbox"></div>
-    <h2 style="margin-top:28px" id="booked-heading">Booked jobs</h2>
-    <div id="booked"></div>
   </section>
 
   <section class="tab" id="tab-profile">
@@ -235,9 +234,14 @@
   </section>
 
   <section class="tab" id="tab-tickets">
-    <h2>Tickets</h2>
-    <p class="muted">Create estimates, invoices, and receipts branded with your logo and contact info. Open a ticket to print or save it as a PDF.</p>
+    <h2>Job tickets</h2>
+    <p class="muted">Create estimates, invoices, and receipts branded with your logo and contact info. Open a ticket to print or save it as a PDF. Booked jobs live here once they have a ticket.</p>
     <p style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" type="button" id="t-new">Create new ticket</button> <button class="primary" type="button" id="t-new-insp">Create an inspection</button></p>
+    <div id="waiting-wrap">
+    <h3 style="margin-top:28px">Booked jobs waiting for a ticket</h3>
+    <p class="muted">These customers accepted your quote, but no ticket exists yet. Create one to start the paperwork.</p>
+    <div id="waiting-list"></div>
+    </div>
     <p><input id="ticket-search" placeholder="Search tickets by name, vehicle, or ticket number…" style="width:100%;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"></p>
     <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between"><span id="ticket-chips" style="display:flex;gap:6px;flex-wrap:wrap"></span><select id="ticket-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Newest first</option><option value="oldest">Sort: Oldest first</option><option value="az">Sort: Customer A to Z</option><option value="za">Sort: Customer Z to A</option></select></p>
     <div id="ticket-list"></div>
@@ -309,7 +313,7 @@
       <details>
         <summary>Quote a request</summary>
         <div class="help-body"><ol>
-          <li>Open the Requests tab and find the request card. Cards marked Urgent or Sent directly to you stand out.</li>
+          <li>Open the Quote requests tab and find the request card. Cards marked Urgent or Sent directly to you stand out.</li>
           <li>Fill in your price and warranty on the card's quote builder.</li>
           <li>Your draft saves automatically as you type, so you can finish it later from any device.</li>
           <li>Tap Send quote. The customer is notified and can accept, decline, or decide on each line.</li>
@@ -319,7 +323,7 @@
       <details>
         <summary>Create a ticket</summary>
         <div class="help-body"><ol>
-          <li>Open the Tickets tab and tap Create new ticket. The ticket page opens as the branded document your customer will see.</li>
+          <li>Open the Job tickets tab and tap Create new ticket. The ticket page opens as the branded document your customer will see.</li>
           <li>Type straight into the document: customer name, phone number, job address and its type, access code if there is one, vehicle, VIN if you have it, and mileage.</li>
           <li>Add each job as a main line, with its parts lines and its labor line underneath. The job line totals its parts and labor automatically. A labor line is hours times your labor rate.</li>
           <li>Add a tax rate and any mobile expenses and supplies, then check Text it to the customer if you want it sent.</li>
@@ -342,14 +346,14 @@
           <li>Open the ticket and tap Mark as paid.</li>
           <li>Fill in the VIN, mileage, and payment method first if any are missing. The page will point you to the empty field.</li>
           <li>Once paid, the ticket becomes a receipt and cannot be edited.</li>
-          <li>Paid jobs show Paid invoice on their request card and count toward your earnings.</li>
+          <li>Paid jobs show as Completed on their ticket card and count toward your earnings.</li>
         </ol></div>
       </details>
       <details>
         <summary>Add a job to your calendar</summary>
         <div class="help-body"><ol>
           <li>Any unpaid ticket has a Calendar card. Pick a date, an optional time, and an optional end time, then tap Add.</li>
-          <li>You can also add from a Tickets tab card, a booked job card, or a booked-job notification.</li>
+          <li>You can also add from a Job tickets card or a booked-job notification.</li>
           <li>On the Calendar tab, the week view shows a time grid. Tap a block for a short synopsis and an Open full ticket button.</li>
           <li>The month view shows dots on days with jobs. Tap a day to list that day's jobs.</li>
           <li>Calendar entries drop off automatically once the job is paid.</li>
@@ -358,7 +362,7 @@
       <details>
         <summary>Create an inspection</summary>
         <div class="help-body"><ol>
-          <li>Open the Tickets tab and tap Create an inspection. The inspection page opens as the branded report your customer will see.</li>
+          <li>Open the Job tickets tab and tap Create an inspection. The inspection page opens as the branded report your customer will see.</li>
           <li>Pick Pre-purchase inspection or Complete vehicle inspection.</li>
           <li>Type straight into the report: customer and vehicle, then each category: Good, Needs attention, or Fail, plus urgency, notes, and photos.</li>
           <li>Tap Save inspection, then send the customer the link with Copy link or Text link to customer.</li>
@@ -505,14 +509,15 @@ async function loadNotifications(markRead) {
 }
 window.viewBookedJob = async (id) => {
   // Open the job's ticket. Older notifications carry no ticket id, so fall
-  // back to finding the ticket by request, then to the old Requests-tab jump.
+  // back to finding the ticket by request, then to the Job tickets
+  // waiting list (booked jobs with no ticket yet).
   const note = (window._notifs || []).find(n => n.id === id);
   if (note && note.ticketId) { window.open('/ticket?id=' + note.ticketId, '_blank'); return; }
   if (note && note.requestId) {
     try { const d = await api('/api/tickets/me'); const t = (d.tickets || []).find(x => x.requestId === note.requestId); if (t) { window.open('/ticket?id=' + t.id, '_blank'); return; } } catch (e) {}
   }
   try { await loadInbox(); } catch (e) {}
-  document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('booked'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
+  document.querySelector('[data-tab="tickets"]').click(); setTimeout(() => { const b = $('waiting-list'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
 window.viewRequest = async () => {
   try { await loadInbox(); } catch (e) {}
   document.querySelector('[data-tab="requests"]').click(); setTimeout(() => { const b = $('inbox'); if (b) b.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); };
@@ -556,22 +561,12 @@ async function loadInbox() {
 function renderInbox() {
   const inbox = window._inboxData || {};
   const box = $('inbox');
-  if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Save your business page to start receiving requests in your area.</p>'; $('req-chips').innerHTML = ''; return; }
+  if (inbox.needsBusiness) { box.innerHTML = '<p class="muted">Save your business page to start receiving requests in your area.</p>'; return; }
   const q = (document.getElementById('req-search').value || '').trim().toLowerCase();
   const qDigits = q.replace(/\D/g, '');
   const matchReq = r => !q || (r.ownerName || '').toLowerCase().includes(q) || (r.service || '').toLowerCase().includes(q) || (r.vehicle || '').toLowerCase().includes(q) || (r.city || '').toLowerCase().includes(q) || (qDigits && String(r.phone || '').replace(/\D/g, '').includes(qDigits));
-  const filter = window._reqFilter || 'all';
   const sort = window._reqSort || 'default';
-  let bookedList = (inbox.booked || []).filter(matchReq);
   let reqList = (inbox.requests || []).filter(matchReq);
-  const counts = { all: (inbox.requests || []).length + (inbox.booked || []).length, open: (inbox.requests || []).length, booked: (inbox.booked || []).filter(b => !b.paid).length, paid: (inbox.booked || []).filter(b => b.paid).length };
-  $('req-chips').innerHTML = [['all', 'All'], ['open', 'Open'], ['booked', 'Booked'], ['paid', 'Paid invoice']].map(([f, label]) => `<button type="button" class="ghost" onclick="setReqFilter('${f}')" style="${filter === f ? 'background:#2563eb;color:#fff;border-color:#2563eb' : ''}">${label} · ${counts[f]}</button>`).join('');
-  if (filter === 'open') bookedList = [];
-  if (filter === 'booked') { reqList = []; bookedList = bookedList.filter(b => !b.paid); }
-  if (filter === 'paid') { reqList = []; bookedList = bookedList.filter(b => b.paid); }
-  box.hidden = (filter === 'booked' || filter === 'paid');
-  $('booked-heading').hidden = (filter === 'open');
-  $('booked').hidden = (filter === 'open');
   const sortReq = (a, b) => {
     if (sort === 'newest') return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
     if (sort === 'oldest') return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
@@ -581,22 +576,11 @@ function renderInbox() {
     return 0;
   };
   if (sort === 'default') reqList.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
-  else { reqList.sort(sortReq); bookedList.sort(sortReq); }
+  else { reqList.sort(sortReq); }
   window._renderedRequests = reqList;
-  const bk = $('booked');
   window._calTitles = window._calTitles || {}; window._calPrefill = window._calPrefill || {};
-  bookedList.forEach(b => { if (b.ticketId) { window._calTitles[b.ticketId] = [b.ownerName, b.vehicle].filter(Boolean).join(' — ') || 'Job'; window._calPrefill[b.ticketId] = b.date || ''; } });
-  bk.innerHTML = bookedList.length ? bookedList.map(b => `<div class="card">
-    ${b.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(b.ownerName)}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(b)}${historyButton(b)}</div><strong>${esc(b.service)}</strong> — ${esc(b.vehicle)}${b.vin ? ' · VIN ' + esc(b.vin) : ''} ${b.paid ? '<span class="ok">Paid invoice</span>' : '<span class="ok">Booked</span>'}
-    ${b.lines && b.lines.length ? `<div style="margin:6px 0">${b.lines.map(l => `<div>${esc(l.desc)} — $${Number(l.amount).toFixed(2)}</div>`).join('')}</div>` : ''}
-    <p><strong>${b.paid ? `Total: $${Number(b.ticketTotal != null ? b.ticketTotal : b.acceptedTotal).toFixed(2)}` : (b.ticketTotal != null && Number(b.ticketTotal) !== Number(b.acceptedTotal) ? `Current ticket total: $${Number(b.ticketTotal).toFixed(2)}` : `Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}`)}</strong></p>
-    <div class="muted">${esc(b.city)}, ${esc(b.state)} · <a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(b.phone) : b.phone)}</a>${b.phone ? ` · <a href="sms:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${b.date ? ' · Needed by ' + esc(b.date) : ''}</div>
-    <p>${esc(b.description)}</p>
-    ${historyBlock(b)}
-    <p>${b.hasTicket ? (b.ticketId ? `<a href="/ticket?id=${b.ticketId}" target="_blank">View ticket →</a>` : '<span class="ok">Ticket created</span>') : `<button type="button" class="primary" onclick="bookedToTicket('${b.id}')">Create ticket from quote</button>`}</p>
-    ${b.hasTicket && b.ticketId && !b.paid ? `<div data-calctl="${b.ticketId}" style="margin-top:8px">${calControlHtml(b.ticketId)}</div>` : ''}
-    ${b.paid ? '<p><span class="ok">Paid</span></p>' : b.pendingFollowUp ? `<p class="ok">Additional work quoted $${esc(b.pendingFollowUp.total != null ? b.pendingFollowUp.total : b.pendingFollowUp.price)} (pending customer approval).</p><p><a href="/quote?id=${b.pendingFollowUp.id}" target="_blank">View quote →</a> <button type="button" class="ghost" onclick="textFollowUp('${b.id}')">Text quote from my phone</button></p>` : ''}
-  </div>`).join('') : (q ? '<p class="muted">No booked jobs match your search.</p>' : '<p class="muted">No booked jobs yet. When a customer accepts your quote, it shows up here.</p>');
+  (inbox.booked || []).forEach(b => { if (b.ticketId) { window._calTitles[b.ticketId] = [b.ownerName, b.vehicle].filter(Boolean).join(' — ') || 'Job'; window._calPrefill[b.ticketId] = b.date || ''; } });
+  renderWaitingTickets();
   if (!reqList.length) { box.innerHTML = q ? '<p class="muted">No open requests match your search.</p>' : '<p class="muted">No open requests match your area and services right now.</p>'; return; }
   box.innerHTML = reqList.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
     ${r.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(r.ownerName)}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(r)}${historyButton(r)}</div>${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}${r.setPrice != null ? ` <span class="ok">Set price: $${Number(r.setPrice).toFixed(2)}</span>` : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)}${r.phone ? ` · <a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · <a href="sms:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>${r.vehicleLocation ? `<div class="muted">Vehicle location: ${esc(r.vehicleLocation)}${r.vehicleLocationType ? ' (' + esc({ house: 'House', work: 'Work', business: 'Business' }[r.vehicleLocationType] || r.vehicleLocationType) + ')' : ''}</div>` : ''}
@@ -912,17 +896,17 @@ function renderToday() {
   $('today-appts').innerHTML = `<h3 style="margin:16px 0 8px">Today's appointments — ${esc(dateLabel)}</h3>` + (appts.length ? appts.map(r => `<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><strong>${esc(r.title)}</strong>${r.time ? `<span>${esc(timeRange(r))}</span>` : ''}</div>${r.kind === 'booked' ? `<div class="muted" style="margin-top:4px">${r.address ? esc(r.address) + ' · ' : ''}<span class="ok">Booked</span></div>` : ''}${r.ticketId ? `<p style="margin:8px 0 0"><a href="/ticket?id=${r.ticketId}" target="_blank">View ticket →</a></p>` : ''}</div>`).join('') : '<p class="muted">No appointments today.</p>');
   const inbox = window._inboxData || {};
   const jobs = [
-    ...(inbox.requests || []).map(r => ({ name: r.ownerName, service: r.service, vehicle: r.vehicle, status: 'Open', ticketId: null })),
-    ...(inbox.booked || []).filter(b => !b.paid).map(b => ({ name: b.ownerName, service: b.service, vehicle: b.vehicle, status: 'Booked', ticketId: b.ticketId || null }))
+    ...(inbox.requests || []).map(r => ({ name: r.ownerName, service: r.service, vehicle: r.vehicle, status: 'Open', ticketId: null, tab: 'requests' })),
+    ...(inbox.booked || []).filter(b => !b.paid).map(b => ({ name: b.ownerName, service: b.service, vehicle: b.vehicle, status: 'Booked', ticketId: b.ticketId || null, tab: 'tickets' }))
   ].slice(0, 10);
-  $('today-open').innerHTML = `<h3 style="margin:16px 0 8px">Open jobs</h3>` + (jobs.length ? jobs.map(j => `<div class="card"><strong>${esc(j.name || '')}</strong> — ${esc(j.service)} — ${esc(j.vehicle)} <span class="ok">${j.status}</span>${j.ticketId ? ` <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ` <button type="button" class="ghost" onclick="gotoTab('requests')">View in Requests →</button>`}</div>`).join('') : '<p class="muted">No open jobs right now.</p>') + `<p><button type="button" class="ghost" onclick="gotoTab('calendar')">Calendar →</button></p>`;
+  $('today-open').innerHTML = `<h3 style="margin:16px 0 8px">Open jobs</h3>` + (jobs.length ? jobs.map(j => `<div class="card"><strong>${esc(j.name || '')}</strong> — ${esc(j.service)} — ${esc(j.vehicle)} <span class="ok">${j.status}</span>${j.ticketId ? ` <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ` <button type="button" class="ghost" onclick="gotoTab('${j.tab}')">View in ${j.tab === 'tickets' ? 'Job tickets' : 'Quote requests'} →</button>`}</div>`).join('') : '<p class="muted">No open jobs right now.</p>') + `<p><button type="button" class="ghost" onclick="gotoTab('calendar')">Calendar →</button></p>`;
 }
 window.delCalEntry = async (id) => {
   if (!confirm('Delete this calendar entry?')) return;
   await api('/api/calendar/' + id, { method: 'DELETE' });
   loadCalendar();
 };
-// ---- Add-to-calendar controls on cards (Tickets tab, booked cards, notifications) ----
+// ---- Add-to-calendar controls on cards (Job tickets tab, notifications) ----
 // One control per ticket: either the add form (date + optional time) or the
 // on-calendar state with Remove. Titles and date prefills are cached by ticket
 // id, so no customer text ever goes through an onclick attribute.
@@ -999,7 +983,6 @@ $('cal-form').onsubmit = async (e) => {
 };
 document.getElementById('req-search').addEventListener('input', renderInbox);
 $('req-refresh').onclick = () => loadInbox();
-window.setReqFilter = (f) => { window._reqFilter = f; renderInbox(); };
 document.getElementById('req-sort').onchange = (e) => { window._reqSort = e.target.value; renderInbox(); };
 document.getElementById('ticket-sort').onchange = (e) => { window._ticketSort = e.target.value; renderTickets(); };
 document.getElementById('cust-sort').onchange = (e) => { window._custSort = e.target.value; renderCustomers(); };
@@ -1446,6 +1429,24 @@ function renderTickets() {
     <p><a href="/ticket?id=${t.id}" target="_blank">View ticket →</a></p>
     ${t.type !== 'receipt' ? `<div data-calctl="${t.id}" style="margin-top:8px">${calControlHtml(t.id)}</div>` : ''}
   </div>`).join('') : (q ? '<p class="muted">No tickets match your search.</p>' : '<p class="muted">No tickets yet.</p>');
+  renderWaitingTickets();
+}
+// Booked jobs with no ticket yet live at the top of Job tickets, so the
+// rare accepted quote that did not auto-create an invoice still has a
+// home and its Create ticket from quote button.
+function renderWaitingTickets() {
+  const wrap = $('waiting-wrap');
+  const box = $('waiting-list');
+  if (!wrap || !box) return;
+  const waiting = ((window._inboxData && window._inboxData.booked) ? window._inboxData.booked : []).filter(b => !b.hasTicket);
+  wrap.hidden = waiting.length === 0;
+  box.innerHTML = waiting.map(b => `<div class="card">
+    ${b.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(b.ownerName)}</div>` : ''}<strong>${esc(b.service)}</strong> — ${esc(b.vehicle)}${b.vin ? ' · VIN ' + esc(b.vin) : ''}
+    ${b.acceptedTotal != null ? `<p><strong>Accepted quote: $${Number(b.acceptedTotal).toFixed(2)}</strong></p>` : ''}
+    <div class="muted">${esc(b.city)}, ${esc(b.state)}${b.phone ? ` · <a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(b.phone) : b.phone)}</a> · <a href="sms:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${b.date ? ' · Needed by ' + esc(b.date) : ''}</div>
+    <p>${esc(b.description)}</p>
+    <p><button type="button" class="primary" onclick="bookedToTicket('${b.id}')">Create ticket from quote</button></p>
+  </div>`).join('');
 }
 document.getElementById('ticket-search').addEventListener('input', renderTickets);
 async function loadCustomers() {
