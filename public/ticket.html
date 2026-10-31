@@ -900,7 +900,7 @@ let embPhotos = {}, embBands = {};
 let _embTireSeq = 0;
 function embKind() { const el = document.querySelector('input[name="emb-kind"]:checked'); return el ? el.value : 'ppi'; }
 function embCatsFor(kind) { return kind === 'complete' ? CVI_CATS : PPI_CATS; }
-function embKindLabel() { return embKind() === 'complete' ? 'Complete Vehicle Inspection' : 'Pre-Purchase Inspection'; }
+function inspLineLabel() { return 'Vehicle Inspection'; }
 function embKindNote(kind) { return kind === 'complete' ? 'A routine checkout: what the owner should know before small concerns become major issues or breakdowns, including before a major trip.' : 'For a buyer deciding on a vehicle.'; }
 function newTicketUrl(id, sendPrompt) { return '/ticket?id=' + id + (sendPrompt ? '&send=1' : ''); }
 document.addEventListener('click', e => {
@@ -1043,7 +1043,7 @@ function embCategories() {
 function buildInspLine() {
   const tb = document.createElement('tbody');
   tb.className = 'insp-line';
-  tb.innerHTML = `<tr><td>${esc(embKindLabel())}</td><td class="num">1</td><td class="num"><input id="insp-line-price" type="number" min="0" step="0.01" placeholder="Price $" style="width:110px"></td><td class="num"><span class="insp-line-total">$0.00</span></td></tr>`;
+  tb.innerHTML = `<tr><td>${esc(inspLineLabel())}</td><td class="num">1</td><td class="num"><input id="insp-line-price" type="number" min="0" step="0.01" placeholder="Price $" style="width:110px"></td><td class="num"><span class="insp-line-total">$0.00</span></td></tr>`;
   tb.querySelector('input').addEventListener('input', newTicketTotals);
   return tb;
 }
@@ -1136,7 +1136,6 @@ async function renderNewTicket() {
   } catch (e) { box.innerHTML = '<p>Could not load your business page.</p>'; return; }
   box.classList.add('newdoc');
   box.innerHTML = `
-    <p class="noprint" style="margin:0 0 12px"><button type="button" id="new-add-insp-btn">Add inspection</button></p>
     <div class="head">
       ${b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
       <div><h1>${esc(b.name)}</h1>
@@ -1159,7 +1158,7 @@ async function renderNewTicket() {
       <div><span>Mileage</span><input id="new-mileage" type="number" min="0" placeholder="Mileage" inputmode="numeric"></div>
     </div>
     <table id="new-lines-table"><tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr></table>
-    <p><button type="button" class="ghost" id="new-add-item">+ Add job</button></p>
+    <p><button type="button" class="ghost" id="new-add-item">+ Add job</button> <button type="button" class="ghost noprint" id="new-add-insp-btn">Add inspection</button></p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><div style="flex:1;min-width:120px"><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Tax rate %</span><input id="new-tax" type="number" min="0" max="100" step="0.01" placeholder="0" style="width:100%"></div></div>
     <div><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Mobile expenses &amp; supplies (optional)</span><div id="new-expenses"></div><p><button type="button" class="ghost" id="new-add-expense">+ Add expense</button></p></div>
     <div class="notes"><strong>Notes:</strong><br><textarea id="new-notes" rows="2" class="autogrow" style="margin-top:6px"></textarea></div>
@@ -1220,7 +1219,7 @@ async function renderNewTicket() {
     const sec2 = document.getElementById('new-insp-section');
     if (sec2) bindAutogrow(sec2);
     const line = document.querySelector('#new-lines-table tbody.insp-line');
-    if (line && line.querySelector('td')) line.querySelector('td').textContent = embKindLabel();
+    if (line && line.querySelector('td')) line.querySelector('td').textContent = inspLineLabel();
   }));
   $n('new-add-insp-btn').onclick = () => {
     if (inspOn && embHasContent() && !confirm('Remove the inspection? The price line and what you typed below will be removed.')) return;
