@@ -40,16 +40,23 @@
   async function getMakes(year, type) {
     const k = type + '|' + year;
     if (!cache.makes[k]) {
-      const d = await (await fetch('/api/vehicles/makes?year=' + encodeURIComponent(year) + '&type=' + encodeURIComponent(type))).json().catch(() => ({}));
-      cache.makes[k] = Array.isArray(d.makes) ? d.makes : [];
+      // Cache the in-flight promise, not just the resolved list, so two
+      // concurrent calls for the same list share one fetch instead of
+      // racing each other to refill a select.
+      cache.makes[k] = (async () => {
+        const d = await (await fetch('/api/vehicles/makes?year=' + encodeURIComponent(year) + '&type=' + encodeURIComponent(type))).json().catch(() => ({}));
+        return Array.isArray(d.makes) ? d.makes : [];
+      })();
     }
     return cache.makes[k];
   }
   async function getModels(year, make, type) {
     const k = year + '|' + make + '|' + type;
     if (!cache.models[k]) {
-      const d = await (await fetch('/api/vehicles/models?year=' + encodeURIComponent(year) + '&make=' + encodeURIComponent(make) + '&type=' + encodeURIComponent(type))).json().catch(() => ({}));
-      cache.models[k] = Array.isArray(d.models) ? d.models : [];
+      cache.models[k] = (async () => {
+        const d = await (await fetch('/api/vehicles/models?year=' + encodeURIComponent(year) + '&make=' + encodeURIComponent(make) + '&type=' + encodeURIComponent(type))).json().catch(() => ({}));
+        return Array.isArray(d.models) ? d.models : [];
+      })();
     }
     return cache.models[k];
   }
@@ -268,12 +275,18 @@
         const years = await getYears();
         if (y && years.map(String).includes(y)) {
           yearSel.value = y;
-          yearSel.dispatchEvent(new Event('change'));
+          // Fill the dependent selects directly instead of dispatching
+          // change events: the change listeners refill asynchronously,
+          // and a refill landing after the assignments below wipes the
+          // chosen make/model back to the placeholder.
           const makes = await getMakes(y, curType);
+          fillSelect(makeSel, makes, 'Select make');
+          makeSel.disabled = false;
           if (makes.includes(m)) {
             makeSel.value = m;
-            makeSel.dispatchEvent(new Event('change'));
             const models = await getModels(y, m, curType);
+            fillSelect(modelSel, models, 'Select model');
+            modelSel.disabled = false;
             if (models.includes(mo)) { modelSel.value = mo; }
             else if (mo) { modelSel.value = OTHER; }
           } else if (m) {
@@ -290,7 +303,7 @@
         } else if (y || m || mo) {
           // year unknown: drop everything into free text under Other
           const years2 = await getYears();
-          if (years2.length) { yearSel.value = String(years2[0]); yearSel.dispatchEvent(new Event('change')); }
+          if (years2.length) { yearSel.value = String(years2[0]); }
           makeSel.value = OTHER; syncOther();
           makeOther.value = [y, m].filter(Boolean).join(' ');
           modelOther.value = mo;
@@ -314,8 +327,6 @@
           const years = await getYears();
           if (!years.length) return;
           yearSel.value = String(years[0]);
-          yearSel.dispatchEvent(new Event('change'));
-          await getMakes(yearSel.value, curType);
           makeSel.value = OTHER; syncOther();
           makeOther.value = ''; modelOther.value = str;
           syncOther(); fire();
