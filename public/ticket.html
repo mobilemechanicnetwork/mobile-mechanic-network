@@ -66,6 +66,18 @@
   .newdoc textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:.95rem}
   .newdoc button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:.9rem;cursor:pointer}
   .newdoc button.ghost{background:#fff;color:#0f172a;border:1px solid #e2e8f0}
+  .cat{border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin:12px 0}
+  .w100{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:.95rem;margin:4px 0}
+  .banddots{display:inline-flex;gap:6px;align-items:center;flex:none;margin-left:4px}
+  .bdot{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid #cbd5e1;flex:none;padding:0}
+  .bdot.red{background:#dc2626}.bdot.yellow{background:#eab308}.bdot.green{background:#16a34a}
+  .bdot.sel{border-color:#0f172a;box-shadow:0 0 0 2px #ffffff,0 0 0 4px #0f172a}
+  .ppi-legend{font-size:.85rem;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin:8px 0}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:baseline}
+  .dot.red{background:#dc2626}.dot.yellow{background:#eab308}.dot.green{background:#16a34a}
+  .ppi-thumb{position:relative;display:inline-block}
+  .ppi-thumb img{width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0}
+  .ppi-thumb button{position:absolute;top:-8px;right:-8px;width:22px;height:22px;border-radius:50%;background:#dc2626;color:#fff;border:0;font-size:12px;line-height:1;cursor:pointer;padding:0;margin:0}
   @media print{ .actions,.noprint{display:none} body{background:#fff} .page{box-shadow:none;margin:0;max-width:none} .meta .empty-line{display:none} .wdetail-text{display:block} }
 </style>
 </head>
@@ -76,6 +88,7 @@
 <p class="noprint" id="ticket-foot-hint" style="text-align:center;color:#64748b;font-size:.9rem;margin:0 16px">To share the PDF from your phone: tap Share PDF, then tap Share in the print preview and pick Messages, Mail, or another app.</p>
 <script src="/vehicle-picker.js"></script>
 <script src="/phone-format.js"></script>
+<script src="/inspection-cats.js"></script>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money = n => '$' + Number(n).toFixed(2);
@@ -202,7 +215,7 @@ window.saveDetails = async () => {
     if (T.type === 'receipt') {
       body = { vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value };
     } else {
-      body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, items: passItems(T.items), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value, expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
+      body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin-in').value, mileage: document.getElementById('dt-mile-in').value, items: passItems(T.items), laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm-in').value, jobAddress: document.getElementById('dt-job-in').value, email: (document.getElementById('dt-email-in') ? document.getElementById('dt-email-in').value.trim() : (T.email || '')), expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
     }
     const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
@@ -289,6 +302,53 @@ function bindNotes() {
       if (msg) { msg.style.color = '#15803d'; msg.textContent = 'Saved.'; }
     } catch (e) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = e.message; } }
   });
+}
+function sendPromptHtml() {
+  return `<div class="card" id="send-prompt" style="margin-bottom:14px"><h3 style="margin:0 0 6px">How do you want to send it?</h3>
+  <p class="muted" style="margin:0 0 8px">Ticket ${esc(T.label || ('#' + T.id.slice(0, 8)))} for ${esc(T.customerName || 'the customer')}.</p>
+  <p style="margin:0;display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="send-prompt-text">Text</button><button type="button" id="send-prompt-email">Email</button><button type="button" id="send-prompt-print">Print</button><button type="button" class="ghost" id="send-prompt-dismiss">Not now</button></p>
+  <div class="ok" id="send-prompt-msg" style="margin-top:8px"></div><div class="err" id="send-prompt-err"></div></div>`;
+}
+function sendPromptIf() {
+  try { return new URLSearchParams(location.search).get('send') === '1' ? sendPromptHtml() : ''; } catch (e) { return ''; }
+}
+// Email opens the mail app with the ticket summary. There is no guest
+// ticket link (the customer view needs a signed-in owner account), so
+// the body carries the summary and points at the dashboard instead.
+// When the ticket has an email on file, it addresses the mail to it;
+// otherwise the mechanic picks the recipient in the mail app.
+function ticketMailto() {
+  const biz = (typeof B !== 'undefined' && B) ? B.name : 'your mechanic';
+  const type = T.type || 'ticket';
+  const subject = 'Your ' + type + ' from ' + biz;
+  const body = biz + ' sent you a ' + type + ' for ' + (T.vehicle || 'your vehicle') + ' — $' + Number(T.total || 0).toFixed(2) + '. Ticket ' + (T.label || '') + '.\n\nView it in your Mobile Mechanic Network dashboard.';
+  return 'mailto:' + (T.email || '') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+}
+function bindSendPrompt() {
+  const box = document.getElementById('send-prompt');
+  if (!box) return;
+  const msg = document.getElementById('send-prompt-msg'), err = document.getElementById('send-prompt-err');
+  const dismiss = () => {
+    box.remove();
+    try { history.replaceState(null, '', '/ticket?id=' + T.id); } catch (e) {}
+  };
+  const bt = document.getElementById('send-prompt-text');
+  if (bt) bt.onclick = async () => {
+    msg.textContent = ''; err.textContent = '';
+    try {
+      const d = await api('/api/tickets/' + T.id + '/send', { text: true });
+      const parts = [];
+      parts.push(d.sent.text === 'sent' ? 'Text sent.' : d.sent.text === 'no-phone' ? 'Text skipped: no phone on file.' : d.sent.text === 'twilio-not-configured' ? 'Text not sent yet: texting is not set up.' : 'Text failed to send.');
+      parts.push(d.sent.notified ? 'Dashboard notice sent.' : 'No dashboard notice: customer has no account.');
+      msg.textContent = parts.join(' ');
+    } catch (e) { err.textContent = e.message; }
+  };
+  const be = document.getElementById('send-prompt-email');
+  if (be) be.onclick = () => { location.href = ticketMailto(); };
+  const bp = document.getElementById('send-prompt-print');
+  if (bp) bp.onclick = () => { window.print(); };
+  const bd = document.getElementById('send-prompt-dismiss');
+  if (bd) bd.onclick = dismiss;
 }
 function sendHtml() {
   return `<div class="card" style="margin-top:14px"><h3 style="margin:0 0 6px">Send to customer</h3>
@@ -566,8 +626,9 @@ function renderActions() {
   if (T.type === 'receipt') {
     // No separate paid note: the receipt document itself already says
     // "Paid in full" with a $0.00 balance.
-    box.innerHTML = '<div id="linked-insp"></div>' + sendHtml();
+    box.innerHTML = sendPromptIf() + '<div id="linked-insp"></div>' + sendHtml();
     bindSend();
+    bindSendPrompt();
     loadLinkedInsp();
     return;
   }
@@ -618,11 +679,12 @@ function renderActions() {
   html += appointmentsCardHtml();
   html += calendarCardHtml();
   html += sendHtml();
-  box.innerHTML = html;
+  box.innerHTML = sendPromptIf() + html;
   bindNotes();
   bindComments();
   bindPhotos();
   bindSend();
+  bindSendPrompt();
   bindCalendar();
   bindAppointments();
   // Adding an inspection to this ticket starts here, like creating a
@@ -827,7 +889,177 @@ function newJobAddress() {
   if (code) parts.push('Access code: ' + code);
   return parts.join(', ');
 }
+/* Embedded inspection form on ticket creation (?new): the same
+   category data as the standalone inspection page, rendered below
+   the ticket document. The ticket's own customer and vehicle fields
+   are the source of truth, so the section has no customer or vehicle
+   inputs of its own. */
+let inspOn = false;
+let _newSendPrompt = false;
+let embPhotos = {}, embBands = {};
+let _embTireSeq = 0;
+function embKind() { const el = document.querySelector('input[name="emb-kind"]:checked'); return el ? el.value : 'ppi'; }
+function embCatsFor(kind) { return kind === 'complete' ? CVI_CATS : PPI_CATS; }
+function embKindLabel() { return embKind() === 'complete' ? 'Complete Vehicle Inspection' : 'Pre-Purchase Inspection'; }
+function embKindNote(kind) { return kind === 'complete' ? 'A routine checkout: what the owner should know before small concerns become major issues or breakdowns, including before a major trip.' : 'For a buyer deciding on a vehicle.'; }
+function newTicketUrl(id, sendPrompt) { return '/ticket?id=' + id + (sendPrompt ? '&send=1' : ''); }
+document.addEventListener('click', e => {
+  const d = e.target.closest('.bdot');
+  if (!d || !d.closest('#new-insp-section')) return;
+  const wrap = d.parentElement;
+  if (!wrap || !wrap.classList.contains('banddots')) return;
+  embBands[wrap.dataset.key] = d.dataset.band;
+  wrap.querySelectorAll('.bdot').forEach(x => x.classList.toggle('sel', x === d));
+});
+window.embPpiPhoto = async (input, i) => {
+  const f = input.files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append('kind', 'inspection');
+  fd.append('file', f);
+  try {
+    const r = await fetch('/api/upload', { method: 'POST', body: fd });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Upload failed.');
+    (embPhotos[i] = embPhotos[i] || []).push(d.url);
+    renderEmbThumbs(i);
+  } catch (e) { alert(e.message); }
+  input.value = '';
+};
+window.embPpiPhotoRemove = (i, idx) => {
+  if (!confirm('Remove this photo?')) return;
+  embPhotos[i].splice(idx, 1);
+  renderEmbThumbs(i);
+};
+function renderEmbThumbs(i) {
+  const wrap = document.getElementById('emb-ph-' + i);
+  if (!wrap) return;
+  wrap.innerHTML = (embPhotos[i] || []).map((u, idx) =>
+    `<span class="ppi-thumb"><img src="${esc(u)}" alt=""><button type="button" onclick="embPpiPhotoRemove(${i},${idx})" title="Remove">×</button></span>`).join('');
+}
+function toggleEmbSpareMissing(i, j) {
+  const cb = document.getElementById('emb-spare-missing-' + i);
+  const inp = document.getElementById('emb-f-' + i + '-' + j);
+  if (!cb || !inp) return;
+  if (cb.checked) {
+    inp.dataset.keptValue = inp.value;
+    inp.value = '';
+    inp.disabled = true;
+  } else {
+    inp.disabled = false;
+    if (inp.dataset.keptValue !== undefined) inp.value = inp.dataset.keptValue;
+  }
+}
+function addEmbExtraTire(i) {
+  const wrap = document.getElementById('emb-tires-extra-' + i);
+  if (!wrap) return;
+  const bkey = i + '-x' + (_embTireSeq++);
+  const row = document.createElement('div');
+  row.className = 'extra-tire';
+  row.dataset.bkey = bkey;
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;margin:4px 0';
+  row.innerHTML = `<input class="w100 extra-tire-label" placeholder="Tire position, e.g. Rear inner left" maxlength="60" style="margin:0;flex:1"><input class="w100 extra-tire-tread" placeholder="e.g. 7/32 in" maxlength="60" style="margin:0;flex:1"><span class="banddots" data-key="${bkey}">${['red', 'yellow', 'green'].map(b =>
+    `<span class="bdot ${b}" data-band="${b}" title="${b === 'red' ? 'Replace' : b === 'yellow' ? 'Suggest soon' : 'Good'}"></span>`).join('')}</span><button type="button" class="ghost" onclick="this.closest('.extra-tire').remove()">×</button>`;
+  wrap.appendChild(row);
+}
+function renderEmbCats() {
+  const kind = embKind();
+  const CATS = (typeof PPI_CATS === 'undefined') ? [] : embCatsFor(kind);
+  const note = document.getElementById('emb-kind-note');
+  if (note) note.textContent = embKindNote(kind);
+  const wrap = document.getElementById('emb-cats');
+  if (!wrap) return;
+  wrap.innerHTML = CATS.map((c, i) => {
+    const spareIdx = c.key === 'tires' ? c.fields.findIndex(f => f.k === 'Spare tire') : -1;
+    return `<div class="cat"><strong>${esc(c.label)}</strong>
+      ${c.legend ? `<div class="ppi-legend"><span class="dot red"></span>Replace <span class="dot yellow" style="margin-left:10px"></span>Suggest <span class="dot green" style="margin-left:10px"></span>Good <span class="muted">— ${esc(c.legend)}</span></div>` : ''}
+      <div style="margin:8px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <label style="margin:0"><input type="radio" name="emb-status-${i}" value="good"> Good</label>
+        <label style="margin:0"><input type="radio" name="emb-status-${i}" value="needs_attention"> Needs attention</label>
+        <label style="margin:0"><input type="radio" name="emb-status-${i}" value="fail"> Fail</label>
+        <label style="margin:0">Urgency <select id="emb-urg-${i}">
+          <option value="none" selected>None</option>
+          <option value="monitor">Monitor</option>
+          <option value="soon">Repair soon</option>
+          <option value="immediate">Immediate attention</option>
+        </select></label>
+      </div>
+      ${c.fields.map((f, j) => {
+        const bkey = i + '-' + j;
+        const dots = f.band ? `<span class="banddots" data-key="${bkey}">${['red', 'yellow', 'green'].map(b =>
+          `<span class="bdot ${b}${embBands[bkey] === b ? ' sel' : ''}" data-band="${b}" title="${b === 'red' ? 'Replace' : b === 'yellow' ? 'Suggest soon' : 'Good'}"></span>`).join('')}</span>` : '';
+        return `<label>${esc(f.k)}</label><div style="display:flex;gap:8px;align-items:center"><input id="emb-f-${i}-${j}" class="w100" placeholder="${esc(f.ph)}" maxlength="300" style="margin:0">${dots}</div>`;
+      }).join('')}
+      ${spareIdx >= 0 ? `<label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" id="emb-spare-missing-${i}" onchange="toggleEmbSpareMissing(${i}, ${spareIdx})" style="width:18px;height:18px"> Spare tire is missing</label>` : ''}
+      ${c.key === 'tires' ? `<div id="emb-tires-extra-${i}"></div><button type="button" class="ghost" onclick="addEmbExtraTire(${i})">+ Add tire</button><p class="muted" style="margin:4px 0 0">For a dually, bus, or any vehicle with more than four tires, add each extra tire here.</p>` : ''}
+      <label>Notes</label><textarea id="emb-n-${i}" rows="2" maxlength="1000" placeholder="${kind === 'complete' ? 'Anything the owner should know' : 'Anything the buyer should know'}"></textarea>
+      <label>Photos</label>
+      <div id="emb-ph-${i}" style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0"></div>
+      <input type="file" accept="image/*" onchange="embPpiPhoto(this, ${i})" style="margin-bottom:4px">
+    </div>`;
+  }).join('');
+  CATS.forEach((c, i) => { renderEmbThumbs(i); });
+}
+function embHasContent() {
+  const sec = document.getElementById('new-insp-section');
+  if (!sec) return false;
+  if (sec.querySelector('input[name^="emb-status-"]:checked')) return true;
+  if ([...sec.querySelectorAll('input[type="text"], input:not([type]), textarea')].some(el => el.value && el.value.trim())) return true;
+  if (Object.keys(embPhotos).some(k => (embPhotos[k] || []).length)) return true;
+  if (Object.keys(embBands).length) return true;
+  return false;
+}
+function embCategories() {
+  const CATS = (typeof PPI_CATS === 'undefined') ? [] : embCatsFor(embKind());
+  return CATS.map((c, i) => {
+    const statusEl = document.querySelector('input[name="emb-status-' + i + '"]:checked');
+    const detail = {};
+    const bands = {};
+    c.fields.forEach((f, j) => {
+      const el = document.getElementById('emb-f-' + i + '-' + j);
+      const v = el ? el.value.trim() : '';
+      if (v) detail[f.k] = v;
+      const band = embBands[i + '-' + j];
+      if (f.band && band) bands[f.k] = band;
+    });
+    if (c.key === 'tires') {
+      const missCb = document.getElementById('emb-spare-missing-' + i);
+      if (missCb && missCb.checked) detail['Spare tire'] = 'Missing';
+      const wrap = document.getElementById('emb-tires-extra-' + i);
+      if (wrap) wrap.querySelectorAll('.extra-tire').forEach(row => {
+        const label = row.querySelector('.extra-tire-label').value.trim() || 'Additional tire';
+        const tread = row.querySelector('.extra-tire-tread').value.trim();
+        const band = embBands[row.dataset.bkey];
+        if (!tread && !band) return;
+        detail[label] = tread;
+        if (band) bands[label] = band;
+      });
+    }
+    const urg = document.getElementById('emb-urg-' + i);
+    const notes = document.getElementById('emb-n-' + i);
+    return { key: c.key, label: c.label, status: statusEl ? statusEl.value : '', urgency: urg ? urg.value : 'none', detail, bands, photos: embPhotos[i] || [], notes: notes ? notes.value.trim() : '' };
+  });
+}
+function buildInspLine() {
+  const tb = document.createElement('tbody');
+  tb.className = 'insp-line';
+  tb.innerHTML = `<tr><td>${esc(embKindLabel())}</td><td class="num">1</td><td class="num"><input id="insp-line-price" type="number" min="0" step="0.01" placeholder="Price $" style="width:110px"></td><td class="num"><span class="insp-line-total">$0.00</span></td></tr>`;
+  tb.querySelector('input').addEventListener('input', newTicketTotals);
+  return tb;
+}
+function syncInsp() {
+  const table = $n('new-lines-table');
+  let tb = table ? table.querySelector('tbody.insp-line') : null;
+  if (inspOn && !tb && table) { tb = buildInspLine(); const first = table.querySelector('tbody.job-group'); table.insertBefore(tb, first); }
+  if (!inspOn && tb) tb.remove();
+  const sec = document.getElementById('new-insp-section');
+  if (sec) sec.hidden = !inspOn;
+  const btn = $n('new-add-insp-btn');
+  if (btn) btn.textContent = inspOn ? 'Remove inspection' : 'Add inspection';
+  newTicketTotals();
+}
 async function saveNewTicket() {
+  const wantSendPrompt = _newSendPrompt; _newSendPrompt = false;
   const err = $n('new-err');
   err.textContent = '';
   const customer = $n('new-customer').value.trim();
@@ -863,17 +1095,27 @@ async function saveNewTicket() {
     desc: r.querySelector('[data-f="desc"]').value,
     amount: r.querySelector('[data-f="amount"]').value
   }));
-  const body = { type: 'estimate', customerName: customer, phone: $n('new-cust-phone').value, vehicle: veh, vin: $n('new-vin').value, mileage: $n('new-mileage').value, jobAddress: newJobAddress(), items, taxRate: $n('new-tax').value, expenses, notes: $n('new-notes').value, warranty: $n('new-warranty').value, sendText: $n('new-send-text').checked };
+  const body = { type: 'estimate', customerName: customer, phone: $n('new-cust-phone').value, email: ($n('new-email') ? $n('new-email').value.trim() : ''), vehicle: veh, vin: $n('new-vin').value, mileage: $n('new-mileage').value, jobAddress: newJobAddress(), items, taxRate: $n('new-tax').value, expenses, notes: $n('new-notes').value, warranty: $n('new-warranty').value };
   try {
     const r = await fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || 'Could not create the ticket.');
-    if ($n('new-add-insp') && $n('new-add-insp').checked) {
-      const q = new URLSearchParams({ ticket: d.ticket.id, customer, phone: $n('new-cust-phone').value, vehicle: veh, vin: $n('new-vin').value, mileage: $n('new-mileage').value });
-      location.href = '/inspection.html?new=1&' + q.toString();
-    } else {
-      location.href = '/ticket?id=' + d.ticket.id;
+    // The inspection form below the ticket saves with it, attached to
+    // the new ticket. A shown-but-untouched form saves nothing: the
+    // price line stays, and the report can be added later from the
+    // ticket's Add inspection button.
+    if (inspOn && embHasContent()) {
+      const ibody = { kind: embKind(), customerName: customer, customerPhone: $n('new-cust-phone').value, vehicle: veh, vin: $n('new-vin').value, mileage: $n('new-mileage').value, categories: embCategories(), generalNotes: (document.getElementById('emb-general-notes') ? document.getElementById('emb-general-notes').value.trim() : ''), ticketId: d.ticket.id };
+      try {
+        const ir = await fetch('/api/ppi', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ibody) });
+        const idd = await ir.json().catch(() => ({}));
+        if (!ir.ok) throw new Error(idd.error || 'Could not save the inspection.');
+      } catch (e) {
+        err.innerHTML = 'Ticket created, but the inspection did not save: ' + esc(e.message) + '. <a href="/ticket?id=' + d.ticket.id + '">Open ticket →</a>';
+        return;
+      }
     }
+    location.href = newTicketUrl(d.ticket.id, wantSendPrompt);
   } catch (e) { err.textContent = e.message; }
 }
 async function renderNewTicket() {
@@ -894,6 +1136,7 @@ async function renderNewTicket() {
   } catch (e) { box.innerHTML = '<p>Could not load your business page.</p>'; return; }
   box.classList.add('newdoc');
   box.innerHTML = `
+    <p class="noprint" style="margin:0 0 12px"><button type="button" id="new-add-insp-btn">Add inspection</button></p>
     <div class="head">
       ${b.logoUrl ? `<img src="${esc(b.logoUrl)}" alt="">` : ''}
       <div><h1>${esc(b.name)}</h1>
@@ -903,6 +1146,7 @@ async function renderNewTicket() {
     <div class="meta">
       <div><span>Customer</span><textarea id="new-customer" rows="1" class="autogrow" placeholder="Customer name">${esc(qp.get('customer') || '')}</textarea></div>
       <div><span>Phone</span><input id="new-cust-phone" type="tel" value="${esc(qp.get('phone') || '')}" placeholder="Phone"></div>
+      <div><span>Email</span><input id="new-email" type="email" value="${esc(qp.get('email') || '')}" placeholder="Email (optional)"></div>
       <div style="grid-column:1/-1"><span>Job address</span><textarea id="new-job-street" rows="1" class="autogrow" placeholder="Street address" autocomplete="street-address"></textarea></div>
       <div style="grid-column:1/-1"><div style="display:flex;gap:8px"><div style="flex:1"><span>Type</span><select id="new-job-type"><option value="">Select type</option><option value="home">Home</option><option value="apt">Apt</option><option value="business">Business</option></select></div><div style="flex:2" id="new-job-name-cell" hidden><span id="new-job-name-label">Name</span><textarea id="new-job-name" rows="1" class="autogrow" placeholder="Apartment or business name"></textarea></div></div></div>
       <div style="grid-column:1/-1"><span>Access code / gate code</span><input id="new-job-code" placeholder="Gate or access code" maxlength="40"></div>
@@ -922,7 +1166,18 @@ async function renderNewTicket() {
     <div class="notes"><strong>Warranty:</strong><br><textarea id="new-warranty" rows="2" class="autogrow" style="margin-top:6px" placeholder="e.g. 12 months / 12,000 miles on parts and labor"></textarea></div>
     <div class="total" id="new-total">Estimated total: $0.00</div>
     <div class="disc">This is an estimate only and is not a final invoice. The work and price listed above are what is quoted. No additional charges will be added without your approval.</div>
-    <div class="foot">Prepared by ${esc(b.name)}${b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network</div>`;
+    <div class="foot">Prepared by ${esc(b.name)}${b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network</div>
+    <div id="new-insp-section" class="noprint" hidden style="margin-top:28px;border-top:2px solid #0f172a;padding-top:16px">
+      <h2 style="margin:0 0 4px">Inspection</h2>
+      <p class="muted" style="margin:0 0 8px">For the customer and vehicle on this ticket. It saves with the ticket, attached to it.</p>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:8px 0">
+        <label style="margin:0"><input type="radio" name="emb-kind" value="ppi" checked> Pre-purchase inspection</label>
+        <label style="margin:0"><input type="radio" name="emb-kind" value="complete"> Complete vehicle inspection</label>
+      </div>
+      <p class="muted" id="emb-kind-note" style="margin:0 0 8px"></p>
+      <div id="emb-cats"></div>
+      <div><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Inspector notes</span><textarea id="emb-general-notes" rows="2" class="autogrow" style="margin-top:6px" placeholder="Overall notes for this inspection"></textarea></div>
+    </div>`;
   if (window.VehiclePicker) {
     _newVeh = VehiclePicker.attach({ year: 'new-year', make: 'new-make', model: 'new-model', type: 'new-veh-type' });
     const preVeh = qp.get('vehicle');
@@ -944,46 +1199,37 @@ async function renderNewTicket() {
   $n('new-tax').addEventListener('input', newTicketTotals);
   const actions = document.getElementById('ticket-actions');
   actions.innerHTML = `<div class="card">
-    <label style="display:block"><input type="checkbox" id="new-send-text" checked> Text it to the customer</label>
-    <p class="muted" style="margin:4px 0 0">Texting needs the phone number on the ticket above, and texting set up. Customers with an account are also notified in their dashboard automatically. After saving, the ticket opens with the Share PDF button.</p>
-    <label style="display:block;margin-top:10px"><input type="checkbox" id="new-add-insp"> Also create an inspection for this job</label>
-    <p class="muted" style="margin:4px 0 0">After the ticket saves, the inspection form opens with this customer and vehicle already filled in, and the inspection is attached to this ticket.</p>
-    <p style="margin-top:14px"><button type="button" id="new-save">Create ticket</button> <button type="button" class="ghost" id="new-cancel">Cancel</button></p>
+    <p style="margin:0"><button type="button" id="new-save">Create ticket</button> <button type="button" id="new-send">Send to customer</button> <button type="button" class="ghost" id="new-cancel">Cancel</button></p>
+    <p class="muted" style="margin:8px 0 0">Send to customer saves the ticket, then asks whether to text, email, or print it.</p>
     <div class="err" id="new-err"></div></div>`;
   $n('new-cancel').onclick = () => { location.href = '/mechanic'; };
   $n('new-save').onclick = saveNewTicket;
-  // An inspection that sent the mechanic here (?addInspection=1) has its
-  // box already checked, so saving the ticket brings the inspection back.
-  // Inspection-first arrival: the inspection is already decided, so the
-  // box is checked and hidden — no second click — and the price field
-  // shows on its own.
-  if (qp.get('addInspection') && $n('new-add-insp')) {
-    $n('new-add-insp').checked = true;
-    const lab = $n('new-add-insp').closest('label');
-    if (lab) lab.style.display = 'none';
-  }
-  // The inspection charge is one flat price typed ON the ticket, not
-  // labor or parts: checking the box adds an inspection line to the
-  // lines table itself, with its own price box. It joins the total
-  // below like an expense (after tax, not taxed).
-  const inspKindLabel = () => { const k = qp.get('kind'); return k === 'complete' ? 'Complete Vehicle Inspection' : k === 'ppi' ? 'Pre-Purchase Inspection' : 'Inspection'; };
-  const buildInspLine = () => {
-    const tb = document.createElement('tbody');
-    tb.className = 'insp-line';
-    tb.innerHTML = `<tr><td>${esc(inspKindLabel())}</td><td class="num">1</td><td class="num"><input id="insp-line-price" type="number" min="0" step="0.01" placeholder="Price $" style="width:110px"></td><td class="num"><span class="insp-line-total">$0.00</span></td></tr>`;
-    tb.querySelector('input').addEventListener('input', newTicketTotals);
-    return tb;
+  $n('new-send').onclick = () => { _newSendPrompt = true; saveNewTicket(); };
+  // The inspection form lives below the ticket on this same page.
+  // Add inspection (top button) adds the price line to the ticket
+  // and reveals the form; saving the ticket saves the inspection
+  // with it, attached to the new ticket. An inspection that sent
+  // the mechanic here (?addInspection=1) starts with the form open.
+  const kindRadio = document.querySelector('input[name="emb-kind"][value="' + (qp.get('kind') === 'complete' ? 'complete' : 'ppi') + '"]');
+  if (kindRadio) kindRadio.checked = true;
+  renderEmbCats();
+  const inspSec = document.getElementById('new-insp-section');
+  if (inspSec) bindAutogrow(inspSec);
+  document.querySelectorAll('input[name="emb-kind"]').forEach(r => r.addEventListener('change', () => {
+    renderEmbCats();
+    const sec2 = document.getElementById('new-insp-section');
+    if (sec2) bindAutogrow(sec2);
+    const line = document.querySelector('#new-lines-table tbody.insp-line');
+    if (line && line.querySelector('td')) line.querySelector('td').textContent = embKindLabel();
+  }));
+  $n('new-add-insp-btn').onclick = () => {
+    if (inspOn && embHasContent() && !confirm('Remove the inspection? The price line and what you typed below will be removed.')) return;
+    inspOn = !inspOn;
+    syncInsp();
+    if (inspOn) { const sec3 = document.getElementById('new-insp-section'); if (sec3) sec3.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   };
-  const syncInspLine = () => {
-    const on = $n('new-add-insp') && $n('new-add-insp').checked;
-    const table = $n('new-lines-table');
-    let tb = table ? table.querySelector('tbody.insp-line') : null;
-    if (on && !tb && table) { tb = buildInspLine(); const first = table.querySelector('tbody.job-group'); table.insertBefore(tb, first); }
-    if (!on && tb) tb.remove();
-    newTicketTotals();
-  };
-  if ($n('new-add-insp')) $n('new-add-insp').addEventListener('change', syncInspLine);
-  syncInspLine();
+  inspOn = !!qp.get('addInspection');
+  syncInsp();
   bindAutogrow(box);
   newTicketTotals();
 }
@@ -1042,6 +1288,7 @@ async function renderNewTicket() {
       <div class="meta">
         ${t.customerName ? `<div><span>Customer</span>${esc(t.customerName)}</div>` : ''}
         ${t.phone ? `<div><span>Phone</span>${esc(window.PhoneFmt ? window.PhoneFmt.display(t.phone) : t.phone)}</div>` : ''}
+        ${t.type === 'receipt' ? (t.email ? `<div><span>Email</span>${esc(t.email)}</div>` : '') : `<div class="${t.email ? '' : 'empty-line'}"><span>Email</span><input id="dt-email-in" type="email" value="${esc(t.email || '')}" placeholder="Email"></div>`}
         ${t.type === 'receipt' ? (t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : '') : `<div class="${t.jobAddress ? '' : 'empty-line'}"><span>Job address</span><textarea id="dt-job-in" rows="1" class="autogrow" placeholder="Job address">${esc(t.jobAddress || '')}</textarea></div>`}
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
         ${t.vehicle ? `<div><span>Vehicle</span>${esc(t.vehicle)}</div>` : ''}
@@ -1064,7 +1311,7 @@ async function renderNewTicket() {
       ${t.type === 'estimate' ? `<div class="disc">This is an estimate only and is not a final invoice. The work and price listed above are what is quoted. No additional charges will be added without your approval.</div>` : ''}
       <div class="foot">Prepared by ${esc(b ? b.name : '')}${b && b.phone ? ' · ' + esc(b.phone) : ''} · via Mobile Mechanic Network${t.type === 'receipt' ? '<br>This receipt confirms payment received in full for the services listed above.' : ''}</div>`;
     document.title = t.type.charAt(0).toUpperCase() + t.type.slice(1) + ' — ' + (b ? b.name : '');
-    ['dt-job-in', 'dt-vin-in', 'dt-mile-in', 'dt-pm-in'].forEach(id => {
+    ['dt-job-in', 'dt-vin-in', 'dt-mile-in', 'dt-pm-in', 'dt-email-in'].forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
       el.addEventListener('change', saveDetails);

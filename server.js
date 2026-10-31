@@ -274,7 +274,7 @@ function ticketItemTotal(it) {
   return r2((it.qty != null ? Number(it.qty) : 1) * Number(it.price != null ? it.price : (it.amount || 0)));
 }
 function cleanTicketBody(body, type) {
-  const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage, paymentMethod, jobAddress, comments, phone, expenses } = body || {};
+  const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage, paymentMethod, jobAddress, comments, phone, email, expenses } = body || {};
   if (!customerName || !String(customerName).trim()) return { error: 'Customer name is required.' };
   if (!Array.isArray(items) || !items.length) return { error: 'At least one line item is required.' };
   let ticketVin = '';
@@ -325,6 +325,7 @@ function cleanTicketBody(body, type) {
     warranty: String(warranty || '').trim().slice(0, 2000),
     ...(paymentMethod !== undefined ? { paymentMethod: String(paymentMethod || '').trim().slice(0, 50) } : {}),
     ...(phone !== undefined ? { phone: String(phone || '').trim().slice(0, 25) } : {}),
+    ...(email !== undefined ? { email: String(email || '').trim().slice(0, 200) } : {}),
     ...(jobAddress !== undefined ? { jobAddress: String(jobAddress || '').trim().slice(0, 200) } : {}),
     ...(comments !== undefined ? { comments: String(comments || '').trim().slice(0, 2000) } : {}),
     total
