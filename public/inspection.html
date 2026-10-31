@@ -265,15 +265,19 @@ async function newReport() {
   const kindCard = document.createElement('div');
   kindCard.className = 'page noprint';
   kindCard.innerHTML = `
-    <div style="display:flex;gap:16px;flex-wrap:wrap;margin:8px 0"><label style="margin:0"><input type="radio" name="new-kind" value="ppi" checked> Pre-purchase inspection</label><label style="margin:0"><input type="radio" name="new-kind" value="complete"> Complete vehicle inspection</label></div>
-    <p class="muted" id="new-kind-note" style="margin:0 0 8px">${newKindNote('ppi')}</p>`;
+    <div style="margin:8px 0">
+      <label style="display:block;margin:0"><input type="radio" name="new-kind" value="ppi" checked> Pre-purchase inspection</label>
+      <p class="muted" style="margin:2px 0 12px 24px">${newKindNote('ppi')}</p>
+      <label style="display:block;margin:0"><input type="radio" name="new-kind" value="complete"> Complete vehicle inspection</label>
+      <p class="muted" style="margin:2px 0 8px 24px">${newKindNote('complete')}</p>
+    </div>`;
   box.before(kindCard);
   const saveCard = document.createElement('div');
   saveCard.className = 'page noprint';
   saveCard.innerHTML = `
     <div><label>Customer phone (optional, for texting the link)</label><input id="new-phone" class="w100" maxlength="30"></div>
     <div><label>Attach to ticket (optional)</label><select id="new-ticket" style="width:100%"><option value="">No ticket — standalone inspection</option><option value="__new__">Create a new ticket for this inspection</option></select></div>
-    <p class="muted" style="margin:4px 0 0">Attach it to a ticket so the work can be charged, invoiced, and turned into a receipt. You price the inspection on the ticket.</p>
+    <p class="muted" style="margin:4px 0 0">Attach it to a ticket so the work can be charged, invoiced, and turned into a receipt. Choosing a ticket fills in its customer and vehicle. You price the inspection on the ticket.</p>
     <p><button type="button" id="new-save">Save inspection</button> <button type="button" class="ghost" id="new-cancel">Cancel</button></p>
     <div class="err" id="new-err"></div>`;
   box.after(saveCard);
@@ -297,7 +301,6 @@ async function newReport() {
     <div class="foot">Prepared by ${esc(b.name)} · via Mobile Mechanic Network</div>`;
   document.querySelectorAll('input[name="new-kind"]').forEach(el => el.addEventListener('change', () => {
     const kind = newKind();
-    document.getElementById('new-kind-note').textContent = newKindNote(kind);
     document.getElementById('new-type-pill').textContent = newKindLabel(kind);
     document.getElementById('new-disclaimer').innerHTML = newDisclaimer(kind);
     newPhotos = {}; newBands = {}; _extraTireSeq = 0;
@@ -320,6 +323,35 @@ async function newReport() {
   if (qp.get('mileage')) document.getElementById('new-mileage').value = qp.get('mileage');
   if (qp.get('vehicle') && _newPpiVeh) { try { await _newPpiVeh.setFromString(qp.get('vehicle')); } catch (e) {} }
   const ticketSel = document.getElementById('new-ticket');
+  // Selecting a ticket fills the form from it: customer, phone, vehicle,
+  // VIN, mileage. Fields the mechanic already typed are left alone;
+  // fields filled from a previous ticket follow the newly selected one.
+  let _ticketFill = {};
+  async function fillFormFromTicket(ticketId) {
+    if (!ticketId || ticketId === '__new__') return;
+    let tk = null;
+    try { const r = await fetch('/api/ticket?id=' + encodeURIComponent(ticketId)); const d = await r.json().catch(() => ({})); tk = d.ticket || null; } catch (e) {}
+    if (!tk) return;
+    const setIf = (el, key, val) => {
+      if (val === undefined || val === null || String(val) === '') return;
+      const v = String(val);
+      const cur = el.value;
+      if (cur && cur !== '' && _ticketFill[key] !== cur) return;
+      el.value = v; _ticketFill[key] = v;
+    };
+    setIf(document.getElementById('new-customer'), 'customer', tk.customerName);
+    const dispPhone = (window.PhoneFmt && window.PhoneFmt.display) ? window.PhoneFmt.display(tk.phone || '') : (tk.phone || '');
+    setIf(document.getElementById('new-phone'), 'phone', dispPhone);
+    setIf(document.getElementById('new-vin'), 'vin', tk.vin);
+    setIf(document.getElementById('new-mileage'), 'mileage', tk.mileage);
+    if (tk.vehicle && _newPpiVeh) {
+      const curVeh = _newPpiVeh.vehicleString() || '';
+      if (!curVeh || _ticketFill.vehicle === curVeh) {
+        try { await _newPpiVeh.setFromString(tk.vehicle); _ticketFill.vehicle = _newPpiVeh.vehicleString() || tk.vehicle; } catch (e) {}
+      }
+    }
+  }
+  ticketSel.addEventListener('change', () => { fillFormFromTicket(ticketSel.value); });
   try {
     const tr = await fetch('/api/tickets/me');
     const td = await tr.json().catch(() => ({}));
@@ -331,7 +363,7 @@ async function newReport() {
       ticketSel.appendChild(o);
     });
     const want = qp.get('ticket');
-    if (want && [...ticketSel.options].some(o => o.value === want)) ticketSel.value = want;
+    if (want && [...ticketSel.options].some(o => o.value === want)) { ticketSel.value = want; ticketSel.dispatchEvent(new Event('change')); }
   } catch (e) {}
 }
 (async () => {
