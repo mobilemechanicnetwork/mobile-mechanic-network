@@ -468,12 +468,15 @@ async function loadLinkedInsp() {
   const box = document.getElementById('linked-insp');
   if (!box || !T) return;
   let list = [];
-  try { const d = await api('/api/ppi'); list = (d.reports || []).filter(r => r.ticketId === T.id); } catch (e) {}
+  // GET, not api(): api() always POSTs, and POST /api/ppi with an empty
+  // body is a create (400 without customer + vehicle), so the list
+  // never loaded and this whole section stayed blank on the live site.
+  try { const r = await fetch('/api/ppi'); const d = await r.json().catch(() => ({})); if (r.ok) list = (d.reports || []).filter(x => x.ticketId === T.id); } catch (e) {}
   if (!list.length) { box.innerHTML = ''; return; }
   let html = '';
   for (const r of list) {
     let full = null;
-    try { const d = await api('/api/ppi/' + r.id); full = d.report || null; } catch (e) {}
+    try { const resp = await fetch('/api/ppi/' + r.id); const d = await resp.json().catch(() => ({})); if (resp.ok) full = d.report || null; } catch (e) {}
     const kindLabel = r.kind === 'complete' ? 'Complete vehicle inspection' : 'Pre-purchase inspection';
     const url = '/inspection.html?id=' + encodeURIComponent(r.id) + '&token=' + encodeURIComponent(r.shareToken);
     html += `<div style="margin-bottom:16px"><h3 style="margin:0 0 6px">Linked inspection</h3><p style="margin:0 0 8px"><a href="${url}" target="_blank">${esc(kindLabel)} — ${esc(r.vehicle)} →</a></p>`;
@@ -500,6 +503,51 @@ async function loadLinkedInsp() {
     html += `</div>`;
   }
   box.innerHTML = html;
+  // An estimate with a linked inspection but no inspection-priced line
+  // yet gets the price box ON the ticket document itself: a row in the
+  // lines table with a price box. Typing a price saves it as the flat
+  // inspection line (reload shows it as a normal line). Estimates only:
+  // invoices lock prices, receipts are final. A ticket that already
+  // carries an inspection line shows that line instead, no second box.
+  // (One box per ticket: with several linked inspections it takes the
+  // first one's kind for the label; extras price via Edit lines.)
+  if (T.type === 'estimate') {
+    const INSP_LABELS = ['Pre-Purchase Inspection', 'Complete Vehicle Inspection', 'Inspection'];
+    const isInspFlat = i => !(i.partLines && i.partLines.length) && !i.laborLine && INSP_LABELS.includes(i.desc);
+    if (!(T.items || []).some(isInspFlat)) {
+      const table = document.querySelector('#ticket table');
+      if (table && !table.querySelector('tr.insp-price-row')) {
+        const isNew = T.items && T.items.length && T.items[0].qty !== undefined;
+        const kindLabel = list[0].kind === 'complete' ? 'Complete Vehicle Inspection' : 'Pre-Purchase Inspection';
+        const tr = document.createElement('tr');
+        tr.className = 'noprint insp-price-row';
+        tr.innerHTML = isNew
+          ? `<td>${esc(kindLabel)} — price (flat, no labor or parts)</td><td class="num">1</td><td class="num"><input id="insp-price-in" type="number" min="0" step="0.01" placeholder="Price $" style="width:110px"></td><td class="num"></td>`
+          : `<td>${esc(kindLabel)} — price (flat, no labor or parts)</td><td class="num"><input id="insp-price-in" type="number" min="0" step="0.01" placeholder="Price $" style="width:110px"></td>`;
+        (table.querySelector('tbody') || table).appendChild(tr);
+        const input = tr.querySelector('input');
+        const saveInspPrice = async () => {
+          const raw = input.value.trim();
+          const msg = document.getElementById('details-msg');
+          if (raw === '') return;
+          if (!Number.isFinite(Number(raw)) || Number(raw) < 0) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = 'Enter a valid inspection price.'; } return; }
+          try {
+            const items = passItems(T.items).filter(i => !isInspFlat(i));
+            items.push({ desc: kindLabel, qty: 1, price: Math.round(Number(raw) * 100) / 100, partLines: [], laborLine: null });
+            const body = { customerName: T.customerName, vehicle: T.vehicle, vin: document.getElementById('dt-vin-in') ? document.getElementById('dt-vin-in').value : (T.vin || ''), mileage: document.getElementById('dt-mile-in') ? document.getElementById('dt-mile-in').value : (T.mileage || ''), items, laborDesc: T.laborDesc, laborAmount: T.laborAmount, taxRate: T.taxRate, notes: T.notes, warranty: T.warranty, paymentMethod: document.getElementById('dt-pm-in') ? document.getElementById('dt-pm-in').value : (T.paymentMethod || ''), jobAddress: document.getElementById('dt-job-in') ? document.getElementById('dt-job-in').value : (T.jobAddress || ''), expenses: (T.expenses || []).map(e => ({ desc: e.desc, amount: e.amount })) };
+            const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(d.error || 'Could not save.');
+            if (d.ticket) T = d.ticket;
+            if (msg) { msg.style.color = '#15803d'; msg.textContent = 'Saved.'; }
+            location.reload();
+          } catch (e) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = e.message; } }
+        };
+        input.addEventListener('change', saveInspPrice);
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+      }
+    }
+  }
 }
 window.addRepairFromInspection = async (inspId, key, btn) => {
   if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
@@ -748,13 +796,15 @@ function newTicketTotals() {
     expenses += amt;
   });
   expenses = Math.round(expenses * 100) / 100;
-  // Flat inspection price (typed on the ticket, no labor or parts):
-  // added after tax like an expense, never taxed, only while the box is on.
-  const inspChecked = $n('new-add-insp') && $n('new-add-insp').checked;
-  const inspPrice = inspChecked ? Math.round(Math.max(0, Number($n('new-insp-price') ? $n('new-insp-price').value : 0) || 0) * 100) / 100 : 0;
+  // Flat inspection price, typed on the ticket document itself: the
+  // inspection line in the lines table carries the price box. Added
+  // after tax like an expense, never taxed, only while the line is on.
+  const inspLine = document.querySelector('#new-lines-table tbody.insp-line');
+  const inspPrice = inspLine ? Math.round(Math.max(0, Number(inspLine.querySelector('input') ? inspLine.querySelector('input').value : 0) || 0) * 100) / 100 : 0;
+  if (inspLine) { const lt = inspLine.querySelector('.insp-line-total'); if (lt) lt.textContent = '$' + inspPrice.toFixed(2); }
   const total = Math.round((parts + labor + tax + expenses + inspPrice) * 100) / 100;
   const el = $n('new-total');
-  if (el) el.innerHTML = `Parts: $${parts.toFixed(2)} · Labor: $${labor.toFixed(2)} · Tax: $${tax.toFixed(2)}${inspChecked ? ` · Inspection: $${inspPrice.toFixed(2)}` : ''}${hasExpenses ? ` · Expenses: $${expenses.toFixed(2)}` : ''}<br><strong>Estimated total: $${total.toFixed(2)}</strong>`;
+  if (el) el.innerHTML = `Parts: $${parts.toFixed(2)} · Labor: $${labor.toFixed(2)} · Tax: $${tax.toFixed(2)}${inspLine ? ` · Inspection: $${inspPrice.toFixed(2)}` : ''}${hasExpenses ? ` · Expenses: $${expenses.toFixed(2)}` : ''}<br><strong>Estimated total: $${total.toFixed(2)}</strong>`;
 }
 function newJobAddress() {
   const name = $n('new-job-name').value.trim();
@@ -792,14 +842,15 @@ async function saveNewTicket() {
     const laborLine = (ldesc.trim() || Number(lhours) > 0 || Number(lrate) > 0) ? { desc: ldesc, hours: lhours, rate: lrate } : null;
     return { desc: main.querySelector('[data-f="desc"]').value, qty: 1, price: 0, partLines, laborLine };
   });
-  // Inspection charge: one flat priced line, no labor or parts. The box
-  // on means the price is required (0 if the inspection is free); the
-  // label names the inspection kind when the inspection sent us here.
-  if ($n('new-add-insp') && $n('new-add-insp').checked) {
-    const raw = ($n('new-insp-price') ? $n('new-insp-price').value : '').trim();
+  // Inspection charge: one flat priced line, no labor or parts. The
+  // line in the lines table is the trigger: its price box is required
+  // (0 if the inspection is free), and its description is the line's
+  // own label (kind label when the inspection sent us here).
+  const inspLine = document.querySelector('#new-lines-table tbody.insp-line');
+  if (inspLine) {
+    const raw = (inspLine.querySelector('input') ? inspLine.querySelector('input').value : '').trim();
     if (raw === '' || !Number.isFinite(Number(raw)) || Number(raw) < 0) { err.textContent = 'Enter the inspection price (0 if free).'; return; }
-    const k = new URLSearchParams(location.search).get('kind');
-    const inspDesc = k === 'complete' ? 'Complete Vehicle Inspection' : k === 'ppi' ? 'Pre-Purchase Inspection' : 'Inspection';
+    const inspDesc = (inspLine.querySelector('td') ? inspLine.querySelector('td').textContent : 'Inspection').trim() || 'Inspection';
     items.push({ desc: inspDesc, qty: 1, price: Math.round(Number(raw) * 100) / 100, partLines: [], laborLine: null });
   }
   const expenses = [...document.querySelectorAll('#new-expenses > div')].map(r => ({
@@ -891,7 +942,6 @@ async function renderNewTicket() {
     <p class="muted" style="margin:4px 0 0">Texting needs the phone number on the ticket above, and texting set up. Customers with an account are also notified in their dashboard automatically. After saving, the ticket opens with the Share PDF button.</p>
     <label style="display:block;margin-top:10px"><input type="checkbox" id="new-add-insp"> Also create an inspection for this job</label>
     <p class="muted" style="margin:4px 0 0">After the ticket saves, the inspection form opens with this customer and vehicle already filled in, and the inspection is attached to this ticket.</p>
-    <div id="new-insp-price-row" style="display:none;margin-top:10px"><label>Inspection price (flat, no labor or parts)</label><input id="new-insp-price" type="number" min="0" step="0.01" placeholder="e.g. 85" style="width:150px"></div>
     <p style="margin-top:14px"><button type="button" id="new-save">Create ticket</button> <button type="button" class="ghost" id="new-cancel">Cancel</button></p>
     <div class="err" id="new-err"></div></div>`;
   $n('new-cancel').onclick = () => { location.href = '/mechanic'; };
@@ -906,13 +956,28 @@ async function renderNewTicket() {
     const lab = $n('new-add-insp').closest('label');
     if (lab) lab.style.display = 'none';
   }
-  // The inspection charge is one flat price typed here, not labor or
-  // parts: it shows only while the inspection box is checked, and it
-  // joins the total below like an expense (after tax, not taxed).
-  const syncInspRow = () => { const r = $n('new-insp-price-row'); if (r) r.style.display = ($n('new-add-insp') && $n('new-add-insp').checked) ? '' : 'none'; newTicketTotals(); };
-  if ($n('new-add-insp')) $n('new-add-insp').addEventListener('change', syncInspRow);
-  if ($n('new-insp-price')) $n('new-insp-price').addEventListener('input', newTicketTotals);
-  syncInspRow();
+  // The inspection charge is one flat price typed ON the ticket, not
+  // labor or parts: checking the box adds an inspection line to the
+  // lines table itself, with its own price box. It joins the total
+  // below like an expense (after tax, not taxed).
+  const inspKindLabel = () => { const k = qp.get('kind'); return k === 'complete' ? 'Complete Vehicle Inspection' : k === 'ppi' ? 'Pre-Purchase Inspection' : 'Inspection'; };
+  const buildInspLine = () => {
+    const tb = document.createElement('tbody');
+    tb.className = 'insp-line';
+    tb.innerHTML = `<tr><td>${esc(inspKindLabel())}</td><td class="num">1</td><td class="num"><input id="insp-line-price" type="number" min="0" step="0.01" placeholder="Price $" style="width:110px"></td><td class="num"><span class="insp-line-total">$0.00</span></td></tr>`;
+    tb.querySelector('input').addEventListener('input', newTicketTotals);
+    return tb;
+  };
+  const syncInspLine = () => {
+    const on = $n('new-add-insp') && $n('new-add-insp').checked;
+    const table = $n('new-lines-table');
+    let tb = table ? table.querySelector('tbody.insp-line') : null;
+    if (on && !tb && table) { tb = buildInspLine(); const first = table.querySelector('tbody.job-group'); table.insertBefore(tb, first); }
+    if (!on && tb) tb.remove();
+    newTicketTotals();
+  };
+  if ($n('new-add-insp')) $n('new-add-insp').addEventListener('change', syncInspLine);
+  syncInspLine();
   bindAutogrow(box);
   newTicketTotals();
 }
