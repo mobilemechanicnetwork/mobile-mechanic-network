@@ -748,9 +748,13 @@ function newTicketTotals() {
     expenses += amt;
   });
   expenses = Math.round(expenses * 100) / 100;
-  const total = Math.round((parts + labor + tax + expenses) * 100) / 100;
+  // Flat inspection price (typed on the ticket, no labor or parts):
+  // added after tax like an expense, never taxed, only while the box is on.
+  const inspChecked = $n('new-add-insp') && $n('new-add-insp').checked;
+  const inspPrice = inspChecked ? Math.round(Math.max(0, Number($n('new-insp-price') ? $n('new-insp-price').value : 0) || 0) * 100) / 100 : 0;
+  const total = Math.round((parts + labor + tax + expenses + inspPrice) * 100) / 100;
   const el = $n('new-total');
-  if (el) el.innerHTML = `Parts: $${parts.toFixed(2)} · Labor: $${labor.toFixed(2)} · Tax: $${tax.toFixed(2)}${hasExpenses ? ` · Expenses: $${expenses.toFixed(2)}` : ''}<br><strong>Estimated total: $${total.toFixed(2)}</strong>`;
+  if (el) el.innerHTML = `Parts: $${parts.toFixed(2)} · Labor: $${labor.toFixed(2)} · Tax: $${tax.toFixed(2)}${inspChecked ? ` · Inspection: $${inspPrice.toFixed(2)}` : ''}${hasExpenses ? ` · Expenses: $${expenses.toFixed(2)}` : ''}<br><strong>Estimated total: $${total.toFixed(2)}</strong>`;
 }
 function newJobAddress() {
   const name = $n('new-job-name').value.trim();
@@ -788,6 +792,16 @@ async function saveNewTicket() {
     const laborLine = (ldesc.trim() || Number(lhours) > 0 || Number(lrate) > 0) ? { desc: ldesc, hours: lhours, rate: lrate } : null;
     return { desc: main.querySelector('[data-f="desc"]').value, qty: 1, price: 0, partLines, laborLine };
   });
+  // Inspection charge: one flat priced line, no labor or parts. The box
+  // on means the price is required (0 if the inspection is free); the
+  // label names the inspection kind when the inspection sent us here.
+  if ($n('new-add-insp') && $n('new-add-insp').checked) {
+    const raw = ($n('new-insp-price') ? $n('new-insp-price').value : '').trim();
+    if (raw === '' || !Number.isFinite(Number(raw)) || Number(raw) < 0) { err.textContent = 'Enter the inspection price (0 if free).'; return; }
+    const k = new URLSearchParams(location.search).get('kind');
+    const inspDesc = k === 'complete' ? 'Complete Vehicle Inspection' : k === 'ppi' ? 'Pre-Purchase Inspection' : 'Inspection';
+    items.push({ desc: inspDesc, qty: 1, price: Math.round(Number(raw) * 100) / 100, partLines: [], laborLine: null });
+  }
   const expenses = [...document.querySelectorAll('#new-expenses > div')].map(r => ({
     desc: r.querySelector('[data-f="desc"]').value,
     amount: r.querySelector('[data-f="amount"]').value
@@ -877,6 +891,7 @@ async function renderNewTicket() {
     <p class="muted" style="margin:4px 0 0">Texting needs the phone number on the ticket above, and texting set up. Customers with an account are also notified in their dashboard automatically. After saving, the ticket opens with the Share PDF button.</p>
     <label style="display:block;margin-top:10px"><input type="checkbox" id="new-add-insp"> Also create an inspection for this job</label>
     <p class="muted" style="margin:4px 0 0">After the ticket saves, the inspection form opens with this customer and vehicle already filled in, and the inspection is attached to this ticket.</p>
+    <div id="new-insp-price-row" style="display:none;margin-top:10px"><label>Inspection price (flat, no labor or parts)</label><input id="new-insp-price" type="number" min="0" step="0.01" placeholder="e.g. 85" style="width:150px"></div>
     <p style="margin-top:14px"><button type="button" id="new-save">Create ticket</button> <button type="button" class="ghost" id="new-cancel">Cancel</button></p>
     <div class="err" id="new-err"></div></div>`;
   $n('new-cancel').onclick = () => { location.href = '/mechanic'; };
@@ -884,6 +899,13 @@ async function renderNewTicket() {
   // An inspection that sent the mechanic here (?addInspection=1) has its
   // box already checked, so saving the ticket brings the inspection back.
   if (qp.get('addInspection') && $n('new-add-insp')) $n('new-add-insp').checked = true;
+  // The inspection charge is one flat price typed here, not labor or
+  // parts: it shows only while the inspection box is checked, and it
+  // joins the total below like an expense (after tax, not taxed).
+  const syncInspRow = () => { const r = $n('new-insp-price-row'); if (r) r.style.display = ($n('new-add-insp') && $n('new-add-insp').checked) ? '' : 'none'; newTicketTotals(); };
+  if ($n('new-add-insp')) $n('new-add-insp').addEventListener('change', syncInspRow);
+  if ($n('new-insp-price')) $n('new-insp-price').addEventListener('input', newTicketTotals);
+  syncInspRow();
   bindAutogrow(box);
   newTicketTotals();
 }
