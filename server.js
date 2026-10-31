@@ -1705,7 +1705,7 @@ const server = http.createServer(async (req, res) => {
         }
         out.push({
           key, label,
-          status: PPI_STATUSES.includes(c.status) ? c.status : 'good',
+          status: PPI_STATUSES.includes(c.status) ? c.status : '',
           urgency: PPI_URGENCY.includes(c.urgency) ? c.urgency : 'none',
           detail, bands, photos, notes: String((c && c.notes) || '').trim().slice(0, 1000),
         });

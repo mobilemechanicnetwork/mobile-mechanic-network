@@ -164,7 +164,7 @@ function renderNewCats() {
     return `<div class="cat"><strong>${esc(c.label)}</strong>
       ${c.legend ? `<div class="ppi-legend"><span class="dot red"></span>Replace <span class="dot yellow" style="margin-left:10px"></span>Suggest <span class="dot green" style="margin-left:10px"></span>Good <span class="muted">— ${esc(c.legend)}</span></div>` : ''}
       <div style="margin:8px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-        <label style="margin:0"><input type="radio" name="ppi-status-${i}" value="good" checked> Good</label>
+        <label style="margin:0"><input type="radio" name="ppi-status-${i}" value="good"> Good</label>
         <label style="margin:0"><input type="radio" name="ppi-status-${i}" value="needs_attention"> Needs attention</label>
         <label style="margin:0"><input type="radio" name="ppi-status-${i}" value="fail"> Fail</label>
         <label style="margin:0">Urgency <select id="ppi-urg-${i}">
@@ -220,7 +220,7 @@ async function saveNewReport() {
         if (band) bands[label] = band;
       });
     }
-    return { key: c.key, label: c.label, status: statusEl ? statusEl.value : 'good', urgency: document.getElementById('ppi-urg-' + i).value, detail, bands, photos: newPhotos[i] || [], notes: document.getElementById('ppi-n-' + i).value.trim() };
+    return { key: c.key, label: c.label, status: statusEl ? statusEl.value : '', urgency: document.getElementById('ppi-urg-' + i).value, detail, bands, photos: newPhotos[i] || [], notes: document.getElementById('ppi-n-' + i).value.trim() };
   });
   const body = { kind: newKind(), customerName: customer, customerPhone: document.getElementById('new-phone').value, vehicle: veh, vin: document.getElementById('new-vin').value, mileage: document.getElementById('new-mileage').value, categories, generalNotes: document.getElementById('new-notes').value };
   try {
@@ -319,7 +319,7 @@ async function newReport() {
       const photos = (c.photos || []).map(u => `<a href="${esc(u)}" target="_blank"><img src="${esc(u)}" alt="" style="width:120px;height:120px;object-fit:cover;border-radius:8px;margin:4px;border:1px solid #e2e8f0"></a>`).join('');
       return `<div class="cat">
         <div class="cat-head"><strong>${esc(c.label)}</strong>
-          <span class="pill ${esc(c.status)}">${esc(STATUS_LABEL[c.status] || c.status)}</span>
+          ${STATUS_LABEL[c.status] ? `<span class="pill ${esc(c.status)}">${esc(STATUS_LABEL[c.status])}</span>` : ''}
           ${c.urgency && c.urgency !== 'none' ? `<span class="urg">${esc(URG_LABEL[c.urgency] || c.urgency)}</span>` : ''}
         </div>
         ${details ? `<div class="detail">${details}</div>` : ''}
