@@ -124,7 +124,7 @@
   <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600">Add your phone number so you get new requests by text. <a href="/security" style="color:#b91c1c">Add it now →</a></div>
   <div class="tabs noprint">
     <button data-tab="today" class="active">Today <span id="notif-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700;margin-left:4px;vertical-align:middle"></span></button>
-    <button data-tab="requests">Quote requests</button>
+    <button data-tab="requests">Leads</button>
     <button data-tab="profile">Profile</button>
     <button data-tab="tickets">Job tickets</button>
     <button data-tab="calendar">Calendar</button>
@@ -146,8 +146,8 @@
   </section>
 
   <section class="tab" id="tab-requests">
-    <h2>Quote requests</h2>
-    <p class="muted">Requests that don't have a ticket yet. Once a job has a ticket, it lives under Job tickets.</p>
+    <h2>Leads</h2>
+    <p class="muted">Leads that don't have a ticket yet. Once a job has a ticket, it lives under Job tickets.</p>
     <p style="display:flex;gap:8px;flex-wrap:wrap"><input id="req-search" placeholder="Search requests by name, phone, service, or vehicle…" style="flex:1;min-width:220px;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"><button type="button" class="ghost" id="req-refresh">Refresh requests</button></p>
     <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end"><select id="req-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Default order</option><option value="newest">Sort: Newest first</option><option value="oldest">Sort: Oldest first</option><option value="az">Sort: Customer A to Z</option><option value="za">Sort: Customer Z to A</option><option value="due">Sort: Due date</option></select></p>
     <div id="inbox"></div>
@@ -183,7 +183,7 @@
         <label class="chip"><input type="checkbox" value="commercial"> Bus / Commercial</label>
         <label class="chip"><input type="checkbox" value="smallengine"> Small Engine</label>
       </div>
-      <p class="muted" style="font-size:.82rem;margin:4px 0 0">Quote requests are only sent to you for the vehicle types you check.</p>
+      <p class="muted" style="font-size:.82rem;margin:4px 0 0">Leads are only sent to you for the vehicle types you check.</p>
       <label style="margin-top:10px"><input type="checkbox" id="b-urgent"> Accept urgent requests <span class="muted">— urgent jobs from vehicle owners who need help now will be sent to you</span></label>
       <label for="b-about">About your business</label><textarea id="b-about" rows="3"></textarea>
       <label for="b-warranty">Warranty policy (optional — shows on your quotes and tickets)</label><textarea id="b-warranty" rows="2" placeholder="e.g. 12 months / 12,000 miles on parts and labor"></textarea>
@@ -313,7 +313,7 @@
       <details>
         <summary>Quote a request</summary>
         <div class="help-body"><ol>
-          <li>Open the Quote requests tab and find the request card. Cards marked Urgent or Sent directly to you stand out.</li>
+          <li>Open the Leads tab and find the request card. Cards marked Urgent or Sent directly to you stand out.</li>
           <li>Fill in your price and warranty on the card's quote builder.</li>
           <li>Your draft saves automatically as you type, so you can finish it later from any device.</li>
           <li>Tap Send quote. The customer is notified and can accept, decline, or decide on each line.</li>
@@ -505,7 +505,7 @@ async function loadNotifications(markRead) {
       ${n.customerPhone ? `<div style="margin-top:6px">${esc(n.customerName)} · <a href="tel:${esc(String(n.customerPhone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(n.customerPhone) : n.customerPhone)}</a> · <a href="sms:${esc(String(n.customerPhone).replace(/[^+\d]/g, ''))}">Text</a></div>` : ''}
       ${n.type === 'request_received' ? '<p><button type="button" class="ghost" onclick="viewRequest()">View request →</button></p>' : '<p><button type="button" class="ghost" onclick="viewBookedJob(\'' + n.id + '\')">View booked job →</button>' + calBtn + '</p>' + (calBtn ? '<div data-calctl></div>' : '')}
     </div>`;
-    }).join('') : '<p class="muted">No notifications yet. New quote requests and accepted quotes will show up here.</p>';
+    }).join('') : '<p class="muted">No notifications yet. New leads and accepted quotes will show up here.</p>';
     updateNotifBadge(d.unread || 0);
     if (markRead && (d.unread || 0) > 0) { await post('/api/notifications/read', {}); updateNotifBadge(0); }
   } catch (e) {}
@@ -902,7 +902,7 @@ function renderToday() {
     ...(inbox.requests || []).map(r => ({ name: r.ownerName, service: r.service, vehicle: r.vehicle, status: 'Open', ticketId: null, tab: 'requests' })),
     ...(inbox.booked || []).filter(b => !b.paid).map(b => ({ name: b.ownerName, service: b.service, vehicle: b.vehicle, status: 'Booked', ticketId: b.ticketId || null, tab: 'tickets' }))
   ].slice(0, 10);
-  $('today-open').innerHTML = `<h3 style="margin:16px 0 8px">Open jobs</h3>` + (jobs.length ? jobs.map(j => `<div class="card"><strong>${esc(j.name || '')}</strong> — ${esc(j.service)} — ${esc(j.vehicle)} <span class="ok">${j.status}</span>${j.ticketId ? ` <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ` <button type="button" class="ghost" onclick="gotoTab('${j.tab}')">View in ${j.tab === 'tickets' ? 'Job tickets' : 'Quote requests'} →</button>`}</div>`).join('') : '<p class="muted">No open jobs right now.</p>') + `<p><button type="button" class="ghost" onclick="gotoTab('calendar')">Calendar →</button></p>`;
+  $('today-open').innerHTML = `<h3 style="margin:16px 0 8px">Open jobs</h3>` + (jobs.length ? jobs.map(j => `<div class="card"><strong>${esc(j.name || '')}</strong> — ${esc(j.service)} — ${esc(j.vehicle)} <span class="ok">${j.status}</span>${j.ticketId ? ` <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ` <button type="button" class="ghost" onclick="gotoTab('${j.tab}')">View in ${j.tab === 'tickets' ? 'Job tickets' : 'Leads'} →</button>`}</div>`).join('') : '<p class="muted">No open jobs right now.</p>') + `<p><button type="button" class="ghost" onclick="gotoTab('calendar')">Calendar →</button></p>`;
 }
 window.delCalEntry = async (id) => {
   if (!confirm('Delete this calendar entry?')) return;
@@ -1115,7 +1115,7 @@ async function loadProfile() {
     $('b-name').value = b.name; $('b-city').value = b.city; $('b-state').value = b.state;
     window.cityChips.set(b.serviceCities || []); $('b-about').value = b.about || ''; $('b-warranty').value = b.warranty || '';
     $('b-certs').value = (b.certifications || []).join('\n');
-    $('b-earned').innerHTML = earnedBadgesHtml(b) || '<span class="muted">Earn badges: respond to quote requests quickly and collect 5-star reviews.</span>';
+    $('b-earned').innerHTML = earnedBadgesHtml(b) || '<span class="muted">Earn badges: respond to leads quickly and collect 5-star reviews.</span>';
     if ($('t-warranty')) $('t-warranty').placeholder = b.warranty ? 'Leave blank to use profile default: ' + b.warranty.slice(0, 80) : 'e.g. 12 months / 12,000 miles on parts and labor';
     $('b-phone').value = window.PhoneFmt ? window.PhoneFmt.display(b.phone) : (b.phone || '');
     for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'website', 'google']) $('b-soc-' + k).value = (b.socials && b.socials[k]) || '';
