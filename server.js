@@ -935,6 +935,76 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ---------- Owner vehicles ----------
+    // EPA fuel-economy menu helpers (see the /api/vehicles/engines
+    // endpoint): the EPA returns XML menu items; each option text is an
+    // engine+transmission combination.
+    const epaEnginesCache = new Map();
+    function epaMenuTexts(xml) {
+      const out = [];
+      const re = /<text>([^<]*)<\/text>/g;
+      let m;
+      while ((m = re.exec(String(xml || ''))) !== null) {
+        const t = m[1].trim();
+        if (t) out.push(t);
+      }
+      return out;
+    }
+    function parseEpaEngine(optionText) {
+      const parts = String(optionText || '').split(',').map(s => s.trim()).filter(Boolean);
+      if (parts.length < 2) return '';
+      // The first part is the transmission ("Auto (S10)", "Manual (M6)");
+      // and the rest describes the engine.
+      const eng = parts.slice(1);
+      let disp = '', cyl = '';
+      const rest = [];
+      for (const p of eng) {
+        const d = p.match(/^(\d+(?:\.\d+)?)\s*L$/i);
+        const c = p.match(/^(\d+)\s*cyl$/i);
+        if (d) disp = d[1];
+        else if (c) cyl = c[1];
+        else rest.push(p);
+      }
+      if (!disp && !cyl) return eng.join(' ');
+      return (disp ? disp + 'L' : '') + (cyl ? (disp ? ' ' : '') + cyl + '-cyl' : '') + (rest.length ? ' ' + rest.join(' ') : '');
+    }
+    function epaModelMatches(epaModel, baseModel) {
+      const norm = s => String(s || '').replace(/-/g, '').trim().toLowerCase();
+      const e = norm(epaModel), b = norm(baseModel);
+      if (!e || !b) return false;
+      if (e === b) return true;
+      if (!e.startsWith(b + ' ')) return false;
+      const next = e.slice(b.length + 1).split(/\s+/)[0].toUpperCase();
+      // The word after the base model must be a drivetrain, fuel, body,
+      // or trim word (an F-150 is "F150 Pickup 4WD"; an Explorer is
+      // "Explorer AWD"). Words that name a different model (e.g.
+      // "Sport" in "Explorer Sport Trac") are deliberately not in the
+      // set, so a different vehicle never donates its engines.
+      if (/^\d+(\.\d+)?L$/.test(next)) return true;
+      return ['AWD', 'RWD', 'FWD', '4WD', '2WD', 'HEV', 'FFV', 'PHEV', 'E85', 'HYBRID', 'ELECTRIC', 'PICKUP', 'RAPTOR', 'CREW', 'CAB', 'SUPERCREW', 'SUPERCAB', 'KING', 'PLATINUM', 'LIMITED', 'XL', 'XLT', 'LARIAT', 'STX', 'S', 'SE', 'SEL', 'TITANIUM'].includes(next);
+    }
+    async function fetchEpaEngines(year, make, model) {
+      const key = [year, make, model].map(s => String(s || '').toLowerCase()).join('|');
+      if (epaEnginesCache.has(key)) return epaEnginesCache.get(key);
+      let engines = [];
+      try {
+        const modelsXml = await (await fetch('https://www.fueleconomy.gov/ws/rest/vehicle/menu/model?year=' + encodeURIComponent(year) + '&make=' + encodeURIComponent(make), { headers: { 'User-Agent': 'MobileMechanicNetwork/1.0' }, signal: AbortSignal.timeout(8000) })).text();
+        const epaModels = epaMenuTexts(modelsXml).filter(m => epaModelMatches(m, model));
+        const optXmls = await Promise.all(epaModels.map(async (m) => {
+          try {
+            return await (await fetch('https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=' + encodeURIComponent(year) + '&make=' + encodeURIComponent(make) + '&model=' + encodeURIComponent(m), { headers: { 'User-Agent': 'MobileMechanicNetwork/1.0' }, signal: AbortSignal.timeout(8000) })).text();
+          } catch (e) { return ''; }
+        }));
+        const seen = new Set();
+        for (const xml of optXmls) {
+          for (const opt of epaMenuTexts(xml)) {
+            const eng = parseEpaEngine(opt);
+            if (eng && !seen.has(eng)) { seen.add(eng); engines.push(eng); }
+          }
+        }
+      } catch (e) { engines = []; }
+      epaEnginesCache.set(key, engines);
+      return engines;
+    }
     // Wikimedia Commons photo for a vehicle: real, freely licensed photos of
     // the actual model. FRONT views only: rear/trunk/back shots are rejected,
     // front-titled shots rank first, side shots rank last.
@@ -1387,6 +1457,24 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/vehicles/models' && req.method === 'GET') {
       return sendJson(res, 200, { models: vehicleModels(url.searchParams.get('year'), url.searchParams.get('make'), url.searchParams.get('type')) });
+    }
+    // Engine combinations for a vehicle, from the EPA fuel-economy menu
+    // (fueleconomy.gov, free and public, no key). The EPA lists each
+    // engine+transmission combination as an option like
+    // "Auto (S10), 4 cyl, 2.3 L, Turbo"; the engine part is parsed out
+    // and deduped, e.g. "2.3L 4-cyl Turbo". EPA model names carry the
+    // drivetrain ("Explorer AWD"), so the model list is matched against
+    // the base model and every matching variant's options are merged.
+    // Cached in memory by year|make|model. No data (motorcycles,
+    // commercial, small engines, or a model the EPA does not list)
+    // returns an empty list and the picker falls back to free text.
+    if (p === '/api/vehicles/engines' && req.method === 'GET') {
+      const year = url.searchParams.get('year') || '';
+      const make = url.searchParams.get('make') || '';
+      const model = url.searchParams.get('model') || '';
+      if (!year || !make || !model) return sendJson(res, 200, { engines: [] });
+      const engines = await fetchEpaEngines(year, make, model);
+      return sendJson(res, 200, { engines });
     }
 
     // ---------- Quote requests ----------

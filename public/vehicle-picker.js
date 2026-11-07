@@ -15,9 +15,12 @@
    picker.setFromString("2020 Honda Accord") -> async; best-effort parse (extras stay blank)
    picker.reset()          -> clears year/make/model and the extras (keeps type)
    VehiclePicker.display(vehicle, trim, engine, transmission, drivetrain) -> composed display string for a stored vehicle
-   Trim and engine are free text, transmission is Manual/Automatic, all
-   three optional. They never enter the base vehicle string, so garage
-   matching and photo lookup still key on year/make/model.
+   Trim is free text; engine is a selector of the combinations available
+   for the chosen vehicle (from /api/vehicles/engines, EPA data) with a
+   free-text fallback when the model has no listed engines or the engine
+   is not listed. Transmission is Manual/Automatic. All optional. They
+   never enter the base vehicle string, so garage matching and photo
+   lookup still key on year/make/model.
 */
 (function () {
   const OTHER = '__other';
@@ -33,7 +36,7 @@
     'Dewalt', 'ECHO', 'EGO', 'Generac', 'Greenworks', 'Honda', 'Husqvarna', 'John Deere',
     'Kawasaki', 'Kohler', 'MTD', 'Poulan Pro', 'Predator', 'Ryobi', 'Snapper', 'STIHL',
     'Tecumseh', 'Toro', 'Troy-Bilt', 'Westinghouse'];
-  const cache = { years: null, makes: {}, models: {} };
+  const cache = { years: null, makes: {}, models: {}, engines: {} };
 
   async function getYears() {
     if (!cache.years) {
@@ -64,6 +67,16 @@
       })();
     }
     return cache.models[k];
+  }
+  async function getEngines(year, make, model) {
+    const k = year + '|' + make + '|' + model;
+    if (!cache.engines[k]) {
+      cache.engines[k] = (async () => {
+        const d = await (await fetch('/api/vehicles/engines?year=' + encodeURIComponent(year) + '&make=' + encodeURIComponent(make) + '&model=' + encodeURIComponent(model))).json().catch(() => ({}));
+        return Array.isArray(d.engines) ? d.engines : [];
+      })();
+    }
+    return cache.engines[k];
   }
 
   function fillSelect(sel, items, placeholder) {
@@ -153,12 +166,19 @@
     trimInp.maxLength = 60;
     trimInp.style.flex = '1';
     trimInp.style.minWidth = '120px';
-    const engineInp = document.createElement('input');
-    engineInp.type = 'text';
-    engineInp.placeholder = 'Engine (optional), e.g. 3.5L';
-    engineInp.maxLength = 60;
-    engineInp.style.flex = '1';
-    engineInp.style.minWidth = '120px';
+    const engineWrap = document.createElement('div');
+    engineWrap.style.flex = '1';
+    engineWrap.style.minWidth = '120px';
+    const engineSel = document.createElement('select');
+    engineSel.style.width = '100%';
+    engineSel.style.display = 'none';
+    const engineOther = document.createElement('input');
+    engineOther.type = 'text';
+    engineOther.placeholder = 'Engine (optional), e.g. 3.5L';
+    engineOther.maxLength = 60;
+    engineOther.style.width = '100%';
+    engineWrap.appendChild(engineSel);
+    engineWrap.appendChild(engineOther);
     const transSel = document.createElement('select');
     transSel.style.flex = '1';
     transSel.style.minWidth = '120px';
@@ -182,22 +202,88 @@
       driveSel.appendChild(o);
     });
     extrasBox.appendChild(trimInp);
-    extrasBox.appendChild(engineInp);
+    extrasBox.appendChild(engineWrap);
     extrasBox.appendChild(transSel);
     extrasBox.appendChild(driveSel);
-    modelOther.insertAdjacentElement('afterend', extrasBox);
+    // The extras row goes BELOW the year/make/model row, not inside it.
+    // The picker inserts the "Other" inputs right after their selects,
+    // so inserting the extras after modelOther would land it inside the
+    // row's flex container, where it competes for width with the three
+    // selects and squeezes them (on the new-ticket popup the year, make,
+    // and model came out extremely short). Walk up to the nearest
+    // ancestor that holds the year select too (the row itself, or the
+    // .row wrapper) and put the extras after that instead.
+    let rowEl = modelSel.parentElement;
+    while (rowEl && !rowEl.contains(yearSel)) rowEl = rowEl.parentElement;
+    if (rowEl && rowEl.parentElement) rowEl.insertAdjacentElement('afterend', extrasBox);
+    else modelOther.insertAdjacentElement('afterend', extrasBox);
+
+    // Engine selector: the combinations available for the chosen
+    // vehicle, from /api/vehicles/engines (EPA data). The select fills
+    // when a model is picked; when the model has no listed engines (or
+    // the engine is not listed) the field stays a free-text input.
+    // pendingEngine holds an engine set before its model's list loads
+    // (set() sets the extras before the model), and reloadEngines
+    // applies it once the list arrives.
+    let pendingEngine = '';
+    async function reloadEngines() {
+      const y = yearSel.value, m = makeSel.value, mo = modelSel.value;
+      const base = (!y || !m || !mo || m === OTHER || mo === OTHER) ? null : { y, m, mo };
+      engineSel.style.display = 'none';
+      engineOther.style.display = '';
+      if (!base) { engineOther.value = pendingEngine; return; }
+      const engines = await getEngines(base.y, base.m, base.mo);
+      if (yearSel.value !== base.y || makeSel.value !== base.m || modelSel.value !== base.mo) return;
+      if (!engines.length) { engineOther.value = pendingEngine; return; }
+      engineSel.innerHTML = '';
+      const ph = document.createElement('option');
+      ph.value = ''; ph.textContent = 'Engine (optional)'; ph.disabled = true; ph.selected = true;
+      engineSel.appendChild(ph);
+      engines.forEach(v => {
+        const o = document.createElement('option');
+        o.value = v; o.textContent = v;
+        engineSel.appendChild(o);
+      });
+      const o = document.createElement('option');
+      o.value = OTHER; o.textContent = 'Other / not listed';
+      engineSel.appendChild(o);
+      engineSel.style.display = '';
+      if (pendingEngine && engines.includes(pendingEngine)) {
+        engineSel.value = pendingEngine;
+        engineOther.style.display = 'none';
+        engineOther.value = '';
+      } else if (pendingEngine) {
+        engineSel.value = OTHER;
+        engineOther.style.display = '';
+        engineOther.value = pendingEngine;
+      } else {
+        engineOther.style.display = 'none';
+        engineOther.value = '';
+      }
+      pendingEngine = '';
+      fire();
+    }
 
     function getExtras() {
+      let engine = '';
+      if (engineSel.style.display !== 'none' && engineSel.value && engineSel.value !== OTHER) {
+        engine = engineSel.value;
+      } else {
+        engine = engineOther.value.trim();
+      }
       return {
         trim: trimInp.value.trim(),
-        engine: engineInp.value.trim(),
+        engine: engine,
         transmission: transSel.value === 'Manual' || transSel.value === 'Automatic' ? transSel.value : '',
         drivetrain: driveSel.value === 'AWD' || driveSel.value === 'FWD' || driveSel.value === 'RWD' ? driveSel.value : ''
       };
     }
     function setExtras(trim, engine, transmission, drivetrain) {
       trimInp.value = String(trim || '').slice(0, 60);
-      engineInp.value = String(engine || '').slice(0, 60);
+      pendingEngine = String(engine || '').slice(0, 60);
+      engineOther.value = pendingEngine;
+      engineSel.style.display = 'none';
+      engineOther.style.display = '';
       transSel.value = (transmission === 'Manual' || transmission === 'Automatic') ? transmission : '';
       if (!transSel.value) transSel.selectedIndex = 0;
       driveSel.value = (drivetrain === 'AWD' || drivetrain === 'FWD' || drivetrain === 'RWD') ? drivetrain : '';
@@ -272,7 +358,7 @@
       const y = yearSel.value, m = makeSel.value;
       fillSelect(modelSel, [], 'Select model');
       modelSel.disabled = true;
-      syncOther(); fire();
+      syncOther(); reloadEngines(); fire();
       if (!y || !m || m === OTHER) { syncOther(); return; }
       const models = await getModels(y, m, curType);
       if (yearSel.value !== y || makeSel.value !== m) return;
@@ -280,11 +366,17 @@
       modelSel.disabled = false;
       syncOther();
     });
-    modelSel.addEventListener('change', () => { syncOther(); fire(); });
+    modelSel.addEventListener('change', () => { syncOther(); reloadEngines(); fire(); });
     makeOther.addEventListener('input', fire);
     modelOther.addEventListener('input', fire);
     trimInp.addEventListener('input', fire);
-    engineInp.addEventListener('input', fire);
+    engineSel.addEventListener('change', () => {
+      const other = engineSel.value === OTHER;
+      engineOther.style.display = other ? '' : 'none';
+      if (!other) engineOther.value = '';
+      fire();
+    });
+    engineOther.addEventListener('input', fire);
     transSel.addEventListener('change', fire);
     driveSel.addEventListener('change', fire);
 
@@ -381,6 +473,9 @@
           } else if (modelSel.value === OTHER) {
             modelOther.value = mo;
           }
+          // load the engine combinations for the chosen model and
+          // apply the pending engine (setExtras stored it earlier)
+          await reloadEngines();
           syncOther(); fire();
         } else if (y || m || mo) {
           // year unknown: drop everything into free text under Other
@@ -436,6 +531,11 @@
         fillSelect(modelSel, [], 'Select model');
         makeSel.disabled = true; modelSel.disabled = true;
         makeOther.value = ''; modelOther.value = '';
+        pendingEngine = '';
+        engineSel.innerHTML = '';
+        engineSel.style.display = 'none';
+        engineOther.value = '';
+        engineOther.style.display = '';
         setExtras('', '', '', '');
         getYears().then(years => {
           const keep = yearSel.value;
