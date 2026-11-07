@@ -229,7 +229,7 @@ function parseBody(req) {
     req.on('error', reject);
   });
 }
-function sendJson(res, status, obj) { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); }
+function sendJson(res, status, obj) { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); }
 function getSessionUser(req) {
   const match = (req.headers.cookie || '').match(/mmn_session=([a-f0-9]+)/);
   if (!match) return null;

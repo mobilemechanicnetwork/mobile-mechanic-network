@@ -671,7 +671,9 @@ window.toggleHist = (id) => { const el = $('hist-' + id); if (el) el.hidden = !e
 
 /* ---------- Requests inbox ---------- */
 async function loadInbox() {
-  const inbox = await api('/api/requests/inbox');
+  // Force a fresh read: the browser must not serve a cached inbox, or a
+  // new lead would not appear after tapping Refresh requests.
+  const inbox = await api('/api/requests/inbox', { cache: 'no-store' });
   window._inboxData = inbox;
   window._booked = inbox.booked || [];
   window._inboxRequests = inbox.requests || [];
@@ -1159,7 +1161,21 @@ $('cal-man-submit').onclick = async () => {
   } catch (ex) { errEl.textContent = ex.message; btn.disabled = false; }
 };
 document.getElementById('req-search').addEventListener('input', renderInbox);
-$('req-refresh').onclick = () => loadInbox();
+$('req-refresh').onclick = async () => {
+  const btn = $('req-refresh');
+  btn.disabled = true;
+  const label = btn.textContent;
+  btn.textContent = 'Refreshing…';
+  try {
+    await loadInbox();
+    btn.textContent = 'Refreshed ✓';
+    setTimeout(() => { btn.textContent = label; btn.disabled = false; }, 1500);
+  } catch (e) {
+    btn.textContent = label;
+    btn.disabled = false;
+    alert(e.message);
+  }
+};
 document.getElementById('req-sort').onchange = (e) => { window._reqSort = e.target.value; renderInbox(); };
 document.getElementById('ticket-sort').onchange = (e) => { window._ticketSort = e.target.value; renderTickets(); };
 document.getElementById('cust-sort').onchange = (e) => { window._custSort = e.target.value; renderCustomers(); };
