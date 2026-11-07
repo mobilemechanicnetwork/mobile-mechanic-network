@@ -149,7 +149,7 @@
     <h2>Leads</h2>
     <p class="muted">Leads that don't have a ticket yet. Once a job has a ticket, it lives under Tickets.</p>
     <p style="display:flex;gap:8px;flex-wrap:wrap"><input id="req-search" placeholder="Search requests by name, phone, service, or vehicle…" style="flex:1;min-width:220px;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"><button type="button" class="ghost" id="req-refresh">Refresh requests</button></p>
-    <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end"><select id="req-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Default order</option><option value="newest">Sort: Newest first</option><option value="oldest">Sort: Oldest first</option><option value="az">Sort: Customer A to Z</option><option value="za">Sort: Customer Z to A</option><option value="due">Sort: Due date</option></select></p>
+    <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end"><select id="req-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="newest" selected>Sort: Newest first</option><option value="oldest">Sort: Oldest first</option><option value="az">Sort: Customer A to Z</option><option value="za">Sort: Customer Z to A</option><option value="due">Sort: Due date</option></select></p>
     <div id="inbox"></div>
   </section>
 
@@ -568,7 +568,7 @@ function renderInbox() {
   const q = (document.getElementById('req-search').value || '').trim().toLowerCase();
   const qDigits = q.replace(/\D/g, '');
   const matchReq = r => !q || (r.ownerName || '').toLowerCase().includes(q) || (r.service || '').toLowerCase().includes(q) || (r.vehicle || '').toLowerCase().includes(q) || (r.city || '').toLowerCase().includes(q) || (qDigits && String(r.phone || '').replace(/\D/g, '').includes(qDigits));
-  const sort = window._reqSort || 'default';
+  const sort = window._reqSort || 'newest';
   let reqList = (inbox.requests || []).filter(matchReq);
   const sortReq = (a, b) => {
     if (sort === 'newest') return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
@@ -578,8 +578,7 @@ function renderInbox() {
     if (sort === 'due') return String(a.date || '9999').localeCompare(String(b.date || '9999'));
     return 0;
   };
-  if (sort === 'default') reqList.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
-  else { reqList.sort(sortReq); }
+  reqList.sort(sortReq);
   window._renderedRequests = reqList;
   window._calTitles = window._calTitles || {}; window._calPrefill = window._calPrefill || {};
   (inbox.booked || []).forEach(b => { if (b.ticketId) { window._calTitles[b.ticketId] = [b.ownerName, b.vehicle].filter(Boolean).join(' — ') || 'Job'; window._calPrefill[b.ticketId] = b.date || ''; } });
