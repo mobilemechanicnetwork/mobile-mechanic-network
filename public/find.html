@@ -280,6 +280,10 @@ $('find-form').onsubmit = async (e) => {
       urgent: new URLSearchParams(location.search).get('urgent') === '1',
       description: desc,
     }));
+    // Remember the search for the directory too, so Back to directory
+    // from a mechanic's profile shows the list again. Unlike
+    // 'mmn_find', this one is not consumed after a request is sent.
+    try { sessionStorage.setItem('mmn_dir', JSON.stringify({ city: q.city, state: q.state, service: svc, type: window._findVeh ? window._findVeh.type : 'car' })); } catch (e) {}
   } catch (e) {}
   let d;
   try {
