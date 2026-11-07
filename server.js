@@ -929,7 +929,7 @@ const server = http.createServer(async (req, res) => {
         const e164 = normalizePhone(phone);
         if (!e164) return sendJson(res, 400, { error: 'A valid 10-digit US phone number is required.' });
         row.phone = e164;
-      
+      }
       if (email !== undefined) {
         const next = String(email || '').trim().toLowerCase();
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next)) return sendJson(res, 400, { error: 'Enter a valid email address.' });
