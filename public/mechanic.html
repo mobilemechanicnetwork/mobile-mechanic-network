@@ -1598,20 +1598,18 @@ function renderCustomers() {
       const v = String(j.vehicle || '').trim();
       if (!v) return;
       const key = v.toLowerCase();
-      if (!vehMap.has(key)) vehMap.set(key, { vehicle: v, address: j.address || '', vin: j.vin || '', photoUrl: j.vehiclePhotoUrl || '', photoKind: j.vehiclePhotoKind || '', vehicleId: j.vehicleId || '' });
+      if (!vehMap.has(key)) vehMap.set(key, { vehicle: v, photoUrl: j.vehiclePhotoUrl || '', photoKind: j.vehiclePhotoKind || '', vehicleId: j.vehicleId || '' });
       else {
         const ex = vehMap.get(key);
-        if (!ex.address && j.address) ex.address = j.address;
-        if (!ex.vin && j.vin) ex.vin = j.vin;
         if (!ex.photoUrl && j.vehiclePhotoUrl) { ex.photoUrl = j.vehiclePhotoUrl; ex.photoKind = j.vehiclePhotoKind || ''; }
         if (!ex.vehicleId && j.vehicleId) ex.vehicleId = j.vehicleId;
       }
     });
     const vehList = [...vehMap.values()];
     c.vehList = vehList;
-    const vehiclesBlock = vehList.length ? `<div style="margin-top:6px"><div class="muted" style="margin-bottom:2px">Vehicles worked on:</div>${vehList.map((v, vi) => `<div style="display:flex;gap:8px;align-items:center;margin-top:4px">${v.photoUrl ? `<img src="${esc(v.photoUrl)}" alt="" style="${vehImgStyle(v.photoKind, 48)}">` : ''}<div style="flex:1;min-width:0">${esc(v.vehicle)}${v.vin ? ` · VIN ${esc(v.vin)}` : ''}${v.address ? ` · ${esc(v.address)}` : ''}</div><button type="button" class="ghost" style="font-size:.8rem;padding:4px 8px;flex:none" onclick="changeVehiclePhotoForCustomer(${i}, ${vi})">${v.photoUrl ? 'Change photo' : 'Add photo'}</button></div>`).join('')}</div>` : '';
+    const vehiclesBlock = vehList.length ? `<div style="margin-top:6px"><div class="muted" style="margin-bottom:2px">Vehicles worked on:</div>${vehList.map((v, vi) => `<div style="display:flex;gap:8px;align-items:center;margin-top:4px">${v.photoUrl ? `<img src="${esc(v.photoUrl)}" alt="" style="${vehImgStyle(v.photoKind, 48)}">` : ''}<div style="flex:1;min-width:0">${esc(v.vehicle)}</div><button type="button" class="ghost" style="font-size:.8rem;padding:4px 8px;flex:none" onclick="changeVehiclePhotoForCustomer(${i}, ${vi})">${v.photoUrl ? 'Change photo' : 'Add photo'}</button></div>`).join('')}</div>` : '';
     const earned = c.jobs.filter(j => j.paid).reduce((s, j) => s + Number(j.total || 0), 0);
-    return `<div class="card">${title}<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 6px">${phoneLine}${histBtn}</div>${c.name ? `<div style="margin:6px 0 2px"><button type="button" class="primary" style="margin-top:0" onclick="createTicketForCustomer(${i})">Create new ticket</button></div>` : ''}${cityLine}${vehiclesBlock}
+    return `<div class="card">${title}<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 6px">${phoneLine}${histBtn}</div>${cityLine}${vehiclesBlock}${c.name ? `<div style="margin:6px 0 2px"><button type="button" class="primary" style="margin-top:0" onclick="createTicketForCustomer(${i})">Create new ticket</button></div>` : ''}
     <div id="cust-hist-${i}" hidden style="margin:6px 0">${c.jobs.map(j => `<div>${esc(j.service)} — ${esc(j.vehicle)} · ${esc(j.date)} · $${Number(j.total).toFixed(2)} · <span class="${j.paid ? 'ok' : ''}">${j.paid ? 'Paid' : 'Booked'}</span>${j.ticketId ? ` · <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('')}<div style="margin-top:8px"><strong>Total spent on service history: $${earned.toFixed(2)}</strong></div></div>
   </div>`;
   }).join('') : '<p class="muted">No customers yet.</p>';
