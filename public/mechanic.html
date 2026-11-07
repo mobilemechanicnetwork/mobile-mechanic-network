@@ -14,8 +14,15 @@
   .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0}
   .tabs button{background:#ffffff;border:1px solid #e2e8f0;color:#475569;border-radius:999px;padding:9px 16px;cursor:pointer;font-size:.9rem;box-shadow:0 1px 2px rgba(15,23,42,.06)}
   .tabs button.active{background:#2563eb;border-color:#2563eb;color:#fff}
-  .tab-select{display:none;width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;font-size:1rem;margin:16px 0;box-sizing:border-box}
-  @media (max-width:640px){.tabs{display:none}.tab-select{display:block}}
+  .tab-nav{position:relative}
+  .tab-menu-btn{display:none;align-items:center;gap:8px;background:#ffffff;border:1px solid #e2e8f0;color:#0f172a;border-radius:10px;padding:10px 14px;cursor:pointer;font-size:1rem;font-weight:700;margin:16px 0;box-shadow:0 1px 2px rgba(15,23,42,.06)}
+  @media (max-width:640px){
+    .tab-menu-btn{display:inline-flex}
+    .tabs{display:none;position:absolute;top:calc(100% - 10px);left:0;right:0;z-index:50;flex-direction:column;align-items:stretch;gap:4px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:6px;box-shadow:0 8px 24px rgba(15,23,42,.18);margin:0}
+    .tabs.open{display:flex}
+    .tabs button{border-radius:8px;text-align:left;box-shadow:none}
+    .tabs button.active{background:#2563eb;border-color:#2563eb;color:#fff}
+  }
   section.tab{display:none}
   section.tab.active{display:block}
   label{display:block;margin:12px 0 4px;font-size:.9rem;color:#475569}
@@ -123,7 +130,9 @@
     </div>
   </div>
   <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600">Add your phone number so you get new requests by text. <a href="/security" style="color:#b91c1c">Add it now →</a></div>
-  <div class="tabs noprint">
+  <div class="tab-nav noprint">
+    <button type="button" id="tab-menu-btn" class="tab-menu-btn" aria-expanded="false" aria-controls="tab-menu-list"><span aria-hidden="true">☰</span> <span id="tab-menu-current">Leads</span><span id="tab-menu-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700"></span></button>
+    <div class="tabs" id="tab-menu-list">
     <button data-tab="requests" class="active">Leads</button>
     <button data-tab="today">Today <span id="notif-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700;margin-left:4px;vertical-align:middle"></span></button>
     <button data-tab="profile">Profile</button>
@@ -131,16 +140,8 @@
     <button data-tab="calendar">Calendar</button>
     <button data-tab="customers">Customers</button>
     <button data-tab="finances">Finances</button>
+    </div>
   </div>
-  <select id="tab-select" class="tab-select noprint" aria-label="Section">
-    <option value="requests">Leads</option>
-    <option value="today">Today</option>
-    <option value="profile">Profile</option>
-    <option value="tickets">Tickets</option>
-    <option value="calendar">Calendar</option>
-    <option value="customers">Customers</option>
-    <option value="finances">Finances</option>
-  </select>
 
   <section class="tab" id="tab-today">
     <h2>Today</h2>
@@ -521,12 +522,15 @@ async function post(url, body) { return api(url, { method: 'POST', headers: { 'C
 // inspections, Finances holds earnings and billing). Help has no button;
 // the footer link opens it.
 const TAB_SECTIONS = { today: ['today', 'notifications'], requests: ['requests'], profile: ['profile', 'promos', 'photos'], tickets: ['tickets'], calendar: ['calendar'], customers: ['customers'], finances: ['earnings', 'billing'], help: ['help'] };
+const TAB_LABELS = { requests: 'Leads', today: 'Today', profile: 'Profile', tickets: 'Tickets', calendar: 'Calendar', customers: 'Customers', finances: 'Finances', help: 'Help' };
 window.showTab = (name) => {
   document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('active'));
   document.querySelectorAll('section.tab').forEach(x => x.classList.remove('active'));
   const btn = document.querySelector('.tabs button[data-tab="' + name + '"]');
   if (btn) btn.classList.add('active');
-  const sel = $('tab-select'); if (sel) sel.value = name;
+  const cur = $('tab-menu-current'); if (cur) cur.textContent = TAB_LABELS[name] || name;
+  const tabsEl = document.querySelector('.tabs'); if (tabsEl) tabsEl.classList.remove('open');
+  const menuBtn = $('tab-menu-btn'); if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
   (TAB_SECTIONS[name] || [name]).forEach(s => { const el = $('tab-' + s); if (el) el.classList.add('active'); });
   if (name === 'profile') renderPvView();
   if (name === 'today') { loadToday(); loadNotifications(true); }
@@ -534,7 +538,21 @@ window.showTab = (name) => {
   if (name === 'calendar') loadCalendar();
 };
 document.querySelectorAll('.tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.tab); });
-const _tabSel = $('tab-select'); if (_tabSel) _tabSel.onchange = (e) => showTab(e.target.value);
+const _tabMenuBtn = $('tab-menu-btn');
+if (_tabMenuBtn) _tabMenuBtn.onclick = () => {
+  const tabsEl = document.querySelector('.tabs');
+  if (!tabsEl) return;
+  const open = tabsEl.classList.toggle('open');
+  _tabMenuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+};
+document.addEventListener('click', (e) => {
+  const nav = document.querySelector('.tab-nav');
+  const tabsEl = document.querySelector('.tabs');
+  if (nav && tabsEl && tabsEl.classList.contains('open') && !nav.contains(e.target)) {
+    tabsEl.classList.remove('open');
+    const menuBtn = $('tab-menu-btn'); if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
+  }
+});
 $('logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout', {}); location.href = '/'; };
 $('portal-help').onclick = (e) => { e.preventDefault(); showTab('help'); window.scrollTo(0, 0); };
 
@@ -551,10 +569,13 @@ function updateNotifBadge(count) {
   if (!badge) return;
   if (count > 0) { badge.style.display = 'inline-block'; badge.textContent = count; }
   else badge.style.display = 'none';
-  // The phone dropdown has no badge, so the unread count rides on the
-  // Today option label instead.
-  const sel = $('tab-select');
-  if (sel) { const opt = sel.querySelector('option[value="today"]'); if (opt) opt.textContent = count > 0 ? 'Today (' + count + ')' : 'Today'; }
+  // The hamburger button carries the same unread count on phones,
+  // since the Today button sits inside the closed menu.
+  const menuBadge = $('tab-menu-badge');
+  if (menuBadge) {
+    if (count > 0) { menuBadge.style.display = 'inline-block'; menuBadge.textContent = count; }
+    else menuBadge.style.display = 'none';
+  }
 }
 async function loadNotifications(markRead) {
   await loadCalByTicket();
