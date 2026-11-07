@@ -395,6 +395,17 @@ function quoteDecisionLines(quote, row) {
     lines.push({ desc: row.service, amount: Math.round(Number(quote.total) * 100) / 100 });
   return lines;
 }
+// Guest quote links: each quote carries an unguessable token. Anyone with
+// the link can view that one quote and decide its lines, no account
+// needed. Minted at quote creation; older quotes get one the first time
+// their mechanic loads the inbox or the quote page. The token is never
+// a login: it opens one quote only, and line decisions still require
+// the quote to be pending.
+function ensureGuestToken(q) {
+  if (!q) return false;
+  if (!q.guestToken) { q.guestToken = crypto.randomBytes(16).toString('hex'); return true; }
+  return false;
+}
 // Complete a quote acceptance. approvedItems/deniedItems are per-line
 // decision subsets (normalized {desc, amount} lines); null means the whole
 // quote (the dashboard Accept path). Denied lines land on the ticket's
@@ -1292,6 +1303,11 @@ const server = http.createServer(async (req, res) => {
       const biz = myBusiness(user.id);
       if (!biz) return sendJson(res, 200, { requests: [], booked: [], needsBusiness: true });
       const quotes = quotesStore.read();
+      // Older quotes predate guest links: mint their tokens now so the
+      // mechanic can text them from this inbox load.
+      let minted = false;
+      for (const q of quotes) if (q.businessId === biz.id && ensureGuestToken(q)) minted = true;
+      if (minted) quotesStore.write(quotes);
       const myTickets = ticketsStore.read().filter(t => t.mechanicId === user.id);
       const allRequests = requestsStore.read();
       const normName = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -1452,14 +1468,14 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 409, { error: 'You already quoted this request.' });
       if (ticketsStore.read().some(t => t.requestId === requestId && t.type === 'invoice' && t.estimateStatus === 'pending'))
         return sendJson(res, 409, { error: 'An estimate is already awaiting approval for this job.' });
-      const quote = { id: crypto.randomUUID(), requestId, businessId: biz.id, mechanicId: user.id, items: cleanItems, notes: String(notes || '').slice(0, 1000), total, price: total, message: String(message || ''), status: 'pending', followUp, createdAt: new Date().toISOString() };
+      const quote = { id: crypto.randomUUID(), requestId, businessId: biz.id, mechanicId: user.id, items: cleanItems, notes: String(notes || '').slice(0, 1000), total, price: total, message: String(message || ''), status: 'pending', followUp, guestToken: crypto.randomBytes(16).toString('hex'), createdAt: new Date().toISOString() };
       quotes.push(quote); quotesStore.write(quotes);
       // The customer hears about every quote: a dashboard notification
       // when they have an account, plus a text to the request phone.
       // Never fails the quote itself.
       try {
         if (row.ownerId) pushOwnerNote(row.ownerId, { type: 'quote_received', title: `New quote from ${biz.name}`, service: row.service, vehicle: row.vehicle || '', total, requestId: row.id, businessName: biz.name || '' });
-        await sendSms(row.phone, `Mobile Mechanic Network: New quote from ${biz.name} for ${row.service} (${row.vehicle}) — $${Number(total).toFixed(2)}.${followUp ? ' This covers additional work on your booked job.' : ''} See it in your dashboard: https://mobilemechanicsinmyarea.com/dashboard`);
+        await sendSms(row.phone, `Mobile Mechanic Network: New quote from ${biz.name} for ${row.service} (${row.vehicle}) — $${Number(total).toFixed(2)}.${followUp ? ' This covers additional work on your booked job.' : ''} View and accept it here, no account needed: https://mobilemechanicsinmyarea.com/quote?id=${quote.id}&token=${quote.guestToken}`);
       } catch (e) {}
       return sendJson(res, 201, { quote });
     }
@@ -1536,17 +1552,22 @@ const server = http.createServer(async (req, res) => {
     // A decision can be changed while any line is still undecided.
     const quoteDecide = p.match(/^\/api\/quotes\/([0-9a-f-]+)\/lines$/);
     if (quoteDecide && req.method === 'POST') {
-      const user = getSessionUser(req);
-      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       const quotes = quotesStore.read();
       const quote = quotes.find(q => q.id === quoteDecide[1]);
       if (!quote) return sendJson(res, 404, { error: 'Quote not found.' });
       const rows = requestsStore.read();
       const row = rows.find(r => r.id === quote.requestId);
-      if (!row || row.ownerId !== user.id) return sendJson(res, 403, { error: 'That is not your request.' });
+      if (!row) return sendJson(res, 404, { error: 'Quote not found.' });
+      const body = await parseBody(req);
+      // The request owner (signed in) or anyone holding this quote's
+      // guest link may decide its lines. Nothing else changes: the
+      // pending-only and per-line rules below still apply.
+      const tokenOk = !!(body.token && quote.guestToken && String(body.token) === quote.guestToken);
+      const user = getSessionUser(req);
+      if (!tokenOk && !user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (!tokenOk && row.ownerId !== user.id) return sendJson(res, 403, { error: 'That is not your request.' });
       const isFollowUp = row.status === 'accepted' && quote.followUp === true;
       if (quote.status !== 'pending' || (row.status !== 'open' && !isFollowUp)) return sendJson(res, 400, { error: 'That quote can no longer be changed.' });
-      const body = await parseBody(req);
       const lines = quoteDecisionLines(quote, row);
       const idx = Number(body.index);
       if (!Number.isInteger(idx) || idx < 0 || idx >= lines.length) return sendJson(res, 400, { error: 'That line does not exist.' });
@@ -2453,22 +2474,35 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { ticket: t, business: biz ? publicBusiness(biz) : null, totals });
     }
     // Printable quote document. The mechanic who quoted it and the
-    // request's owner may open it; anyone else (including guests with no
-    // account) gets a 404, and shares the PDF file itself instead.
+    // request's owner may open it; anyone holding the quote's guest
+    // link may open it too, no account needed. Anyone else gets a 404.
     if (p === '/api/quote' && req.method === 'GET') {
-      const user = getSessionUser(req);
-      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
-      const q = quotesStore.read().find(x => x.id === url.searchParams.get('id'));
+      const quotes = quotesStore.read();
+      const q = quotes.find(x => x.id === url.searchParams.get('id'));
       if (!q) return sendJson(res, 404, { error: 'Not found.' });
       const row = requestsStore.read().find(r => r.id === q.requestId);
       if (!row) return sendJson(res, 404, { error: 'Not found.' });
-      const biz = myBusiness(user.id);
-      const isMechanic = user.role === 'mechanic' && biz && q.businessId === biz.id;
-      const isOwner = user.role === 'owner' && row.ownerId === user.id;
-      if (!isMechanic && !isOwner) return sendJson(res, 404, { error: 'Not found.' });
       const b = businessesStore.read().find(x => x.id === q.businessId);
       const inv = ticketsStore.read().find(t => t.requestId === row.id && t.businessId === q.businessId && (t.type === 'invoice' || t.type === 'receipt'));
-      return sendJson(res, 200, { quote: q, request: row, business: b ? publicBusiness(b) : null, isOwner, ticketId: inv ? inv.id : null });
+      // Signed-in owner or quoting mechanic first: a guest who later
+      // creates an account sees the owner view, not the guest prompt.
+      const user = getSessionUser(req);
+      if (user) {
+        const biz = myBusiness(user.id);
+        const isMechanic = user.role === 'mechanic' && biz && q.businessId === biz.id;
+        const isOwner = user.role === 'owner' && row.ownerId === user.id;
+        if (isMechanic || isOwner) {
+          if (isMechanic && ensureGuestToken(q)) quotesStore.write(quotes);
+          return sendJson(res, 200, { quote: q, request: row, business: b ? publicBusiness(b) : null, isOwner, ticketId: inv ? inv.id : null });
+        }
+      }
+      // Guest link: a matching token opens this one quote, no account.
+      // A wrong or missing token never grants anything on its own.
+      const token = String(url.searchParams.get('token') || '');
+      if (token && q.guestToken && token === q.guestToken)
+        return sendJson(res, 200, { quote: q, request: row, business: b ? publicBusiness(b) : null, isOwner: false, canDecide: true, ticketId: inv ? inv.id : null });
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      return sendJson(res, 404, { error: 'Not found.' });
     }
     // Customer sets the repair location on their own booked ticket.
     // Address is never required at quote-request time; it is only added

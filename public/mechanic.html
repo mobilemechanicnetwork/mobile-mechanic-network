@@ -998,7 +998,8 @@ window.textQuote = (rid) => {
   const total = r.myQuote.total != null ? r.myQuote.total : r.myQuote.price;
   const bizName = window._bizName || 'your mobile mechanic';
   const ownerName = (r.ownerName || '').trim();
-  const msg = `Hi${ownerName ? ' ' + ownerName : ''}, this is ${bizName} with Mobile Mechanic Network. Your quote for ${r.service} (${r.vehicle}) is $${Number(total).toFixed(2)}. View and accept it here: https://mobilemechanicsinmyarea.com/dashboard`;
+  const link = r.myQuote.guestToken ? `https://mobilemechanicsinmyarea.com/quote?id=${r.myQuote.id}&token=${r.myQuote.guestToken}` : 'https://mobilemechanicsinmyarea.com/dashboard';
+  const msg = `Hi${ownerName ? ' ' + ownerName : ''}, this is ${bizName} with Mobile Mechanic Network. Your quote for ${r.service} (${r.vehicle}) is $${Number(total).toFixed(2)}. View and accept it here: ${link}`;
   const phone = String(r.phone || '').replace(/[^+\d]/g, '');
   if (!phone) { alert('No phone number on this request.'); return; }
   window.location.href = `sms:${phone}?body=${encodeURIComponent(msg)}`;
@@ -1009,7 +1010,8 @@ window.textFollowUp = (bid) => {
   const total = b.pendingFollowUp.total != null ? b.pendingFollowUp.total : b.pendingFollowUp.price;
   const bizName = window._bizName || 'your mobile mechanic';
   const ownerName = (b.ownerName || '').trim();
-  const msg = `Hi${ownerName ? ' ' + ownerName : ''}, this is ${bizName} with Mobile Mechanic Network. Additional work for ${b.service} (${b.vehicle}) is $${Number(total).toFixed(2)}. View and accept it here: https://mobilemechanicsinmyarea.com/dashboard`;
+  const link = b.pendingFollowUp.guestToken ? `https://mobilemechanicsinmyarea.com/quote?id=${b.pendingFollowUp.id}&token=${b.pendingFollowUp.guestToken}` : 'https://mobilemechanicsinmyarea.com/dashboard';
+  const msg = `Hi${ownerName ? ' ' + ownerName : ''}, this is ${bizName} with Mobile Mechanic Network. Additional work for ${b.service} (${b.vehicle}) is $${Number(total).toFixed(2)}. View and accept it here: ${link}`;
   const phone = String(b.phone || '').replace(/[^+\d]/g, '');
   if (!phone) { alert('No phone number on this request.'); return; }
   window.location.href = `sms:${phone}?body=${encodeURIComponent(msg)}`;
