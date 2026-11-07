@@ -18,6 +18,7 @@
   button{background:#2563eb;color:#fff;border:0;border-radius:10px;padding:9px 16px;cursor:pointer;box-shadow:0 2px 6px rgba(37,99,235,.25)}
   button.ghost{background:#ffffff;border:1px solid #cbd5e1;color:#334155;box-shadow:none}
   button.decline{background:#ffffff;border:1px solid #fca5a5;color:#dc2626;box-shadow:none}
+  button.green{background:#16a34a;color:#ffffff;border:0;border-radius:10px;padding:9px 16px;cursor:pointer;box-shadow:0 2px 6px rgba(22,163,74,.25)}
   .checks label{display:inline-block;margin:4px 10px 4px 0}
   .err{color:#dc2626;font-size:.9rem} .ok{color:#16a34a;font-size:.9rem}
   .price{font-size:1.2rem;font-weight:700}
@@ -410,14 +411,14 @@ const capName = s => String(s == null ? '' : s).trim().replace(/\S+/g, w => w.ch
         ${q.businessWarranty ? `<p class="muted"><strong>Warranty:</strong> ${q.businessWarranty}</p>` : ''}
         ${q.status === 'declined' ? '<div style="color:#dc2626;font-weight:700">Quote: denied</div>' : `<div class="muted">Quote: ${q.status}${q.followUp ? ' · Additional work' : ''}</div>`}
         ${(() => { if (q.status !== 'pending' || !Array.isArray(q.lineDecisions) || !q.lineDecisions.some(Boolean)) return ''; const n = (q.items || []).filter(i => i.desc && Number(i.amount) > 0).length || 1; return `<div class="muted">${q.lineDecisions.filter(Boolean).length} of ${n} lines decided — open the quote to decide the rest.</div>`; })()}
-        ${(q.status !== 'accepted' || !r.ticketId) ? `<p><a href="/quote?id=${q.id}" target="_blank">View quote →</a></p>` : ''}
+        ${(q.status !== 'accepted' || !r.ticketId) ? `<p><button type="button" class="ghost" onclick="window.open('/quote?id=${q.id','_blank')">View quote →</button></p>` : ''}
         ${q.status === 'pending' ? '<p class="muted">This price covers exactly what is listed. Nothing extra gets added without your approval.</p>' : ''}
         ${q.status === 'pending' && (r.status === 'open' || q.followUp) ? `<button onclick="actQuote('${q.id}','accept')">Accept</button> <button class="decline" onclick="actQuote('${q.id}','decline')">Decline</button>` : ''}
       </div>`).join('') : '<p class="muted">No quotes yet.</p>'}
-      ${r.ticketId && !r.pendingEstimate ? `<p><a href="/job-ticket?id=${r.ticketId}" target="_blank">View ticket →</a></p>` : ''}
+      ${r.ticketId && !r.pendingEstimate ? `<p><button type="button" class="ghost" onclick="window.open('/job-ticket?id=${r.ticketId','_blank')">View ticket →</button></p>` : ''}
       ${r.pendingEstimate ? `<div class="card" style="border-color:#2563eb">
         <strong>Estimate for additional work — needs your approval</strong>
-        <p><a href="/job-ticket?id=${r.pendingEstimate.ticketId}" target="_blank">View ticket →</a></p>
+        <p><button type="button" class="ghost" onclick="window.open('/job-ticket?id=${r.pendingEstimate.ticketId','_blank')">View ticket →</button></p>
         <p class="muted">These lines are extra work on top of your accepted quote. Approve or deny each line: approved lines join your invoice, denied lines do not, and denied lines will show on your receipt as denied repairs.</p>
         <div style="margin:10px 0">${r.pendingEstimate.lines.map((l, i) => `<div style="padding:6px 0;border-bottom:1px solid #e2e8f0"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><span>${esc(l.desc)} — $${Number(l.price).toFixed(2)}</span><span style="white-space:nowrap"><button onclick="actEst('${r.pendingEstimate.ticketId}','accept',${i})">Approve</button> <button class="decline" onclick="actEst('${r.pendingEstimate.ticketId}','decline',${i})">Deny</button></span></div>${l.newTotal != null ? `<div class="muted">If you approve this line, your total becomes $${Number(l.newTotal).toFixed(2)}.</div>` : ''}</div>`).join('')}${r.pendingEstimate.approvedTotal != null ? `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0"><span>Already approved total</span><span>$${Number(r.pendingEstimate.approvedTotal).toFixed(2)}</span></div><div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0"><span>New work total</span><span>$${Number(r.pendingEstimate.total).toFixed(2)}</span></div><div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;font-weight:700"><span>New total if you approve all</span><span>$${Number(r.pendingEstimate.newTotalAll).toFixed(2)}</span></div>` : `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;font-weight:700"><span>Estimate total</span><span>$${Number(r.pendingEstimate.total).toFixed(2)}</span></div>`}</div>
         <p><button onclick="actEst('${r.pendingEstimate.ticketId}','accept')">Approve all</button> <button class="decline" onclick="actEst('${r.pendingEstimate.ticketId}','decline')">Deny all</button></p>
