@@ -944,7 +944,7 @@ const server = http.createServer(async (req, res) => {
       const re = /<text>([^<]*)<\/text>/g;
       let m;
       while ((m = re.exec(String(xml || ''))) !== null) {
-        const t = m[1].trim();
+        const t = m[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").trim();
         if (t) out.push(t);
       }
       return out;
@@ -982,13 +982,24 @@ const server = http.createServer(async (req, res) => {
       if (/^\d+(\.\d+)?L$/.test(next)) return true;
       return ['AWD', 'RWD', 'FWD', '4WD', '2WD', 'HEV', 'FFV', 'PHEV', 'E85', 'HYBRID', 'ELECTRIC', 'PICKUP', 'RAPTOR', 'CREW', 'CAB', 'SUPERCREW', 'SUPERCAB', 'KING', 'PLATINUM', 'LIMITED', 'XL', 'XLT', 'LARIAT', 'STX', 'S', 'SE', 'SEL', 'TITANIUM'].includes(next);
     }
+    const epaModelsCache = new Map();
+    async function fetchEpaModels(year, make) {
+      const key = [year, make].map(s => String(s || '').toLowerCase()).join('|');
+      if (epaModelsCache.has(key)) return epaModelsCache.get(key);
+      let models = [];
+      try {
+        const xml = await (await fetch('https://www.fueleconomy.gov/ws/rest/vehicle/menu/model?year=' + encodeURIComponent(year) + '&make=' + encodeURIComponent(make), { headers: { 'User-Agent': 'MobileMechanicNetwork/1.0' }, signal: AbortSignal.timeout(8000) })).text();
+        models = epaMenuTexts(xml);
+      } catch (e) { models = []; }
+      epaModelsCache.set(key, models);
+      return models;
+    }
     async function fetchEpaEngines(year, make, model) {
       const key = [year, make, model].map(s => String(s || '').toLowerCase()).join('|');
       if (epaEnginesCache.has(key)) return epaEnginesCache.get(key);
       let engines = [];
       try {
-        const modelsXml = await (await fetch('https://www.fueleconomy.gov/ws/rest/vehicle/menu/model?year=' + encodeURIComponent(year) + '&make=' + encodeURIComponent(make), { headers: { 'User-Agent': 'MobileMechanicNetwork/1.0' }, signal: AbortSignal.timeout(8000) })).text();
-        const epaModels = epaMenuTexts(modelsXml).filter(m => epaModelMatches(m, model));
+        const epaModels = (await fetchEpaModels(year, make)).filter(m => epaModelMatches(m, model));
         const optXmls = await Promise.all(epaModels.map(async (m) => {
           try {
             return await (await fetch('https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=' + encodeURIComponent(year) + '&make=' + encodeURIComponent(make) + '&model=' + encodeURIComponent(m), { headers: { 'User-Agent': 'MobileMechanicNetwork/1.0' }, signal: AbortSignal.timeout(8000) })).text();
@@ -1004,6 +1015,51 @@ const server = http.createServer(async (req, res) => {
       } catch (e) { engines = []; }
       epaEnginesCache.set(key, engines);
       return engines;
+    }
+    // Trims, pulled from the same EPA model names the engines use: the
+    // EPA lists variants like "Camry AWD LE/SE", "F150 Pickup 4WD
+    // Limited", "Accord 2.0T Sport/Touring". The trim words are what is
+    // left after stripping drivetrain, fuel, engine, body, and payload
+    // words, split on "/" and spaces. It is a best-effort list: the EPA
+    // only names trims on some variants (a 2020 Explorer has none, so
+    // it falls back to free text), and a trim the EPA never names is
+    // typed in through "Other / not listed".
+    const epaTrimsCache = new Map();
+    const EPA_TRIM_DROP = new Set(['AWD', 'RWD', 'FWD', '4WD', '2WD', 'HEV', 'FFV', 'PHEV', 'E85', 'HYBRID', 'ELECTRIC', 'PICKUP', 'CAB', 'CHASSIS', 'CREW', 'SUPERCREW', 'SUPERCAB', 'BASE', 'PAYLOAD', 'LT', 'TIRE', 'LBS', 'GVWR', 'VAN', 'WAGON', 'HATCHBACK', 'SEDAN', 'COUPE', 'CONVERTIBLE', '2DR', '4DR', '5DR']);
+    function parseEpaTrims(epaModels, baseModel) {
+      const b = String(baseModel || '').replace(/-/g, '').trim().toLowerCase();
+      const out = [];
+      const seen = new Set();
+      for (const m of epaModels) {
+        // Hyphens are stripped from both sides for the match, but the
+        // trim words keep the EPA's own case ("LE", "XLT", "TrailBoss"),
+        // so a trim does not come out lowercased then re-capitalized.
+        const em = String(m || '').replace(/-/g, '').trim();
+        if (em.toLowerCase().indexOf(b + ' ') !== 0) continue;
+        const rest = em.slice(b.length + 1);
+        for (const word of rest.split(/[\s\/]+/)) {
+          const w = word.trim();
+          if (!w || w.length < 2) continue;
+          const up = w.toUpperCase();
+          if (EPA_TRIM_DROP.has(up)) continue;
+          if (/[&<>]/.test(w)) continue;
+          if (/^\d+(\.\d+)?[LT]?$/i.test(w)) continue;
+          if (/^\d+$/.test(w)) continue;
+          if (!seen.has(w)) { seen.add(w); out.push(w); }
+        }
+      }
+      return out;
+    }
+    async function fetchEpaTrims(year, make, model) {
+      const key = [year, make, model].map(s => String(s || '').toLowerCase()).join('|');
+      if (epaTrimsCache.has(key)) return epaTrimsCache.get(key);
+      let trims = [];
+      try {
+        const models = await fetchEpaModels(year, make);
+        trims = parseEpaTrims(models, model);
+      } catch (e) { trims = []; }
+      epaTrimsCache.set(key, trims);
+      return trims;
     }
     // Wikimedia Commons photo for a vehicle: real, freely licensed photos of
     // the actual model. FRONT views only: rear/trunk/back shots are rejected,
@@ -1475,6 +1531,14 @@ const server = http.createServer(async (req, res) => {
       if (!year || !make || !model) return sendJson(res, 200, { engines: [] });
       const engines = await fetchEpaEngines(year, make, model);
       return sendJson(res, 200, { engines });
+    }
+    if (p === '/api/vehicles/trims' && req.method === 'GET') {
+      const year = url.searchParams.get('year') || '';
+      const make = url.searchParams.get('make') || '';
+      const model = url.searchParams.get('model') || '';
+      if (!year || !make || !model) return sendJson(res, 200, { trims: [] });
+      const trims = await fetchEpaTrims(year, make, model);
+      return sendJson(res, 200, { trims });
     }
 
     // ---------- Quote requests ----------

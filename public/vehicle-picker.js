@@ -15,12 +15,14 @@
    picker.setFromString("2020 Honda Accord") -> async; best-effort parse (extras stay blank)
    picker.reset()          -> clears year/make/model and the extras (keeps type)
    VehiclePicker.display(vehicle, trim, engine, transmission, drivetrain) -> composed display string for a stored vehicle
-   Trim is free text; engine is a selector of the combinations available
-   for the chosen vehicle (from /api/vehicles/engines, EPA data) with a
-   free-text fallback when the model has no listed engines or the engine
-   is not listed. Transmission is Manual/Automatic. All optional. They
-   never enter the base vehicle string, so garage matching and photo
-   lookup still key on year/make/model.
+   Trim is a selector of the trims for the chosen vehicle (from
+   /api/vehicles/trims, EPA model names) and engine is a selector of
+   the combinations for the chosen vehicle (from /api/vehicles/engines,
+   EPA data), each with a free-text fallback when the model has no
+   listed values or the value is not listed. Transmission is
+   Manual/Automatic. All optional. They never enter the base vehicle
+   string, so garage matching and photo lookup still key on
+   year/make/model.
 */
 (function () {
   const OTHER = '__other';
@@ -77,6 +79,17 @@
       })();
     }
     return cache.engines[k];
+  }
+  async function getTrims(year, make, model) {
+    const k = year + '|' + make + '|' + model;
+    if (!cache.trims) cache.trims = {};
+    if (!cache.trims[k]) {
+      cache.trims[k] = (async () => {
+        const d = await (await fetch('/api/vehicles/trims?year=' + encodeURIComponent(year) + '&make=' + encodeURIComponent(make) + '&model=' + encodeURIComponent(model))).json().catch(() => ({}));
+        return Array.isArray(d.trims) ? d.trims : [];
+      })();
+    }
+    return cache.trims[k];
   }
 
   function fillSelect(sel, items, placeholder) {
@@ -160,12 +173,19 @@
     extrasBox.style.gap = '8px';
     extrasBox.style.flexWrap = 'wrap';
     extrasBox.style.marginTop = '6px';
-    const trimInp = document.createElement('input');
-    trimInp.type = 'text';
-    trimInp.placeholder = 'Trim (optional), e.g. XL';
-    trimInp.maxLength = 60;
-    trimInp.style.flex = '1';
-    trimInp.style.minWidth = '120px';
+    const trimWrap = document.createElement('div');
+    trimWrap.style.flex = '1';
+    trimWrap.style.minWidth = '120px';
+    const trimSel = document.createElement('select');
+    trimSel.style.width = '100%';
+    trimSel.style.display = 'none';
+    const trimOther = document.createElement('input');
+    trimOther.type = 'text';
+    trimOther.placeholder = 'Trim (optional), e.g. XL';
+    trimOther.maxLength = 60;
+    trimOther.style.width = '100%';
+    trimWrap.appendChild(trimSel);
+    trimWrap.appendChild(trimOther);
     const engineWrap = document.createElement('div');
     engineWrap.style.flex = '1';
     engineWrap.style.minWidth = '120px';
@@ -201,7 +221,7 @@
       o.value = v; o.textContent = v;
       driveSel.appendChild(o);
     });
-    extrasBox.appendChild(trimInp);
+    extrasBox.appendChild(trimWrap);
     extrasBox.appendChild(engineWrap);
     extrasBox.appendChild(transSel);
     extrasBox.appendChild(driveSel);
@@ -217,6 +237,49 @@
     while (rowEl && !rowEl.contains(yearSel)) rowEl = rowEl.parentElement;
     if (rowEl && rowEl.parentElement) rowEl.insertAdjacentElement('afterend', extrasBox);
     else modelOther.insertAdjacentElement('afterend', extrasBox);
+
+    // Trim selector: same pattern as the engine selector, fed by
+    // /api/vehicles/trims (EPA model names). The list is best-effort:
+    // some models have no trim variants in the EPA data, and then the
+    // field stays a free-text input.
+    let pendingTrim = '';
+    async function reloadTrims() {
+      const y = yearSel.value, m = makeSel.value, mo = modelSel.value;
+      const base = (!y || !m || !mo || m === OTHER || mo === OTHER) ? null : { y, m, mo };
+      trimSel.style.display = 'none';
+      trimOther.style.display = '';
+      if (!base) { trimOther.value = pendingTrim; return; }
+      const trims = await getTrims(base.y, base.m, base.mo);
+      if (yearSel.value !== base.y || makeSel.value !== base.m || modelSel.value !== base.mo) return;
+      if (!trims.length) { trimOther.value = pendingTrim; return; }
+      trimSel.innerHTML = '';
+      const ph = document.createElement('option');
+      ph.value = ''; ph.textContent = 'Trim (optional)'; ph.disabled = true; ph.selected = true;
+      trimSel.appendChild(ph);
+      trims.forEach(v => {
+        const o = document.createElement('option');
+        o.value = v; o.textContent = v;
+        trimSel.appendChild(o);
+      });
+      const o = document.createElement('option');
+      o.value = OTHER; o.textContent = 'Other / not listed';
+      trimSel.appendChild(o);
+      trimSel.style.display = '';
+      if (pendingTrim && trims.includes(pendingTrim)) {
+        trimSel.value = pendingTrim;
+        trimOther.style.display = 'none';
+        trimOther.value = '';
+      } else if (pendingTrim) {
+        trimSel.value = OTHER;
+        trimOther.style.display = '';
+        trimOther.value = pendingTrim;
+      } else {
+        trimOther.style.display = 'none';
+        trimOther.value = '';
+      }
+      pendingTrim = '';
+      fire();
+    }
 
     // Engine selector: the combinations available for the chosen
     // vehicle, from /api/vehicles/engines (EPA data). The select fills
@@ -265,6 +328,12 @@
     }
 
     function getExtras() {
+      let trim = '';
+      if (trimSel.style.display !== 'none' && trimSel.value && trimSel.value !== OTHER) {
+        trim = trimSel.value;
+      } else {
+        trim = trimOther.value.trim();
+      }
       let engine = '';
       if (engineSel.style.display !== 'none' && engineSel.value && engineSel.value !== OTHER) {
         engine = engineSel.value;
@@ -272,14 +341,17 @@
         engine = engineOther.value.trim();
       }
       return {
-        trim: trimInp.value.trim(),
+        trim: trim,
         engine: engine,
         transmission: transSel.value === 'Manual' || transSel.value === 'Automatic' ? transSel.value : '',
         drivetrain: driveSel.value === 'AWD' || driveSel.value === 'FWD' || driveSel.value === 'RWD' ? driveSel.value : ''
       };
     }
     function setExtras(trim, engine, transmission, drivetrain) {
-      trimInp.value = String(trim || '').slice(0, 60);
+      pendingTrim = String(trim || '').slice(0, 60);
+      trimOther.value = pendingTrim;
+      trimSel.style.display = 'none';
+      trimOther.style.display = '';
       pendingEngine = String(engine || '').slice(0, 60);
       engineOther.value = pendingEngine;
       engineSel.style.display = 'none';
@@ -358,7 +430,7 @@
       const y = yearSel.value, m = makeSel.value;
       fillSelect(modelSel, [], 'Select model');
       modelSel.disabled = true;
-      syncOther(); reloadEngines(); fire();
+      syncOther(); reloadTrims(); reloadEngines(); fire();
       if (!y || !m || m === OTHER) { syncOther(); return; }
       const models = await getModels(y, m, curType);
       if (yearSel.value !== y || makeSel.value !== m) return;
@@ -366,10 +438,16 @@
       modelSel.disabled = false;
       syncOther();
     });
-    modelSel.addEventListener('change', () => { syncOther(); reloadEngines(); fire(); });
+    modelSel.addEventListener('change', () => { syncOther(); reloadTrims(); reloadEngines(); fire(); });
     makeOther.addEventListener('input', fire);
     modelOther.addEventListener('input', fire);
-    trimInp.addEventListener('input', fire);
+    trimSel.addEventListener('change', () => {
+      const other = trimSel.value === OTHER;
+      trimOther.style.display = other ? '' : 'none';
+      if (!other) trimOther.value = '';
+      fire();
+    });
+    trimOther.addEventListener('input', fire);
     engineSel.addEventListener('change', () => {
       const other = engineSel.value === OTHER;
       engineOther.style.display = other ? '' : 'none';
@@ -473,8 +551,9 @@
           } else if (modelSel.value === OTHER) {
             modelOther.value = mo;
           }
-          // load the engine combinations for the chosen model and
-          // apply the pending engine (setExtras stored it earlier)
+          // load the trim and engine combinations for the chosen model
+          // and apply the pending values (setExtras stored them earlier)
+          await reloadTrims();
           await reloadEngines();
           syncOther(); fire();
         } else if (y || m || mo) {
@@ -531,6 +610,11 @@
         fillSelect(modelSel, [], 'Select model');
         makeSel.disabled = true; modelSel.disabled = true;
         makeOther.value = ''; modelOther.value = '';
+        pendingTrim = '';
+        trimSel.innerHTML = '';
+        trimSel.style.display = 'none';
+        trimOther.value = '';
+        trimOther.style.display = '';
         pendingEngine = '';
         engineSel.innerHTML = '';
         engineSel.style.display = 'none';
