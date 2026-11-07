@@ -91,12 +91,12 @@
 <p class="noprint" id="ticket-foot-hint" style="text-align:center;color:#64748b;font-size:.9rem;margin:0 16px">To share the PDF from your phone: tap Share PDF, then tap Share in the print preview and pick Messages, Mail, or another app.</p>
 <div id="paid-prompt" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto" onclick="if(event.target===this)closePaidPrompt()">
   <div style="background:#fff;border-radius:14px;max-width:460px;width:100%;padding:20px;margin:24px 0;box-sizing:border-box">
-    <h3 style="margin:0 0 6px;font-size:1.1rem">Finish the receipt</h3>
-    <p style="margin:0 0 14px;color:#334155">A ticket can't become a receipt without the VIN and the odometer reading. Add them here and it will be marked paid.</p>
+    <h3 id="paid-prompt-title" style="margin:0 0 6px;font-size:1.1rem">Finish the receipt</h3>
+    <p id="paid-prompt-text" style="margin:0 0 14px;color:#334155">A ticket can't become a receipt without the VIN and the odometer reading. Add them here and it will be marked paid.</p>
     <div style="display:grid;gap:10px">
       <label style="font-size:.85rem;color:#64748b">VIN<input id="paid-vin" maxlength="17" placeholder="17-character VIN" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;text-transform:uppercase"></label>
-      <label style="font-size:.85rem;color:#64748b">Mileage<input id="paid-mileage" type="number" min="0" placeholder="Odometer reading" inputmode="numeric" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
-      <label style="font-size:.85rem;color:#64748b">Paid by<input id="paid-pm" placeholder="Cash, card, check, Venmo…" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
+      <label id="paid-mileage-row" style="font-size:.85rem;color:#64748b">Mileage<input id="paid-mileage" type="number" min="0" placeholder="Odometer reading" inputmode="numeric" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
+      <label id="paid-pm-row" style="font-size:.85rem;color:#64748b">Paid by<input id="paid-pm" placeholder="Cash, card, check, Venmo…" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
     </div>
     <div class="err" id="paid-err"></div>
     <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
@@ -647,6 +647,69 @@ window.addRepairFromInspection = async (inspId, key, btn) => {
 function renderActions() {
   const box = document.getElementById('ticket-actions');
   if (!T) { box.innerHTML = ''; return; }
+  // One prompt for the details a transition needs: marking paid needs
+  // VIN + mileage + payment method, converting to an invoice needs
+  // just the VIN. The prompt collects them in place instead of
+  // sending the mechanic back to the details.
+  let _promptMode = 'paid';
+  const openReceiptPrompt = (mode) => {
+    _promptMode = mode;
+    const title = document.getElementById('paid-prompt-title');
+    const text = document.getElementById('paid-prompt-text');
+    const miRow = document.getElementById('paid-mileage-row');
+    const pmRow = document.getElementById('paid-pm-row');
+    const confirmBtn = document.getElementById('paid-confirm');
+    if (mode === 'convert') {
+      if (title) title.textContent = 'Add the VIN to convert';
+      if (text) text.textContent = 'An invoice needs the VIN. Add it here and the estimate will convert.';
+      if (miRow) miRow.style.display = 'none';
+      if (pmRow) pmRow.style.display = 'none';
+      if (confirmBtn) confirmBtn.textContent = 'Convert to invoice';
+    } else {
+      if (title) title.textContent = 'Finish the receipt';
+      if (text) text.textContent = "A ticket can't become a receipt without the VIN and the odometer reading. Add them here and it will be marked paid.";
+      if (miRow) miRow.style.display = '';
+      if (pmRow) pmRow.style.display = '';
+      if (confirmBtn) confirmBtn.textContent = 'Mark as paid';
+    }
+    const vinEl = document.getElementById('paid-vin');
+    const miEl = document.getElementById('paid-mileage');
+    const pmEl = document.getElementById('paid-pm');
+    if (vinEl) vinEl.value = T.vin || '';
+    if (miEl) miEl.value = (T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : String(T.mileage);
+    if (pmEl) pmEl.value = T.paymentMethod || '';
+    const err = document.getElementById('paid-err');
+    if (err) err.textContent = '';
+    const promptBox = document.getElementById('paid-prompt');
+    if (promptBox) promptBox.style.display = 'flex';
+  };
+  const doMarkPaid = async (pm, vin, mileage) => {
+    try { await api('/api/tickets/' + T.id + '/paid', { paymentMethod: pm, vin, mileage }); location.reload(); }
+    catch (e) { alert(e.message); }
+  };
+  const doConvert = async (vin) => {
+    try { await api('/api/tickets/' + T.id + '/convert', { vin }); location.reload(); }
+    catch (e) { alert(e.message); }
+  };
+  const paidConfirm = document.getElementById('paid-confirm');
+  if (paidConfirm) paidConfirm.onclick = async () => {
+    const vinClean = (document.getElementById('paid-vin').value || '').toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '');
+    const err = document.getElementById('paid-err');
+    if (vinClean.length !== 17) { if (err) err.textContent = 'Enter the full 17-character VIN.'; document.getElementById('paid-vin').focus(); return; }
+    if (_promptMode === 'convert') {
+      window.closePaidPrompt();
+      await doConvert(vinClean);
+      return;
+    }
+    const mileage = (document.getElementById('paid-mileage').value || '').trim();
+    const pm = (document.getElementById('paid-pm').value || '').trim();
+    if (!mileage || !Number.isFinite(Number(mileage)) || Number(mileage) < 0 || Number(mileage) > 9999999) { if (err) err.textContent = 'Enter the odometer reading.'; document.getElementById('paid-mileage').focus(); return; }
+    if (!pm) { if (err) err.textContent = 'Say how it was paid (cash, card, check, etc.).'; document.getElementById('paid-pm').focus(); return; }
+    window.closePaidPrompt();
+    await doMarkPaid(pm, vinClean, mileage);
+  };
+  const paidCancel = document.getElementById('paid-cancel');
+  if (paidCancel) paidCancel.onclick = () => window.closePaidPrompt();
   if (T.type === 'receipt') {
     // No separate paid note: the receipt document itself already says
     // "Paid in full" with a $0.00 balance.
@@ -765,11 +828,10 @@ function renderActions() {
       } catch (e) { msg.textContent = e.message; }
     };
     document.getElementById('btn-convert').onclick = async () => {
-      let vin = T.vin || '';
-      if (!vin) { const el = document.getElementById('dt-vin-in'); if (el) el.focus(); alert('Enter the 17-character VIN in the ticket details above, then try again.'); return; }
+      let vin = (T.vin || '').trim();
+      if (!vin) { openReceiptPrompt('convert'); return; }
       if (!confirm('Convert this estimate to an invoice?')) return;
-      try { await api('/api/tickets/' + T.id + '/convert', { vin }); location.reload(); }
-      catch (e) { alert(e.message); }
+      await doConvert(vin);
     };
   }
   const estRowsBox = document.getElementById('est-rows');
@@ -791,22 +853,6 @@ function renderActions() {
   }
   const paidBtn = document.getElementById('btn-paid');
   if (paidBtn) {
-    const doMarkPaid = async (pm, vin, mileage) => {
-      try { await api('/api/tickets/' + T.id + '/paid', { paymentMethod: pm, vin, mileage }); location.reload(); }
-      catch (e) { alert(e.message); }
-    };
-    const openPaidPrompt = () => {
-      const vinEl = document.getElementById('paid-vin');
-      const miEl = document.getElementById('paid-mileage');
-      const pmEl = document.getElementById('paid-pm');
-      if (vinEl) vinEl.value = T.vin || '';
-      if (miEl) miEl.value = (T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : String(T.mileage);
-      if (pmEl) pmEl.value = T.paymentMethod || '';
-      const err = document.getElementById('paid-err');
-      if (err) err.textContent = '';
-      const box = document.getElementById('paid-prompt');
-      if (box) box.style.display = 'flex';
-    };
     paidBtn.onclick = () => {
       const vin = (T.vin || '').trim();
       const mileage = (T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : String(T.mileage);
@@ -819,23 +865,9 @@ function renderActions() {
         if (!confirm('Mark this invoice as paid via ' + pm + '? It will become a receipt.')) return;
         doMarkPaid(pm, vin, mileage);
       } else {
-        openPaidPrompt();
+        openReceiptPrompt('paid');
       }
     };
-    const paidConfirm = document.getElementById('paid-confirm');
-    if (paidConfirm) paidConfirm.onclick = async () => {
-      const vinClean = (document.getElementById('paid-vin').value || '').toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '');
-      const mileage = (document.getElementById('paid-mileage').value || '').trim();
-      const pm = (document.getElementById('paid-pm').value || '').trim();
-      const err = document.getElementById('paid-err');
-      if (vinClean.length !== 17) { if (err) err.textContent = 'Enter the full 17-character VIN.'; document.getElementById('paid-vin').focus(); return; }
-      if (!mileage || !Number.isFinite(Number(mileage)) || Number(mileage) < 0 || Number(mileage) > 9999999) { if (err) err.textContent = 'Enter the odometer reading.'; document.getElementById('paid-mileage').focus(); return; }
-      if (!pm) { if (err) err.textContent = 'Say how it was paid (cash, card, check, etc.).'; document.getElementById('paid-pm').focus(); return; }
-      window.closePaidPrompt();
-      await doMarkPaid(pm, vinClean, mileage);
-    };
-    const paidCancel = document.getElementById('paid-cancel');
-    if (paidCancel) paidCancel.onclick = () => window.closePaidPrompt();
   }
   loadLinkedInsp();
   // After adding a repair to an estimate, land straight in Edit lines so
