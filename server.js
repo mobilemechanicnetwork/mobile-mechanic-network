@@ -400,7 +400,7 @@ function ticketFromAcceptedQuote(quote, row) {
   const biz = businessesStore.read().find(b => b.id === quote.businessId);
   const number = nextTicketNumber(quote.businessId);
   const owner = row.ownerId ? usersStore.read().find(u => u.id === row.ownerId) : null;
-  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', number, label: businessAbbrev(biz ? biz.name : '') + '-' + number, customerName: capName(row.ownerName), email: owner ? (owner.email || '') : '', vehicle: row.vehicle || '', vehicleTrim: String(row.vehicleTrim || '').slice(0, 60), vehicleEngine: String(row.vehicleEngine || '').slice(0, 60), vehicleTransmission: (row.vehicleTransmission === 'Manual' || row.vehicleTransmission === 'Automatic') ? row.vehicleTransmission : '', vehicleDrivetrain: (row.vehicleDrivetrain === 'AWD' || row.vehicleDrivetrain === 'FWD' || row.vehicleDrivetrain === 'RWD') ? row.vehicleDrivetrain : '', vin: row.vin || '', mileage: '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, jobAddress: String(row.vehicleLocation || '').slice(0, 200), total: subtotal, createdAt: new Date().toISOString() };
+  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', number, label: businessAbbrev(biz ? biz.name : '') + '-' + number, guestToken: crypto.randomBytes(16).toString('hex'), customerName: capName(row.ownerName), email: owner ? (owner.email || '') : '', vehicle: row.vehicle || '', vehicleTrim: String(row.vehicleTrim || '').slice(0, 60), vehicleEngine: String(row.vehicleEngine || '').slice(0, 60), vehicleTransmission: (row.vehicleTransmission === 'Manual' || row.vehicleTransmission === 'Automatic') ? row.vehicleTransmission : '', vehicleDrivetrain: (row.vehicleDrivetrain === 'AWD' || row.vehicleDrivetrain === 'FWD' || row.vehicleDrivetrain === 'RWD') ? row.vehicleDrivetrain : '', vin: row.vin || '', mileage: '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, jobAddress: String(row.vehicleLocation || '').slice(0, 200), total: subtotal, createdAt: new Date().toISOString() };
 }
 // Normalized lines for per-line quote decisions: the quoted items, or a
 // single synthetic line (service + total) when the quote has no items.
@@ -2101,7 +2101,7 @@ const server = http.createServer(async (req, res) => {
           const m = Number(String(mileage).replace(/[^0-9]/g, ''));
           if (Number.isFinite(m) && m >= 0 && m <= 9999999) ticketMileage = m;
         }
-        linkedTicket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type: 'estimate', number, label: businessAbbrev(biz.name) + '-' + number, customerName: capName(customerName).slice(0, 120), phone: String(customerPhone || '').trim().slice(0, 30), vehicle: String(vehicle).trim().slice(0, 120), vin: cleanVinValue, mileage: ticketMileage, items: [], laborDesc: '', laborAmount: 0, taxRate: 0, subtotal: 0, taxAmount: 0, expenses: [], expensesTotal: 0, total: 0, notes: '', warranty: biz.warranty ? String(biz.warranty).slice(0, 2000) : '', jobAddress: '', requestId: null, createdAt: new Date().toISOString() };
+        linkedTicket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type: 'estimate', number, label: businessAbbrev(biz.name) + '-' + number, guestToken: crypto.randomBytes(16).toString('hex'), customerName: capName(customerName).slice(0, 120), phone: String(customerPhone || '').trim().slice(0, 30), vehicle: String(vehicle).trim().slice(0, 120), vin: cleanVinValue, mileage: ticketMileage, items: [], laborDesc: '', laborAmount: 0, taxRate: 0, subtotal: 0, taxAmount: 0, expenses: [], expensesTotal: 0, total: 0, notes: '', warranty: biz.warranty ? String(biz.warranty).slice(0, 2000) : '', jobAddress: '', requestId: null, createdAt: new Date().toISOString() };
         tickets.push(linkedTicket); ticketsStore.write(tickets);
       } else if (ticketId) {
         const t = ticketsStore.read().find(x => x.id === String(ticketId));
@@ -2356,7 +2356,7 @@ const server = http.createServer(async (req, res) => {
       if (!clean.warranty && biz.warranty) clean.warranty = String(biz.warranty).slice(0, 2000);
       const tickets = ticketsStore.read();
       const number = nextTicketNumber(biz.id, tickets);
-      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, number, label: businessAbbrev(biz.name) + '-' + number, ...clean, createdAt: new Date().toISOString() };
+      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, number, label: businessAbbrev(biz.name) + '-' + number, guestToken: crypto.randomBytes(16).toString('hex'), ...clean, createdAt: new Date().toISOString() };
       tickets.push(ticket); ticketsStore.write(tickets);
       // Optional sends, chosen on the create form. Never fail the ticket.
       const sent = { text: 'skipped', notified: false };
@@ -2628,29 +2628,60 @@ const server = http.createServer(async (req, res) => {
     const estimateRoute = p.match(/^\/api\/tickets\/([0-9a-f-]+)\/estimate(\/(send|accept|decline))?$/);
     if (estimateRoute && req.method === 'POST') {
       const user = getSessionUser(req);
-      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       const tickets = ticketsStore.read();
       const t = tickets.find(x => x.id === estimateRoute[1]);
       if (!t) return sendJson(res, 404, { error: 'Not found.' });
       const action = estimateRoute[3] || 'save';
       if (action === 'accept' || action === 'decline') {
-        // Customer decision on a pending estimate, per line or whole.
-        // Body {line: n} decides one line; no line decides the whole
-        // remaining estimate. Decided lines leave the estimate: approved
-        // lines join the invoice, denied lines join the denied record.
-        // Undecided lines stay pending until the customer decides them.
+        // Customer decision on an estimate. Two shapes:
+        // - An invoice with a pending estimate: per line ({line: n}) or
+        //   the whole remaining estimate. Approved lines join the
+        //   invoice, denied lines join the denied record.
+        // - A standalone estimate: the whole estimate, approved or
+        //   denied in one decision, recorded on the ticket.
         // The ticket's mechanic may also record a decision the customer
         // gave by phone; those are logged on the ticket as phone decisions.
-        if (!t.requestId) return sendJson(res, 400, { error: 'This ticket has no job to approve.' });
-        const row = requestsStore.read().find(r => r.id === t.requestId);
-        const isOwner = row && row.ownerId === user.id;
-        const isMechanic = user.role === 'mechanic' && t.mechanicId === user.id;
-        if (!row || (!isOwner && !isMechanic)) return sendJson(res, 403, { error: 'That is not your job.' });
+        // A guest decides with the ticket's guest token, the same way a
+        // guest decides quote lines.
+        const body = await parseBody(req);
+        const tokenOk = !!(body.token && t.guestToken && String(body.token) === t.guestToken);
+        if (!user && !tokenOk) return sendJson(res, 401, { error: 'Not signed in.' });
+        const row = t.requestId ? requestsStore.read().find(r => r.id === t.requestId) : null;
+        const isOwner = !!user && row && row.ownerId === user.id;
+        const isMechanic = !!user && user.role === 'mechanic' && t.mechanicId === user.id;
+        const isGuest = tokenOk && !isOwner && !isMechanic;
+        if (!isOwner && !isMechanic && !isGuest) return sendJson(res, 403, { error: 'That is not your job.' });
         if (isMechanic && !isOwner && mechanicFrozen(user)) return frozenError(res);
+        // A standalone estimate is decided whole, in one go. The
+        // decision is recorded on the ticket and the mechanic is
+        // notified; converting it to an invoice stays the mechanic's
+        // step, since that needs a VIN.
+        if (t.type === 'estimate') {
+          if (t.estimateDecision) return sendJson(res, 400, { error: 'This estimate was already decided.' });
+          if (t.requestId && tickets.some(x => x.requestId === t.requestId && x.type === 'receipt')) return sendJson(res, 400, { error: 'This job is already paid.' });
+          t.estimateDecision = { action, at: new Date().toISOString() };
+          ticketsStore.write(tickets);
+          if (!isMechanic) {
+            try {
+              const notes = notificationsStore.read();
+              notes.push({ id: crypto.randomUUID(), userId: t.mechanicId, type: action === 'accept' ? 'estimate_accepted' : 'estimate_declined', title: `Customer ${action === 'accept' ? 'approved' : 'denied'} your estimate`, service: row ? row.service : '', vehicle: t.vehicle || '', total: t.total, customerName: capName(t.customerName || ''), customerPhone: t.phone || '', requestId: t.requestId || null, ticketId: t.id, read: false, createdAt: new Date().toISOString() });
+              notificationsStore.write(notes);
+            } catch (e) {}
+            try {
+              const mechUser = usersStore.read().find(u => u.id === t.mechanicId);
+              const biz = businessesStore.read().find(b => b.id === t.businessId);
+              const to = (mechUser && mechUser.phone) || (biz && biz.phone) || '';
+              if (to) await sendSms(to, `Mobile Mechanic Network: ${capName(t.customerName) || 'A customer'} ${action === 'accept' ? 'approved' : 'denied'} your estimate for ${t.vehicle} — $${Number(t.total).toFixed(2)}. See it here: https://mobilemechanicsinmyarea.com/mechanic`);
+            } catch (e) {}
+          }
+          return sendJson(res, 200, { ticket: t });
+        }
+        // An invoice with a pending estimate.
+        if (!t.requestId) return sendJson(res, 400, { error: 'This ticket has no job to approve.' });
+        if (!row) return sendJson(res, 403, { error: 'That is not your job.' });
         if (t.type !== 'invoice' || t.estimateStatus !== 'pending') return sendJson(res, 400, { error: 'No estimate is awaiting approval on this job.' });
         if (tickets.some(x => x.requestId === t.requestId && x.type === 'receipt')) return sendJson(res, 400, { error: 'This job is already paid.' });
         const lines = t.estimateLines || [];
-        const body = await parseBody(req);
         let lineIdx = body.line;
         if (lineIdx !== undefined && lineIdx !== null) {
           lineIdx = Number(lineIdx);
@@ -2677,7 +2708,7 @@ const server = http.createServer(async (req, res) => {
         // Notify the mechanic, same pattern as a quote acceptance: the
         // mechanic is the one waiting on this decision. Skipped when the
         // mechanic recorded the decision themselves by phone.
-        if (isOwner) {
+        if (!isMechanic) {
         try {
           const notes = notificationsStore.read();
           notes.push({ id: crypto.randomUUID(), userId: t.mechanicId, type: action === 'accept' ? 'estimate_accepted' : 'estimate_declined', title: `Customer ${action === 'accept' ? 'approved' : 'denied'} your estimate${lineIdx === null ? '' : ' line'}`, service: row.service, vehicle: row.vehicle || '', total: acted.reduce((s, l) => s + Number(l.price || 0), 0), customerName: capName(row.ownerName || ''), customerPhone: row.phone || '', requestId: row.id, ticketId: t.id, read: false, createdAt: new Date().toISOString() });
@@ -2693,6 +2724,7 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 200, { ticket: t });
       }
       // Mechanic save/send.
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
       if (mechanicFrozen(user)) return frozenError(res);
       if (t.mechanicId !== user.id) return sendJson(res, 404, { error: 'Not found.' });
@@ -2814,12 +2846,31 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 403, { error: 'Tickets cannot be deleted.' });
     }
     if (p === '/api/ticket' && req.method === 'GET') {
-      const user = getSessionUser(req);
-      const t = ticketsStore.read().find(x => x.id === url.searchParams.get('id'));
-      if (!t || !user || t.mechanicId !== user.id) return sendJson(res, 404, { error: 'Not found.' });
+      const tickets = ticketsStore.read();
+      const t = tickets.find(x => x.id === url.searchParams.get('id'));
+      if (!t) return sendJson(res, 404, { error: 'Not found.' });
       const biz = businessesStore.read().find(b => b.id === t.businessId);
       const reqRow = t.requestId ? requestsStore.read().find(r => r.id === t.requestId) : null;
-      return sendJson(res, 200, { ticket: t, business: biz ? publicBusiness(biz) : null, requestDate: reqRow ? (reqRow.date || '') : '' });
+      const user = getSessionUser(req);
+      // The ticket's mechanic first.
+      if (user && user.role === 'mechanic' && t.mechanicId === user.id) {
+        if (ensureGuestToken(t)) ticketsStore.write(tickets);
+        return sendJson(res, 200, { ticket: t, business: biz ? publicBusiness(biz) : null, requestDate: reqRow ? (reqRow.date || '') : '' });
+      }
+      // Guest ticket link: a matching token opens this one ticket, no
+      // account needed. A wrong or missing token never grants anything
+      // on its own. The guest can view the ticket and, when there is
+      // something to decide, approve or deny it: a pending estimate on
+      // an invoice, or a whole standalone estimate that has no decision
+      // yet. Anything else (a receipt, an invoice with nothing pending,
+      // an already-decided estimate) is view-only.
+      const token = String(url.searchParams.get('token') || '');
+      if (token && t.guestToken && token === t.guestToken) {
+        const canDecide = (t.type === 'invoice' && t.estimateStatus === 'pending') || (t.type === 'estimate' && !t.estimateDecision);
+        return sendJson(res, 200, { ticket: t, business: biz ? publicBusiness(biz) : null, requestDate: reqRow ? (reqRow.date || '') : '', isGuest: true, canDecide });
+      }
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      return sendJson(res, 404, { error: 'Not found.' });
     }
     // Customer view of their own job's ticket. Owner-only: the ticket must
     // belong to a request owned by the signed-in user. Mechanic actions

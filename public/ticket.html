@@ -125,6 +125,7 @@ const money = n => '$' + Number(n).toFixed(2);
 function autogrow(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
 function bindAutogrow(scope) { (scope || document).querySelectorAll('textarea.autogrow').forEach(t => { if (!t.dataset.agBound) { t.dataset.agBound = '1'; t.addEventListener('input', () => autogrow(t)); } if (t.isConnected) autogrow(t); else requestAnimationFrame(() => autogrow(t)); }); }
 let T = null, B = null;
+let _guestToken = '';
 async function api(path, body) {
   const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
   const d = await r.json().catch(() => ({}));
@@ -364,12 +365,15 @@ function ticketSms(notified) {
   const type = T.type || 'ticket';
   const phone = String(T.phone || '').replace(/[^+\d]/g, '');
   let msg = 'Hi ' + (T.customerName || '') + ', this is ' + biz + ' with Mobile Mechanic Network. I sent you a ' + type + ' for your ' + (T.vehicle || 'vehicle') + ' — $' + Number(T.total || 0).toFixed(2) + '. Ticket ' + (T.label || '') + '.';
-  // Only an account holder gets a link, to their dashboard. A customer
-  // with no account gets no link and no account push: the estimate
-  // details are in the text itself, and account creation is never a
-  // gate to seeing the ticket.
+  // An account holder gets the dashboard link. A customer with no
+  // account gets the guest ticket link, which opens the ticket to
+  // view and approve or deny it with no account needed — and no
+  // account push, since account creation is never a gate to seeing
+  // the ticket.
   if (notified) {
     msg += '\n\nView it here: https://mobilemechanicsinmyarea.com/dashboard';
+  } else if (T.guestToken) {
+    msg += '\n\nView it here: https://mobilemechanicsinmyarea.com/ticket?id=' + T.id + '&token=' + T.guestToken;
   }
   return { phone, url: 'sms:' + phone + '?body=' + encodeURIComponent(msg) };
 }
@@ -673,6 +677,43 @@ window.addRepairFromInspection = async (inspId, key, btn) => {
     if (btn) { btn.disabled = false; btn.textContent = T.type === 'invoice' ? 'Add to estimate' : 'Add to ticket'; }
   }
 };
+// Guest ticket view: a customer opening the guest link sees the ticket
+// document read-only, can approve or deny the estimate when there is
+// one to decide, and gets the same free-account prompt as after
+// finding a mechanic. No workspace controls, no editing, no sending.
+function renderGuest(canDecide) {
+  const box = document.getElementById('ticket-actions');
+  if (!box || !T) { if (box) box.innerHTML = ''; return; }
+  const t = T, b = B;
+  let html = '';
+  if (canDecide) {
+    if (t.type === 'invoice' && t.estimateStatus === 'pending' && (t.estimateLines || []).length) {
+      html += `<div class="card noprint"><h3 style="margin:0 0 6px">Estimate — needs your approval</h3><p class="muted" style="margin:0 0 8px">Approve or deny each line. Approved lines join your invoice; denied lines are not charged.</p>${(t.estimateLines || []).map((l, i) => `<div style="padding:6px 0;border-bottom:1px solid #e2e8f0"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><span>${esc(l.desc)} — $${Number(l.price).toFixed(2)}</span><span style="white-space:nowrap"><button type="button" data-guest-est="accept:${i}">Approve</button> <button type="button" class="decline" data-guest-est="decline:${i}">Deny</button></span></div></div>`).join('')}<p style="margin:12px 0 0"><button type="button" data-guest-est="accept:all">Approve all</button> <button type="button" class="decline" data-guest-est="decline:all">Deny all</button></p><div class="err" id="guest-est-err"></div></div>`;
+    } else if (t.type === 'estimate' && !t.estimateDecision) {
+      html += `<div class="card noprint"><h3 style="margin:0 0 6px">Approve this estimate?</h3><p class="muted" style="margin:0 0 8px">Approve it and ${esc(b ? b.name : 'your mechanic')} will get started. Deny it and nothing is booked.</p><p style="margin:0"><button type="button" data-guest-est="accept:all">Approve estimate</button> <button type="button" class="decline" data-guest-est="decline:all">Deny estimate</button></p><div class="err" id="guest-est-err"></div></div>`;
+    }
+  }
+  if (t.type === 'estimate' && t.estimateDecision) {
+    html += `<div class="card"><p style="margin:0"><strong>You ${t.estimateDecision.action === 'accept' ? 'approved' : 'denied'} this estimate.</strong></p></div>`;
+  }
+  html += `<div class="noprint" style="margin-top:14px;border:1px solid #2563eb;border-radius:10px;padding:14px;font-size:.95rem;background:#fff"><strong>Create a free account to get the most out of it:</strong><ul style="margin:8px 0;padding-left:20px;line-height:1.6"><li><strong>Your quotes in one place</strong> — compare them side by side and accept with one tap</li><li><strong>Your vehicles saved</strong> — no retyping year, make, and model every time</li><li><strong>Repair history</strong> — a running record of every job done on your vehicles</li><li><strong>This request follows you</strong> — it will be waiting in your dashboard the moment you sign up</li></ul><span class="muted">Free for vehicle owners, forever. Your phone number is already filled in.</span><br><br><a href="/account?phone=${encodeURIComponent(t.phone || '')}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;padding:10px 18px;font-weight:700">Create my free account</a></div>`;
+  box.innerHTML = html;
+  box.querySelectorAll('[data-guest-est]').forEach(btn => {
+    btn.onclick = async () => {
+      const err = document.getElementById('guest-est-err');
+      if (err) err.textContent = '';
+      btn.disabled = true;
+      const [action, which] = btn.dataset.guestEst.split(':');
+      const body = { token: _guestToken };
+      if (which !== 'all') body.line = Number(which);
+      try {
+        const d = await api('/api/tickets/' + T.id + '/estimate/' + action, body);
+        if (d.ticket) T = d.ticket;
+        location.reload();
+      } catch (e) { if (err) err.textContent = e.message; btn.disabled = false; }
+    };
+  });
+}
 function renderActions() {
   const box = document.getElementById('ticket-actions');
   if (!T) { box.innerHTML = ''; return; }
@@ -1432,17 +1473,26 @@ async function renderNewTicket() {
 }
 (async () => {
   if (new URLSearchParams(location.search).has('new')) { await renderNewTicket(); return; }
-  const id = new URLSearchParams(location.search).get('id');
+  const qp = new URLSearchParams(location.search);
+  const id = qp.get('id');
+  _guestToken = qp.get('token') || '';
   const box = document.getElementById('ticket');
   try {
-    const r = await fetch('/api/ticket?id=' + encodeURIComponent(id || ''));
+    const r = await fetch('/api/ticket?id=' + encodeURIComponent(id || '') + (_guestToken ? '&token=' + encodeURIComponent(_guestToken) : ''));
     if (!r.ok) throw new Error('Ticket not found.');
     const d = await r.json();
     T = d.ticket; B = d.business; window._requestDate = d.requestDate || '';
+    const isGuest = !!d.isGuest;
+    const canDecide = !!d.canDecide;
     if (T.customerName) T.customerName = capName(T.customerName);
-    try { const ib = await (await fetch('/api/requests/inbox')).json(); const bk = (ib.booked || []).find(x => x.ticketId === T.id); window._pendingFu = !!(bk && bk.pendingFollowUp); } catch (e) { window._pendingFu = false; }
+    if (!isGuest) {
+      try { const ib = await (await fetch('/api/requests/inbox')).json(); const bk = (ib.booked || []).find(x => x.ticketId === T.id); window._pendingFu = !!(bk && bk.pendingFollowUp); } catch (e) { window._pendingFu = false; }
+    } else window._pendingFu = false;
     const t = T, b = B;
     const isNew = t.items && t.items.length && t.items[0].qty !== undefined;
+    // A guest sees the ticket read-only: the details are plain text,
+    // like a receipt, never editable inputs.
+    const ro = isGuest || t.type === 'receipt';
     const lineDetailText = i => {
       const bits = [];
       if (Number(i.hours) > 0) bits.push(Number(i.hours) + ' hr' + (Number(i.hours) === 1 ? '' : 's'));
@@ -1458,7 +1508,7 @@ async function renderNewTicket() {
     // (screen only; print shows the plain text instead).
     const cellDetail = (i, idx) => {
       if (isFlatInspection(i)) return '';
-      if (t.type !== 'invoice') return lineDetail(i);
+      if (isGuest || t.type !== 'invoice') return lineDetail(i);
       return `<div class="noprint" style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><label style="font-size:.8rem;color:#64748b">Labor <input data-whours="${idx}" type="number" step="any" min="0" value="${i.hours || ''}" style="width:70px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:6px"> hrs</label><label style="font-size:.8rem;color:#64748b">Parts <input data-wparts="${idx}" type="number" step="any" min="0" value="${i.parts || ''}" style="width:60px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:6px"></label></div><div class="wdetail-text" id="wdetail-text-${idx}" style="font-size:.85rem;color:#64748b">${lineDetailText(i)}</div>`;
     };
     const groupRows = (i, idx) => {
@@ -1491,13 +1541,13 @@ async function renderNewTicket() {
       <div class="meta">
         ${t.customerName ? `<div><span>Customer</span>${esc(t.customerName)}</div>` : ''}
         ${t.phone ? `<div><span>Phone</span>${esc(window.PhoneFmt ? window.PhoneFmt.display(t.phone) : t.phone)}</div>` : ''}
-        ${t.type === 'receipt' ? (t.email ? `<div><span>Email</span>${esc(t.email)}</div>` : '') : `<div class="${t.email ? '' : 'empty-line'}"><span>Email</span><input id="dt-email-in" type="email" value="${esc(t.email || '')}" placeholder="Email"></div>`}
-        ${t.type === 'receipt' ? (t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : '') : `<div class="${t.jobAddress ? '' : 'empty-line'}"><span>Job address</span><textarea id="dt-job-in" rows="1" class="autogrow" placeholder="Job address">${esc(t.jobAddress || '')}</textarea></div>`}
+        ${ro ? (t.email ? `<div><span>Email</span>${esc(t.email)}</div>` : '') : `<div class="${t.email ? '' : 'empty-line'}"><span>Email</span><input id="dt-email-in" type="email" value="${esc(t.email || '')}" placeholder="Email"></div>`}
+        ${ro ? (t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : '') : `<div class="${t.jobAddress ? '' : 'empty-line'}"><span>Job address</span><textarea id="dt-job-in" rows="1" class="autogrow" placeholder="Job address">${esc(t.jobAddress || '')}</textarea></div>`}
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
         ${t.vehicle ? `<div><span>Vehicle</span>${esc(vehDisp(t.vehicle, t.vehicleTrim, t.vehicleEngine, t.vehicleTransmission, t.vehicleDrivetrain))}</div>` : ''}
-        ${t.type === 'receipt' ? (t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : '') : `<div class="${t.vin ? '' : 'empty-line'}"><span>VIN</span><input id="dt-vin-in" value="${esc(t.vin || '')}" placeholder="VIN"></div>`}
-        ${t.type === 'receipt' ? ((t.mileage !== '' && t.mileage != null) ? `<div><span>Mileage</span>${Number(t.mileage).toLocaleString('en-US')} mi</div>` : '') : `<div class="${(t.mileage !== '' && t.mileage != null) ? '' : 'empty-line'}"><span>Mileage</span><input id="dt-mile-in" value="${(t.mileage !== '' && t.mileage != null) ? t.mileage : ''}" placeholder="Mileage" inputmode="numeric"></div>`}
-        ${t.type === 'receipt' ? (t.paymentMethod ? `<div><span>Payment type</span>${esc(t.paymentMethod)}</div>` : '') : `<div class="${t.paymentMethod ? '' : 'empty-line'}"><span>Payment type</span><input id="dt-pm-in" value="${esc(t.paymentMethod || '')}" placeholder="e.g. cash, card, check"></div>`}
+        ${ro ? (t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : '') : `<div class="${t.vin ? '' : 'empty-line'}"><span>VIN</span><input id="dt-vin-in" value="${esc(t.vin || '')}" placeholder="VIN"></div>`}
+        ${ro ? ((t.mileage !== '' && t.mileage != null) ? `<div><span>Mileage</span>${Number(t.mileage).toLocaleString('en-US')} mi</div>` : '') : `<div class="${(t.mileage !== '' && t.mileage != null) ? '' : 'empty-line'}"><span>Mileage</span><input id="dt-mile-in" value="${(t.mileage !== '' && t.mileage != null) ? t.mileage : ''}" placeholder="Mileage" inputmode="numeric"></div>`}
+        ${ro ? (t.paymentMethod ? `<div><span>Payment type</span>${esc(t.paymentMethod)}</div>` : '') : `<div class="${t.paymentMethod ? '' : 'empty-line'}"><span>Payment type</span><input id="dt-pm-in" value="${esc(t.paymentMethod || '')}" placeholder="e.g. cash, card, check"></div>`}
         <div><span>Ticket</span>${t.label ? esc(t.label) : '#' + esc(t.id.slice(0, 8))}</div>
         ${t.paidAt ? `<div><span>Paid</span>${new Date(t.paidAt).toLocaleDateString()}</div>` : ''}
       </div>
@@ -1520,8 +1570,12 @@ async function renderNewTicket() {
       el.addEventListener('change', saveDetails);
       el.addEventListener('keydown', e => { if (e.key === 'Enter') el.blur(); });
     });
-    renderActions();
-    bindLineWorkDetails();
+    if (isGuest) {
+      renderGuest(canDecide);
+    } else {
+      renderActions();
+      bindLineWorkDetails();
+    }
     bindAutogrow(box);
   } catch (e) { box.innerHTML = '<p>' + esc(e.message) + '</p>'; }
 })();
