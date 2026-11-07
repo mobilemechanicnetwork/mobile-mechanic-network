@@ -135,10 +135,10 @@
     <button type="button" id="tab-menu-btn" class="tab-menu-btn" aria-expanded="false" aria-controls="tab-menu-list"><span aria-hidden="true">☰</span> <span id="tab-menu-current">Leads</span><span id="tab-menu-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700"></span></button>
     <div class="tabs" id="tab-menu-list">
     <button data-tab="requests" class="active">Leads</button>
+    <button data-tab="tickets">Tickets</button>
     <button data-tab="today">Today</button>
     <button data-tab="notifications">Notifications <span id="notif-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700;margin-left:4px;vertical-align:middle"></span></button>
     <button data-tab="profile">Profile</button>
-    <button data-tab="tickets">Tickets</button>
     <button data-tab="calendar">Calendar</button>
     <button data-tab="customers">Customers</button>
     <button data-tab="finances">Finances</button>
@@ -1603,13 +1603,14 @@ async function copyInspLink(btn, id, token) {
 }
 function renderTickets() {
   const q = (document.getElementById('ticket-search').value || '').trim().toLowerCase();
-  const filter = window._ticketFilter || 'all';
+  const filter = window._ticketFilter || 'open';
   const sort = window._ticketSort || 'default';
   const all = (window._tickets || []);
-  const tCounts = { all: all.length, estimate: all.filter(t => t.type === 'estimate').length, invoice: all.filter(t => t.type === 'invoice').length, receipt: all.filter(t => t.type === 'receipt').length };
-  $('ticket-chips').innerHTML = [['all', 'All'], ['estimate', 'Estimates'], ['invoice', 'Active'], ['receipt', 'Completed']].map(([f, label]) => `<button type="button" class="ghost" onclick="setTicketFilter('${f}')" style="${filter === f ? 'background:#2563eb;color:#fff;border-color:#2563eb' : ''}">${label} · ${tCounts[f === 'all' ? 'all' : f]}</button>`).join('');
+  const tCounts = { open: all.filter(t => t.type === 'estimate' || t.type === 'invoice').length, estimate: all.filter(t => t.type === 'estimate').length, invoice: all.filter(t => t.type === 'invoice').length, receipt: all.filter(t => t.type === 'receipt').length };
+  $('ticket-chips').innerHTML = [['open', 'Open'], ['estimate', 'Estimates'], ['invoice', 'Active'], ['receipt', 'Completed']].map(([f, label]) => `<button type="button" class="ghost" onclick="setTicketFilter('${f}')" style="${filter === f ? 'background:#2563eb;color:#fff;border-color:#2563eb' : ''}">${label} · ${tCounts[f]}</button>`).join('');
   let list = all.filter(t => !q || (t.customerName || '').toLowerCase().includes(q) || (t.vehicle || '').toLowerCase().includes(q) || (t.label || '').toLowerCase().includes(q) || (t.type || '').includes(q));
-  if (filter !== 'all') list = list.filter(t => t.type === filter);
+  if (filter === 'open') list = list.filter(t => t.type === 'estimate' || t.type === 'invoice');
+  else list = list.filter(t => t.type === filter);
   if (sort === 'oldest') list.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
   else if (sort === 'az') list.sort((a, b) => String(a.customerName || '').localeCompare(String(b.customerName || '')));
   else if (sort === 'za') list.sort((a, b) => String(b.customerName || '').localeCompare(String(a.customerName || '')));
