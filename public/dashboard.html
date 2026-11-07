@@ -104,6 +104,8 @@
         <div id="o-edit" hidden>
           <label for="o-name">Name</label><input id="o-name">
           <label for="o-phone">Phone number</label><input id="o-phone" type="tel" placeholder="(504) 555-0100">
+      <label for="o-email-input">Email</label><input id="o-email-input" type="email" placeholder="you@example.com">
+      <p class="muted" style="font-size:.85rem">Changing your email changes the email you sign in with.</p>
           <p><button type="button" onclick="saveProfile()">Save</button> <button type="button" class="ghost" onclick="cancelEditProfile()">Cancel</button></p>
           <div class="err" id="o-err"></div><div class="ok" id="o-ok"></div>
         </div>
@@ -316,12 +318,13 @@ const capName = s => String(s == null ? '' : s).trim().replace(/\S+/g, w => w.ch
     loadOwnerNotifications();
     loadMyInspections();
     const me = await api('/api/me');
-    if (me.user.name) me.user.name = capName(me.user.name);
     if (me.user.isAdmin) $('adminLink').innerHTML = '<a href="/admin">Admin</a> · ';
+    if (me.user.name) me.user.name = capName(me.user.name);
     $('o-email').textContent = me.user.email;
+    $('o-email-input').value = me.user.email || '';
     $('o-name').value = me.user.name || '';
     $('o-phone').value = window.PhoneFmt ? window.PhoneFmt.display(me.user.phone) : (me.user.phone || '');
-    window._myInfo = { name: me.user.name || '', phone: me.user.phone || '' };
+    window._myInfo = { name: me.user.name || '', phone: me.user.phone || '', email: me.user.email || '' };
     $('o-name-view').textContent = me.user.name || 'No name yet';
     $('o-phone-view').textContent = (window.PhoneFmt ? window.PhoneFmt.display(me.user.phone) : me.user.phone) || 'No phone number yet';
     $('o-view').hidden = false; $('o-edit').hidden = true;
@@ -445,20 +448,23 @@ const capName = s => String(s == null ? '' : s).trim().replace(/\S+/g, w => w.ch
   window.saveProfile = async () => {
     $('o-err').textContent = ''; $('o-ok').textContent = '';
     try {
-      const nm = $('o-name').value; const ph = $('o-phone').value;
-      await post('/api/profile', { name: nm, phone: ph });
-      window._myInfo = { name: nm, phone: ph };
+      const nm = $('o-name').value; const ph = $('o-phone').value; const em = $('o-email-input').value.trim();
+      await post('/api/profile', { name: nm, phone: ph, email: em });
+      window._myInfo = { name: nm, phone: ph, email: em };
       $('o-name-view').textContent = nm || 'No name yet';
       $('o-phone-view').textContent = ph || 'No phone number yet';
+      $('o-email').textContent = em;
       $('o-view-ok').textContent = 'Saved.';
       $('o-view').hidden = false; $('o-edit').hidden = true;
     }
+
     catch (e) { $('o-err').textContent = e.message; }
   };
   window.cancelEditProfile = () => {
     const m = window._myInfo || {};
     $('o-name').value = m.name || '';
     $('o-phone').value = window.PhoneFmt ? window.PhoneFmt.display(m.phone) : (m.phone || '');
+    $('o-email-input').value = m.email || '';
     $('o-err').textContent = ''; $('o-ok').textContent = '';
     $('o-edit').hidden = true; $('o-view').hidden = false;
   };
