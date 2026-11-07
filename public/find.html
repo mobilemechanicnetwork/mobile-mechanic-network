@@ -273,6 +273,10 @@ $('find-form').onsubmit = async (e) => {
       vehicleYear: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? g.year : ''; })(),
       vehicleMake: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? g.make : ''; })(),
       vehicleModel: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? g.model : ''; })(),
+      vehicleTrim: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? (g.trim || '') : ''; })(),
+      vehicleEngine: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? (g.engine || '') : ''; })(),
+      vehicleTransmission: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? (g.transmission || '') : ''; })(),
+      vehicleDrivetrain: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? (g.drivetrain || '') : ''; })(),
       urgent: new URLSearchParams(location.search).get('urgent') === '1',
       description: desc,
     }));
@@ -319,7 +323,7 @@ window.sendToOne = async (id, btn) => {
   btn.disabled = true;
   btn.textContent = 'Sending…';
   try {
-    const body = { name: pre.name || '', service: pre.service, vehicle: pre.vehicle, vehicleType: pre.vehicleType || 'car', vehicleYear: pre.vehicleYear || '', vehicleMake: pre.vehicleMake || '', vehicleModel: pre.vehicleModel || '', vin: '', city: pre.city, state: pre.state, description: pre.description, phone: pre.phone, date: pre.date, urgent: pre.urgent === true, zip: pre.zip || '', vehicleLocation: pre.vehicleLocation, vehicleLocationType: pre.vehicleLocationType, businessId: id, fromProfile: true };
+    const body = { name: pre.name || '', service: pre.service, vehicle: pre.vehicle, vehicleType: pre.vehicleType || 'car', vehicleYear: pre.vehicleYear || '', vehicleMake: pre.vehicleMake || '', vehicleModel: pre.vehicleModel || '', vehicleTrim: pre.vehicleTrim || '', vehicleEngine: pre.vehicleEngine || '', vehicleTransmission: pre.vehicleTransmission || '', vehicleDrivetrain: pre.vehicleDrivetrain || '', vin: '', city: pre.city, state: pre.state, description: pre.description, phone: pre.phone, date: pre.date, urgent: pre.urgent === true, zip: pre.zip || '', vehicleLocation: pre.vehicleLocation, vehicleLocationType: pre.vehicleLocationType, businessId: id, fromProfile: true };
     const r = await fetch('/api/requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || 'Something went wrong.');
@@ -372,6 +376,10 @@ $('req-send').onclick = async () => {
     vehicleYear: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? g.year : ''; })(),
     vehicleMake: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? g.make : ''; })(),
     vehicleModel: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? g.model : ''; })(),
+    vehicleTrim: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? (g.trim || '') : ''; })(),
+    vehicleEngine: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? (g.engine || '') : ''; })(),
+    vehicleTransmission: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? (g.transmission || '') : ''; })(),
+    vehicleDrivetrain: (() => { const g = window._findVeh ? window._findVeh.get() : null; return g ? (g.drivetrain || '') : ''; })(),
     vin: '',
     city: $('f-city').value.trim(),
     state: $('f-state').value.trim(),

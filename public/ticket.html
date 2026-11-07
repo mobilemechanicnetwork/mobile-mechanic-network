@@ -110,6 +110,10 @@
 <script src="/inspection-cats.js"></script>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// Composed vehicle display: base vehicle plus optional trim, engine, and
+// transmission, e.g. "2020 Ford Explorer XL 3.5L Manual". Falls back to
+// the base string when the picker script is unavailable.
+const vehDisp = (v, trim, engine, transmission, drivetrain) => (window.VehiclePicker && window.VehiclePicker.display) ? window.VehiclePicker.display(v, trim, engine, transmission, drivetrain) : (v || '');
 // Capitalize the first letter of each word of a person name, leaving the
 // rest of each word as typed, so a last name saved lowercase still shows
 // capitalized: "brandon masson" -> "Brandon Masson".
@@ -421,7 +425,7 @@ async function bindCalendar() {
     const d = await r.json();
     entry = (d.entries || []).find(e => e.ticketId === T.id) || null;
   } catch (e) { entry = null; }
-  const title = [T.customerName, T.vehicle].filter(Boolean).join(' — ');
+  const title = [T.customerName, vehDisp(T.vehicle, T.vehicleTrim, T.vehicleEngine, T.vehicleTransmission, T.vehicleDrivetrain)].filter(Boolean).join(' — ');
   const render = () => {
     if (entry) {
       state.innerHTML = `<p style="margin:0">On your calendar for <strong>${new Date(entry.date + 'T00:00:00').toLocaleDateString()}</strong>${entry.time ? ' at ' + esc(fmtTime(entry.time)) + (entry.endTime ? ' – ' + esc(fmtTime(entry.endTime)) : '') : ''}.</p><p style="margin:8px 0 0"><button type="button" class="ghost" id="btn-cal-remove">Remove from calendar</button></p>`;
@@ -725,6 +729,7 @@ function renderActions() {
     html += `<div id="edit-form" hidden style="margin-top:16px">
       <div><label>Customer</label><textarea id="ed-customer" rows="1" class="autogrow"></textarea></div>
       <div><label>Vehicle</label><input id="ed-vehicle"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><div style="flex:1;min-width:120px"><label>Trim (optional)</label><input id="ed-trim" placeholder="e.g. XL"></div><div style="flex:1;min-width:120px"><label>Engine (optional)</label><input id="ed-engine" placeholder="e.g. 3.5L"></div><div style="flex:1;min-width:120px"><label>Transmission (optional)</label><select id="ed-transmission"><option value="">—</option><option value="Manual">Manual</option><option value="Automatic">Automatic</option></select></div><div style="flex:1;min-width:120px"><label>Drivetrain (optional)</label><select id="ed-drivetrain"><option value="">—</option><option value="AWD">AWD</option><option value="FWD">FWD</option><option value="RWD">RWD</option></select></div></div>
       <div style="margin-top:10px"><label>Lines</label><div id="edit-items"></div>
       <button type="button" class="ghost" id="btn-add-item">Add line</button></div>
       <div style="display:flex;gap:8px;margin-top:10px"><div style="flex:1"><label>Labor description</label><textarea id="ed-labor-desc" rows="1" class="autogrow"></textarea></div><div style="flex:1"><label>Labor amount</label><input id="ed-labor" type="number" min="0" step="0.01"></div></div>
@@ -785,6 +790,10 @@ function renderActions() {
     document.getElementById('btn-edit').onclick = () => {
       document.getElementById('ed-customer').value = T.customerName || '';
       document.getElementById('ed-vehicle').value = T.vehicle || '';
+      document.getElementById('ed-trim').value = T.vehicleTrim || '';
+      document.getElementById('ed-engine').value = T.vehicleEngine || '';
+      document.getElementById('ed-transmission').value = (T.vehicleTransmission === 'Manual' || T.vehicleTransmission === 'Automatic') ? T.vehicleTransmission : '';
+      document.getElementById('ed-drivetrain').value = (T.vehicleDrivetrain === 'AWD' || T.vehicleDrivetrain === 'FWD' || T.vehicleDrivetrain === 'RWD') ? T.vehicleDrivetrain : '';
       document.getElementById('edit-items').innerHTML = '';
       (T.items || []).forEach(it => {
         if ((it.partLines && it.partLines.length) || it.laborLine) addGroupRow(it.desc, it.partLines, it.laborLine);
@@ -812,6 +821,10 @@ function renderActions() {
         const r = await fetch('/api/tickets/' + T.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
           customerName: document.getElementById('ed-customer').value,
           vehicle: document.getElementById('ed-vehicle').value,
+          vehicleTrim: document.getElementById('ed-trim').value,
+          vehicleEngine: document.getElementById('ed-engine').value,
+          vehicleTransmission: document.getElementById('ed-transmission').value,
+          vehicleDrivetrain: document.getElementById('ed-drivetrain').value,
           vin: T.vin || '',
           mileage: (T.mileage === undefined || T.mileage === null) ? '' : T.mileage,
           items: itemRows(),
@@ -1155,6 +1168,7 @@ async function saveNewTicket() {
   const customer = $n('new-customer').value.trim();
   if (!customer) { err.textContent = 'Enter the customer name.'; return; }
   const veh = _newVeh ? _newVeh.vehicleString() : '';
+  const vehEx = _newVeh ? _newVeh.get() : null;
   if (!veh) { err.textContent = 'Please pick the vehicle year, make, and model.'; return; }
   const items = [...document.querySelectorAll('#new-lines-table tbody.job-group')].map(tb => {
     const main = tb.querySelector('tr.main');
@@ -1185,7 +1199,7 @@ async function saveNewTicket() {
     desc: r.querySelector('[data-f="desc"]').value,
     amount: r.querySelector('[data-f="amount"]').value
   }));
-  const body = { type: 'estimate', customerName: customer, phone: $n('new-cust-phone').value, email: ($n('new-email') ? $n('new-email').value.trim() : ''), vehicle: veh, vin: $n('new-vin').value, mileage: $n('new-mileage').value, jobAddress: newJobAddress(), items, taxRate: $n('new-tax').value, expenses, notes: $n('new-notes').value, warranty: $n('new-warranty').value };
+  const body = { type: 'estimate', customerName: customer, phone: $n('new-cust-phone').value, email: ($n('new-email') ? $n('new-email').value.trim() : ''), vehicle: veh, vehicleTrim: vehEx ? (vehEx.trim || '') : '', vehicleEngine: vehEx ? (vehEx.engine || '') : '', vehicleTransmission: vehEx ? (vehEx.transmission || '') : '', vehicleDrivetrain: vehEx ? (vehEx.drivetrain || '') : '', vin: $n('new-vin').value, mileage: $n('new-mileage').value, jobAddress: newJobAddress(), items, taxRate: $n('new-tax').value, expenses, notes: $n('new-notes').value, warranty: $n('new-warranty').value };
   try {
     const r = await fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
@@ -1276,9 +1290,9 @@ async function renderNewTicket() {
       <div><span style="font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;display:block">Inspector notes</span><textarea id="emb-general-notes" rows="2" class="autogrow" style="margin-top:6px" placeholder="Overall notes for this inspection"></textarea></div>
     </div>`;
   if (window.VehiclePicker) {
-    _newVeh = VehiclePicker.attach({ year: 'new-year', make: 'new-make', model: 'new-model', type: 'new-veh-type' });
+    _newVeh = VehiclePicker.attach({ year: 'new-year', make: 'new-make', model: 'new-model', type: 'new-veh-type', onChange: () => setNewView('new-vehicle-view', _newVeh ? _newVeh.vehicleDisplay() : '', 'Add vehicle') });
     const preVeh = qp.get('vehicle');
-    if (preVeh && _newVeh) { try { await _newVeh.setFromString(preVeh); } catch (e) {} }
+    if (preVeh && _newVeh) { try { await _newVeh.setFromString(preVeh); _newVeh.setExtras(qp.get('trim') || '', qp.get('engine') || '', qp.get('transmission') || '', qp.get('drivetrain') || ''); } catch (e) {} }
   }
   const preVin = qp.get('vin');
   if (preVin) $n('new-vin').value = preVin;
@@ -1311,7 +1325,7 @@ async function renderNewTicket() {
     setNewView('new-cust-phone-view', ph ? (window.PhoneFmt ? window.PhoneFmt.display(ph) : ph) : '', 'Add phone number');
     setNewView('new-email-view', $n('new-email').value, 'Add email');
     setNewView('new-job-view', newJobAddress(), 'Add job address');
-    setNewView('new-vehicle-view', _newVeh ? _newVeh.vehicleString() : '', 'Add vehicle');
+    setNewView('new-vehicle-view', _newVeh ? _newVeh.vehicleDisplay() : '', 'Add vehicle');
     setNewView('new-vin-view', $n('new-vin').value, 'Add VIN');
     const mi = $n('new-mileage').value;
     setNewView('new-mileage-view', (mi !== '' && mi != null) ? Number(mi).toLocaleString('en-US') + ' mi' : '', 'Add mileage');
@@ -1348,7 +1362,7 @@ async function renderNewTicket() {
   $n('new-job-done').onclick = () => hideNewEditor('address');
   $n('new-veh-done').onclick = () => hideNewEditor('vehicle');
   ['new-job-street', 'new-job-type', 'new-job-name', 'new-job-code', 'new-job-city', 'new-job-state', 'new-job-zip'].forEach(id => { const el = $n(id); if (el) el.addEventListener('input', () => setNewView('new-job-view', newJobAddress(), 'Add job address')); });
-  ['new-year', 'new-make', 'new-model'].forEach(id => { const el = $n(id); if (el) el.addEventListener('change', () => setNewView('new-vehicle-view', _newVeh ? _newVeh.vehicleString() : '', 'Add vehicle')); });
+  ['new-year', 'new-make', 'new-model'].forEach(id => { const el = $n(id); if (el) el.addEventListener('change', () => setNewView('new-vehicle-view', _newVeh ? _newVeh.vehicleDisplay() : '', 'Add vehicle')); });
   syncNewDetails();
   const linesTable = $n('new-lines-table');
   linesTable.appendChild(newGroupEl());
@@ -1450,7 +1464,7 @@ async function renderNewTicket() {
         ${t.type === 'receipt' ? (t.email ? `<div><span>Email</span>${esc(t.email)}</div>` : '') : `<div class="${t.email ? '' : 'empty-line'}"><span>Email</span><input id="dt-email-in" type="email" value="${esc(t.email || '')}" placeholder="Email"></div>`}
         ${t.type === 'receipt' ? (t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : '') : `<div class="${t.jobAddress ? '' : 'empty-line'}"><span>Job address</span><textarea id="dt-job-in" rows="1" class="autogrow" placeholder="Job address">${esc(t.jobAddress || '')}</textarea></div>`}
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
-        ${t.vehicle ? `<div><span>Vehicle</span>${esc(t.vehicle)}</div>` : ''}
+        ${t.vehicle ? `<div><span>Vehicle</span>${esc(vehDisp(t.vehicle, t.vehicleTrim, t.vehicleEngine, t.vehicleTransmission, t.vehicleDrivetrain))}</div>` : ''}
         ${t.type === 'receipt' ? (t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : '') : `<div class="${t.vin ? '' : 'empty-line'}"><span>VIN</span><input id="dt-vin-in" value="${esc(t.vin || '')}" placeholder="VIN"></div>`}
         ${t.type === 'receipt' ? ((t.mileage !== '' && t.mileage != null) ? `<div><span>Mileage</span>${Number(t.mileage).toLocaleString('en-US')} mi</div>` : '') : `<div class="${(t.mileage !== '' && t.mileage != null) ? '' : 'empty-line'}"><span>Mileage</span><input id="dt-mile-in" value="${(t.mileage !== '' && t.mileage != null) ? t.mileage : ''}" placeholder="Mileage" inputmode="numeric"></div>`}
         ${t.type === 'receipt' ? (t.paymentMethod ? `<div><span>Payment type</span>${esc(t.paymentMethod)}</div>` : '') : `<div class="${t.paymentMethod ? '' : 'empty-line'}"><span>Payment type</span><input id="dt-pm-in" value="${esc(t.paymentMethod || '')}" placeholder="e.g. cash, card, check"></div>`}

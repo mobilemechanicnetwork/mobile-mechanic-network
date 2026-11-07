@@ -482,6 +482,9 @@
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// Composed vehicle display: base vehicle plus optional trim, engine, and
+// transmission, e.g. "2020 Ford Explorer XL 3.5L Manual".
+const vehDisp = (v, trim, engine, transmission, drivetrain) => (window.VehiclePicker && window.VehiclePicker.display) ? window.VehiclePicker.display(v, trim, engine, transmission, drivetrain) : (v || '');
 // Capitalize the first letter of each word of a person name, leaving the
 // rest of each word as typed, so a last name saved lowercase still shows
 // capitalized: "brandon masson" -> "Brandon Masson".
@@ -644,7 +647,7 @@ function renderInbox() {
   renderWaitingTickets();
   if (!reqList.length) { box.innerHTML = q ? '<p class="muted">No open requests match your search.</p>' : '<p class="muted">No open requests match your area and services right now.</p>'; return; }
   box.innerHTML = reqList.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
-    ${r.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(r.ownerName)}</div>` : ''}${r.createdAt ? `<div class="muted" style="font-size:.85rem">Requested ${new Date(r.createdAt).toLocaleDateString()}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(r)}${historyButton(r)}</div>${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}${r.setPrice != null ? ` <span class="ok">Set price: $${Number(r.setPrice).toFixed(2)}</span>` : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)}${r.phone ? ` · <a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · <a href="sms:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>${r.vehicleLocation ? `<div class="muted">Vehicle location: ${esc(fullVehicleLocation(r))}${r.vehicleLocationType ? ' (' + esc({ house: 'House', work: 'Work', business: 'Business' }[r.vehicleLocationType] || r.vehicleLocationType) + ')' : ''}</div>` : ''}
+    ${r.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(r.ownerName)}</div>` : ''}${r.createdAt ? `<div class="muted" style="font-size:.85rem">Requested ${new Date(r.createdAt).toLocaleDateString()}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(r)}${historyButton(r)}</div>${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(vehDisp(r.vehicle, r.vehicleTrim, r.vehicleEngine, r.vehicleTransmission, r.vehicleDrivetrain))}${r.vin ? ' · VIN ' + esc(r.vin) : ''}${r.setPrice != null ? ` <span class="ok">Set price: $${Number(r.setPrice).toFixed(2)}</span>` : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)}${r.phone ? ` · <a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · <a href="sms:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>${r.vehicleLocation ? `<div class="muted">Vehicle location: ${esc(fullVehicleLocation(r))}${r.vehicleLocationType ? ' (' + esc({ house: 'House', work: 'Work', business: 'Business' }[r.vehicleLocationType] || r.vehicleLocationType) + ')' : ''}</div>` : ''}
     ${!r.myQuote && r.phone ? `<p style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 0"><button type="button" class="primary" style="margin-top:0" onclick="location.href='tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}'">Call</button> <button type="button" class="ghost" onclick="textCustomer('${r.id}')">Text</button></p>` : ''}
     <p>${esc(r.description)}</p>
     ${historyBlock(r)}
@@ -1063,7 +1066,7 @@ window.textCustomer = (rid) => {
   if (!r) return;
   const bizName = window._bizName || 'your mobile mechanic';
   const ownerName = (r.ownerName || '').trim();
-  const msg = `Hi${ownerName ? ' ' + ownerName : ''}, this is ${bizName} with Mobile Mechanic Network. I got your request for ${r.service}${r.vehicle ? ' on your ' + r.vehicle : ''}.`;
+  const msg = `Hi${ownerName ? ' ' + ownerName : ''}, this is ${bizName} with Mobile Mechanic Network. I got your request for ${r.service}${r.vehicle ? ' on your ' + vehDisp(r.vehicle, r.vehicleTrim, r.vehicleEngine, r.vehicleTransmission, r.vehicleDrivetrain) : ''}.`;
   const phone = String(r.phone || '').replace(/[^+\d]/g, '');
   if (!phone) { alert('No phone number on this request.'); return; }
   window.location.href = `sms:${phone}?body=${encodeURIComponent(msg)}`;
@@ -1075,7 +1078,7 @@ window.textQuote = (rid) => {
   const bizName = window._bizName || 'your mobile mechanic';
   const ownerName = (r.ownerName || '').trim();
   const link = r.myQuote.guestToken ? `https://mobilemechanicsinmyarea.com/quote?id=${r.myQuote.id}&token=${r.myQuote.guestToken}` : 'https://mobilemechanicsinmyarea.com/dashboard';
-  const msg = `Hi${ownerName ? ' ' + ownerName : ''}, this is ${bizName} with Mobile Mechanic Network. Your quote for ${r.service} (${r.vehicle}) is $${Number(total).toFixed(2)}. View and accept it here: ${link}`;
+  const msg = `Hi${ownerName ? ' ' + ownerName : ''}, this is ${bizName} with Mobile Mechanic Network. Your quote for ${r.service} (${vehDisp(r.vehicle, r.vehicleTrim, r.vehicleEngine, r.vehicleTransmission, r.vehicleDrivetrain)}) is $${Number(total).toFixed(2)}. View and accept it here: ${link}`;
   const phone = String(r.phone || '').replace(/[^+\d]/g, '');
   if (!phone) { alert('No phone number on this request.'); return; }
   window.location.href = `sms:${phone}?body=${encodeURIComponent(msg)}`;
@@ -1381,6 +1384,11 @@ $('ntp-next').onclick = () => {
   if (em) q.set('email', em);
   const veh = _ntpVeh ? _ntpVeh.vehicleString() : '';
   if (veh) q.set('vehicle', veh);
+  const vehEx = _ntpVeh ? _ntpVeh.get() : null;
+  if (vehEx && vehEx.trim) q.set('trim', vehEx.trim);
+  if (vehEx && vehEx.engine) q.set('engine', vehEx.engine);
+  if (vehEx && vehEx.transmission) q.set('transmission', vehEx.transmission);
+  if (vehEx && vehEx.drivetrain) q.set('drivetrain', vehEx.drivetrain);
   const vin = $('ntp-vin').value.trim();
   if (vin) q.set('vin', vin);
   const mi = $('ntp-mileage').value;
@@ -1399,6 +1407,10 @@ window.createTicketForLead = (rid) => {
   if (r.phone) q.set('phone', r.phone);
   if (r.ownerEmail) q.set('email', r.ownerEmail);
   if (r.vehicle) q.set('vehicle', r.vehicle);
+  if (r.vehicleTrim) q.set('trim', r.vehicleTrim);
+  if (r.vehicleEngine) q.set('engine', r.vehicleEngine);
+  if (r.vehicleTransmission) q.set('transmission', r.vehicleTransmission);
+  if (r.vehicleDrivetrain) q.set('drivetrain', r.vehicleDrivetrain);
   if (r.vin) q.set('vin', r.vin);
   // Job address from the request: the vehicle's location, plus the
   // customer's city, state, and ZIP. The street is skipped when the
@@ -1420,7 +1432,7 @@ window.createTicketForCustomer = (i) => {
   const q = new URLSearchParams({ customer: c.name });
   if (c.phone) q.set('phone', c.phone);
   const job = (c.jobs || []).find(j => j.vehicle);
-  if (job) { q.set('vehicle', job.vehicle); if (job.vin) q.set('vin', job.vin); }
+  if (job) { q.set('vehicle', job.vehicle); if (job.vehicleTrim) q.set('trim', job.vehicleTrim); if (job.vehicleEngine) q.set('engine', job.vehicleEngine); if (job.vehicleTransmission) q.set('transmission', job.vehicleTransmission); if (job.vehicleDrivetrain) q.set('drivetrain', job.vehicleDrivetrain); if (job.vin) q.set('vin', job.vin); }
   location.href = '/ticket?new=1&' + q.toString();
 };
 
@@ -1498,7 +1510,7 @@ async function loadInspections() {
     box.innerHTML = list.length ? list.map(r => `<div class="card">
     <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
     <div style="text-align:left"><strong>${esc(r.kind === 'complete' ? 'Complete vehicle inspection' : 'Pre-purchase inspection')}</strong>
-    <div class="muted">${esc(r.customerName)} · ${esc(r.vehicle)} · ${r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ''}</div></div>
+    <div class="muted">${esc(r.customerName)} · ${esc(vehDisp(r.vehicle, r.vehicleTrim, r.vehicleEngine, r.vehicleTransmission, r.vehicleDrivetrain))} · ${r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ''}</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><a href="/inspection.html?id=${esc(r.id)}&token=${esc(r.shareToken)}" target="_blank">View report →</a>${r.ticketId ? `<a href="/ticket?id=${esc(r.ticketId)}" target="_blank">${r.ticketLabel ? 'Ticket ' + esc(r.ticketLabel) : 'Ticket'} →</a>` : ''}<button type="button" class="ghost" onclick="copyInspLink(this, '${esc(r.id)}', '${esc(r.shareToken)}')">Copy link</button></div>
     </div></div>`).join('')
       : '<p class="muted">No inspections yet. Saved inspections will show up here.</p>';
@@ -1527,7 +1539,7 @@ function renderTickets() {
     ? '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:#dcfce7;color:#15803d">Completed</span>'
     : '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:#fef08a;color:#854d0e">Active</span>';
   window._calTitles = window._calTitles || {};
-  list.forEach(t => { window._calTitles[t.id] = [t.customerName, t.vehicle].filter(Boolean).join(' — ') || 'Job'; });
+  list.forEach(t => { window._calTitles[t.id] = [t.customerName, vehDisp(t.vehicle, t.vehicleTrim, t.vehicleEngine, t.vehicleTransmission, t.vehicleDrivetrain)].filter(Boolean).join(' — ') || 'Job'; });
   $('ticket-list').innerHTML = list.length ? list.map(t => `<div class="card" id="ticket-${t.id}">
     <div style="display:flex;gap:12px;align-items:flex-start">
       ${vehPhotoBlock(t, 64, `changeVehiclePhotoForTicket('${t.id}')`)}
@@ -1536,7 +1548,7 @@ function renderTickets() {
       </div>
     </div>
     <h3>${ticketBadge(t)} — $${esc(t.total)}</h3>
-    <div class="muted">${t.label ? 'Ticket ' + esc(t.label) + ' · ' : ''}${t.vehicle ? esc(t.vehicle) + ' · ' : ''}${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() + (t.paymentMethod ? ' via ' + esc(t.paymentMethod) : '') : ''}</div>
+    <div class="muted">${t.label ? 'Ticket ' + esc(t.label) + ' · ' : ''}${t.vehicle ? esc(vehDisp(t.vehicle, t.vehicleTrim, t.vehicleEngine, t.vehicleTransmission, t.vehicleDrivetrain)) + ' · ' : ''}${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() + (t.paymentMethod ? ' via ' + esc(t.paymentMethod) : '') : ''}</div>
     ${t.jobAddress ? `<div class="muted">Job location: ${esc(t.jobAddress)}</div>` : ''}
     <p><a href="/ticket?id=${t.id}" target="_blank">View ticket →</a></p>
     ${t.type !== 'receipt' ? `<div data-calctl="${t.id}" style="margin-top:8px">${calControlHtml(t.id)}</div>` : ''}
@@ -1598,16 +1610,20 @@ function renderCustomers() {
       const v = String(j.vehicle || '').trim();
       if (!v) return;
       const key = v.toLowerCase();
-      if (!vehMap.has(key)) vehMap.set(key, { vehicle: v, photoUrl: j.vehiclePhotoUrl || '', photoKind: j.vehiclePhotoKind || '', vehicleId: j.vehicleId || '' });
+      if (!vehMap.has(key)) vehMap.set(key, { vehicle: v, trim: j.vehicleTrim || '', engine: j.vehicleEngine || '', transmission: j.vehicleTransmission || '', drivetrain: j.vehicleDrivetrain || '', photoUrl: j.vehiclePhotoUrl || '', photoKind: j.vehiclePhotoKind || '', vehicleId: j.vehicleId || '' });
       else {
         const ex = vehMap.get(key);
+        if (!ex.trim && j.vehicleTrim) ex.trim = j.vehicleTrim;
+        if (!ex.engine && j.vehicleEngine) ex.engine = j.vehicleEngine;
+        if (!ex.transmission && j.vehicleTransmission) ex.transmission = j.vehicleTransmission;
+        if (!ex.drivetrain && j.vehicleDrivetrain) ex.drivetrain = j.vehicleDrivetrain;
         if (!ex.photoUrl && j.vehiclePhotoUrl) { ex.photoUrl = j.vehiclePhotoUrl; ex.photoKind = j.vehiclePhotoKind || ''; }
         if (!ex.vehicleId && j.vehicleId) ex.vehicleId = j.vehicleId;
       }
     });
     const vehList = [...vehMap.values()];
     c.vehList = vehList;
-    const vehiclesBlock = vehList.length ? `<div style="margin-top:6px"><div class="muted" style="margin-bottom:2px">Vehicles worked on:</div>${vehList.map((v, vi) => `<div style="display:flex;gap:8px;align-items:center;margin-top:4px">${v.photoUrl ? `<img src="${esc(v.photoUrl)}" alt="" style="${vehImgStyle(v.photoKind, 48)}">` : ''}<div style="flex:1;min-width:0">${esc(v.vehicle)}</div><button type="button" class="ghost" style="font-size:.8rem;padding:4px 8px;flex:none" onclick="changeVehiclePhotoForCustomer(${i}, ${vi})">${v.photoUrl ? 'Change photo' : 'Add photo'}</button></div>`).join('')}</div>` : '';
+    const vehiclesBlock = vehList.length ? `<div style="margin-top:6px"><div class="muted" style="margin-bottom:2px">Vehicles worked on:</div>${vehList.map((v, vi) => `<div style="display:flex;gap:8px;align-items:center;margin-top:4px">${v.photoUrl ? `<img src="${esc(v.photoUrl)}" alt="" style="${vehImgStyle(v.photoKind, 48)}">` : ''}<div style="flex:1;min-width:0">${esc(vehDisp(v.vehicle, v.trim, v.engine, v.transmission, v.drivetrain))}</div><button type="button" class="ghost" style="font-size:.8rem;padding:4px 8px;flex:none" onclick="changeVehiclePhotoForCustomer(${i}, ${vi})">${v.photoUrl ? 'Change photo' : 'Add photo'}</button></div>`).join('')}</div>` : '';
     const earned = c.jobs.filter(j => j.paid).reduce((s, j) => s + Number(j.total || 0), 0);
     return `<div class="card">${title}<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 6px">${phoneLine}${histBtn}</div>${cityLine}${vehiclesBlock}${c.name ? `<div style="margin:6px 0 2px"><button type="button" class="primary" style="margin-top:0" onclick="createTicketForCustomer(${i})">Create new ticket</button></div>` : ''}
     <div id="cust-hist-${i}" hidden style="margin:6px 0">${c.jobs.map(j => `<div>${esc(j.service)} — ${esc(j.vehicle)} · ${esc(j.date)} · $${Number(j.total).toFixed(2)} · <span class="${j.paid ? 'ok' : ''}">${j.paid ? 'Paid' : 'Booked'}</span>${j.ticketId ? ` · <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ''}</div>`).join('')}<div style="margin-top:8px"><strong>Total spent on service history: $${earned.toFixed(2)}</strong></div></div>
@@ -1667,7 +1683,7 @@ async function loadStats() {
         <tr style="text-align:left;color:#64748b"><th style="padding:10px 14px">Month</th><th style="padding:10px 14px">Jobs</th><th style="padding:10px 14px;text-align:right">Income</th></tr>
         ${s.byMonth.map(m => `<tr style="border-top:1px solid #e2e8f0"><td style="padding:10px 14px">${monthName(m.month)}</td><td style="padding:10px 14px">${m.jobs}</td><td style="padding:10px 14px;text-align:right">${money(m.income)}</td></tr>`).join('')}
       </table></div>` : '<p class="muted">No paid jobs yet. Mark an invoice as paid and it shows up here.</p>'}
-      ${s.recent.length ? `<h3>Recent paid jobs</h3>${s.recent.map(t => `<div class="card"><strong>${esc(t.customerName || '')}</strong> — ${esc(t.vehicle || '')}<div class="muted">${t.paidAt ? new Date(t.paidAt).toLocaleDateString() : ''}${t.paymentMethod ? ' · ' + esc(t.paymentMethod) : ''}</div><div style="font-weight:700">${money(t.total)}</div></div>`).join('')}` : ''}`;
+      ${s.recent.length ? `<h3>Recent paid jobs</h3>${s.recent.map(t => `<div class="card"><strong>${esc(t.customerName || '')}</strong> — ${esc(vehDisp(t.vehicle, t.vehicleTrim, t.vehicleEngine, t.vehicleTransmission, t.vehicleDrivetrain))}<div class="muted">${t.paidAt ? new Date(t.paidAt).toLocaleDateString() : ''}${t.paymentMethod ? ' · ' + esc(t.paymentMethod) : ''}</div><div style="font-weight:700">${money(t.total)}</div></div>`).join('')}` : ''}`;
   } catch (e) { box.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; }
 }
 

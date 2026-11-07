@@ -96,8 +96,14 @@ function vehicleModels(year, make, type) {
 // when it cannot be split reliably (e.g. small-engine free text).
 function vehicleFromRequest(r) {
   const type = VTYPES.includes(r.vehicleType) ? r.vehicleType : 'car';
+  const extras = {
+    trim: String(r.vehicleTrim || r.trim || '').trim().slice(0, 60),
+    engine: String(r.vehicleEngine || r.engine || '').trim().slice(0, 60),
+    transmission: (r.vehicleTransmission === 'Manual' || r.vehicleTransmission === 'Automatic') ? r.vehicleTransmission : ((r.transmission === 'Manual' || r.transmission === 'Automatic') ? r.transmission : ''),
+    drivetrain: (r.vehicleDrivetrain === 'AWD' || r.vehicleDrivetrain === 'FWD' || r.vehicleDrivetrain === 'RWD') ? r.vehicleDrivetrain : ((r.drivetrain === 'AWD' || r.drivetrain === 'FWD' || r.drivetrain === 'RWD') ? r.drivetrain : '')
+  };
   if (r.vehicleMake && r.vehicleModel) {
-    return { year: String(r.vehicleYear || '').slice(0, 10), make: String(r.vehicleMake).slice(0, 60), model: String(r.vehicleModel).slice(0, 60), type };
+    return { year: String(r.vehicleYear || '').slice(0, 10), make: String(r.vehicleMake).slice(0, 60), model: String(r.vehicleModel).slice(0, 60), type, ...extras };
   }
   const str = String(r.vehicle || '').trim();
   const m = str.match(/^(\d{4})\s+(.+)$/);
@@ -116,7 +122,7 @@ function vehicleFromRequest(r) {
   }
   if (!make) { const parts = rest.split(/\s+/); make = parts[0] || ''; model = parts.slice(1).join(' '); }
   if (!make || !model) return null;
-  return { year: m[1], make: make.slice(0, 60), model: model.slice(0, 60), type };
+  return { year: m[1], make: make.slice(0, 60), model: model.slice(0, 60), type, ...extras };
 }
 function searchCities(q, state, limit) {
   q = String(q || '').trim().toLowerCase();
@@ -282,7 +288,7 @@ function ticketItemTotal(it) {
   return r2((it.qty != null ? Number(it.qty) : 1) * Number(it.price != null ? it.price : (it.amount || 0)));
 }
 function cleanTicketBody(body, type) {
-  const { customerName, vehicle, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage, paymentMethod, jobAddress, comments, phone, email, expenses } = body || {};
+  const { customerName, vehicle, vehicleTrim, vehicleEngine, vehicleTransmission, vehicleDrivetrain, items, notes, laborDesc, laborAmount, taxRate, warranty, vin, mileage, paymentMethod, jobAddress, comments, phone, email, expenses } = body || {};
   if (!customerName || !String(customerName).trim()) return { error: 'Customer name is required.' };
   if (!Array.isArray(items) || !items.length) return { error: 'At least one line item is required.' };
   let ticketVin = '';
@@ -326,6 +332,10 @@ function cleanTicketBody(body, type) {
   return {
     customerName: capName(customerName).slice(0, 120),
     vehicle: String(vehicle || '').trim().slice(0, 120),
+    ...(vehicleTrim !== undefined ? { vehicleTrim: String(vehicleTrim || '').trim().slice(0, 60) } : {}),
+    ...(vehicleEngine !== undefined ? { vehicleEngine: String(vehicleEngine || '').trim().slice(0, 60) } : {}),
+    ...(vehicleTransmission !== undefined ? { vehicleTransmission: (vehicleTransmission === 'Manual' || vehicleTransmission === 'Automatic') ? vehicleTransmission : '' } : {}),
+    ...(vehicleDrivetrain !== undefined ? { vehicleDrivetrain: (vehicleDrivetrain === 'AWD' || vehicleDrivetrain === 'FWD' || vehicleDrivetrain === 'RWD') ? vehicleDrivetrain : '' } : {}),
     vin: ticketVin, mileage: ticketMileage, items: cleanItems,
     laborDesc: String(laborDesc || '').trim().slice(0, 200), laborAmount: laborAmountNum,
     taxRate: rate, subtotal: partsSubtotal, taxAmount, expenses: cleanExpenses, expensesTotal,
@@ -390,7 +400,7 @@ function ticketFromAcceptedQuote(quote, row) {
   const biz = businessesStore.read().find(b => b.id === quote.businessId);
   const number = nextTicketNumber(quote.businessId);
   const owner = row.ownerId ? usersStore.read().find(u => u.id === row.ownerId) : null;
-  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', number, label: businessAbbrev(biz ? biz.name : '') + '-' + number, customerName: capName(row.ownerName), email: owner ? (owner.email || '') : '', vehicle: row.vehicle || '', vin: row.vin || '', mileage: '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, jobAddress: String(row.vehicleLocation || '').slice(0, 200), total: subtotal, createdAt: new Date().toISOString() };
+  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', number, label: businessAbbrev(biz ? biz.name : '') + '-' + number, customerName: capName(row.ownerName), email: owner ? (owner.email || '') : '', vehicle: row.vehicle || '', vehicleTrim: String(row.vehicleTrim || '').slice(0, 60), vehicleEngine: String(row.vehicleEngine || '').slice(0, 60), vehicleTransmission: (row.vehicleTransmission === 'Manual' || row.vehicleTransmission === 'Automatic') ? row.vehicleTransmission : '', vehicleDrivetrain: (row.vehicleDrivetrain === 'AWD' || row.vehicleDrivetrain === 'FWD' || row.vehicleDrivetrain === 'RWD') ? row.vehicleDrivetrain : '', vin: row.vin || '', mileage: '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, jobAddress: String(row.vehicleLocation || '').slice(0, 200), total: subtotal, createdAt: new Date().toISOString() };
 }
 // Normalized lines for per-line quote decisions: the quoted items, or a
 // single synthetic line (service + total) when the quote has no items.
@@ -1148,10 +1158,10 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'owner') return sendJson(res, 403, { error: 'Vehicle owners only.' });
-      const { year, make, model, type } = await parseBody(req);
+      const { year, make, model, type, trim, engine, transmission, drivetrain } = await parseBody(req);
       if (!year || !make || !model) return sendJson(res, 400, { error: 'Year, make, and model are required.' });
       const vehicles = vehiclesStore.read();
-      const v = { id: crypto.randomUUID(), ownerId: user.id, year: String(year).trim().slice(0, 10), make: String(make).trim().slice(0, 60), model: String(model).trim().slice(0, 60), type: VTYPES.includes(type) ? type : 'car', createdAt: new Date().toISOString() };
+      const v = { id: crypto.randomUUID(), ownerId: user.id, year: String(year).trim().slice(0, 10), make: String(make).trim().slice(0, 60), model: String(model).trim().slice(0, 60), type: VTYPES.includes(type) ? type : 'car', trim: String(trim || '').trim().slice(0, 60), engine: String(engine || '').trim().slice(0, 60), transmission: (transmission === 'Manual' || transmission === 'Automatic') ? transmission : '', drivetrain: (drivetrain === 'AWD' || drivetrain === 'FWD' || drivetrain === 'RWD') ? drivetrain : '', createdAt: new Date().toISOString() };
       vehicles.push(v); vehiclesStore.write(vehicles);
       return sendJson(res, 201, { vehicle: v });
     }
@@ -1383,7 +1393,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/requests' && req.method === 'POST') {
       const user = getSessionUser(req);
       if (user && user.role !== 'owner') return sendJson(res, 403, { error: 'Only vehicle owner accounts can request quotes.' });
-      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip, businessId, vehicleType, vehicleYear, vehicleMake, vehicleModel, vehicleLocation, vehicleLocationType, name, fromProfile } = await parseBody(req);
+      const { city, state, service, vehicle, description, phone, date, vin, urgent, zip, businessId, vehicleType, vehicleYear, vehicleMake, vehicleModel, vehicleTrim, vehicleEngine, vehicleTransmission, vehicleDrivetrain, vehicleLocation, vehicleLocationType, name, fromProfile } = await parseBody(req);
       const e164 = normalizePhone(phone);
       if (!city || !state || !SERVICES.includes(service) || !vehicle || !description || !String(vehicleLocation || '').trim() || !['house', 'work', 'business'].includes(vehicleLocationType) || !e164)
         return sendJson(res, 400, { error: 'City, state, service, vehicle, a description, a vehicle location, a location type, and a valid 10-digit phone number are required.' });
@@ -1406,7 +1416,7 @@ const server = http.createServer(async (req, res) => {
       }
       const setPrice = (fromProfile === true && targetBiz && Array.isArray(targetBiz.prices)) ? (targetBiz.prices.find(pr => pr.service === service) || {}).price : null;
       const rows = requestsStore.read();
-      const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : capName(name).slice(0, 100), guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vehicleType: vt, vehicleYear: String(vehicleYear || '').slice(0, 10), vehicleMake: String(vehicleMake || '').slice(0, 60), vehicleModel: String(vehicleModel || '').slice(0, 60), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), vehicleLocation: String(vehicleLocation).trim().slice(0, 200), vehicleLocationType, status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, ...(setPrice != null ? { setPrice } : {}), createdAt: new Date().toISOString() };
+      const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : capName(name).slice(0, 100), guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vehicleType: vt, vehicleYear: String(vehicleYear || '').slice(0, 10), vehicleMake: String(vehicleMake || '').slice(0, 60), vehicleModel: String(vehicleModel || '').slice(0, 60), vehicleTrim: String(vehicleTrim || '').trim().slice(0, 60), vehicleEngine: String(vehicleEngine || '').trim().slice(0, 60), vehicleTransmission: (vehicleTransmission === 'Manual' || vehicleTransmission === 'Automatic') ? vehicleTransmission : '', vehicleDrivetrain: (vehicleDrivetrain === 'AWD' || vehicleDrivetrain === 'FWD' || vehicleDrivetrain === 'RWD') ? vehicleDrivetrain : '', vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), vehicleLocation: String(vehicleLocation).trim().slice(0, 200), vehicleLocationType, status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, ...(setPrice != null ? { setPrice } : {}), createdAt: new Date().toISOString() };
       rows.push(row); requestsStore.write(rows);
       const recipients = targetBiz ? [targetBiz] : businessesStore.read().filter(b => requestMatchesBusiness(row, b));
       // A request sitting silently in the inbox is not a notification.
@@ -2595,7 +2605,7 @@ const server = http.createServer(async (req, res) => {
         if (!pr) continue;
         const ticket = myTickets.find(t => t.requestId === pr.id);
         const c = getCust('phone:' + (pr.phone || pr.ownerId || q.requestId), pr.ownerName, pr.phone, pr.city, pr.state);
-        const job = { service: pr.service, vehicle: pr.vehicle || '', date: (pr.createdAt || '').slice(0, 10), total: ticket ? ticket.total : (q.total != null ? q.total : q.price), paid: myTickets.some(t => t.requestId === pr.id && t.type === 'receipt'), ticketId: ticket ? ticket.id : null, address: ticket ? (ticket.jobAddress || '') : '', vin: ticket ? (ticket.vin || '') : '', createdAt: pr.createdAt || '' };
+        const job = { service: pr.service, vehicle: pr.vehicle || '', vehicleTrim: pr.vehicleTrim || '', vehicleEngine: pr.vehicleEngine || '', vehicleTransmission: pr.vehicleTransmission || '', vehicleDrivetrain: pr.vehicleDrivetrain || '', date: (pr.createdAt || '').slice(0, 10), total: ticket ? ticket.total : (q.total != null ? q.total : q.price), paid: myTickets.some(t => t.requestId === pr.id && t.type === 'receipt'), ticketId: ticket ? ticket.id : null, address: ticket ? (ticket.jobAddress || '') : '', vin: ticket ? (ticket.vin || '') : '', createdAt: pr.createdAt || '' };
         c.jobs.push(job);
         jobPhotoQueue.push({ job, ref: { vehicle: pr.vehicle || '', customerName: pr.ownerName || '', email: '', ownerId: pr.ownerId || null } });
       }
@@ -2605,7 +2615,7 @@ const server = http.createServer(async (req, res) => {
         if (!want) continue;
         let c = [...byKey.values()].find(x => normName(x.name) === want);
         if (!c) c = getCust('name:' + want, t.customerName, '', '', '');
-        const job = { service: (t.items || []).map(it => it.desc).filter(Boolean).join(', ') || t.laborDesc || 'Service', vehicle: t.vehicle || '', date: (t.createdAt || '').slice(0, 10), total: t.total, paid: t.type === 'receipt', ticketId: t.id, address: t.jobAddress || '', vin: t.vin || '', createdAt: t.createdAt || '' };
+        const job = { service: (t.items || []).map(it => it.desc).filter(Boolean).join(', ') || t.laborDesc || 'Service', vehicle: t.vehicle || '', vehicleTrim: t.vehicleTrim || '', vehicleEngine: t.vehicleEngine || '', vehicleTransmission: t.vehicleTransmission || '', vehicleDrivetrain: t.vehicleDrivetrain || '', date: (t.createdAt || '').slice(0, 10), total: t.total, paid: t.type === 'receipt', ticketId: t.id, address: t.jobAddress || '', vin: t.vin || '', createdAt: t.createdAt || '' };
         c.jobs.push(job);
         const tReq = t.requestId ? allRequests.find(r => r.id === t.requestId) : null;
         jobPhotoQueue.push({ job, ref: { vehicle: t.vehicle || '', customerName: t.customerName || '', email: t.email || '', ownerId: tReq ? (tReq.ownerId || null) : null } });

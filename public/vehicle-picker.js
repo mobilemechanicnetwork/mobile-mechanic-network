@@ -7,12 +7,17 @@
    <select id="f-year"></select><select id="f-make"></select><select id="f-model"></select>
 
    const picker = VehiclePicker.attach({ year: 'f-year', make: 'f-make', model: 'f-model', type: 'f-type', onChange: fn });
-   picker.get()            -> { year, make, model, type } or null when incomplete
-   picker.vehicleString()  -> "2020 Honda Accord" or ""
+   picker.get()            -> { year, make, model, type, trim, engine, transmission, drivetrain } or null when incomplete
+   picker.vehicleString()  -> "2020 Honda Accord" or "" (base vehicle only)
+   picker.vehicleDisplay() -> "2020 Ford Explorer XL 3.5L Manual AWD" or "" (base + optional trim/engine/transmission/drivetrain)
    picker.setType('motorcycle')
-   picker.set(year, make, model)      -> async; selects values (for saved vehicles)
-   picker.setFromString("2020 Honda Accord") -> async; best-effort parse
-   picker.reset()          -> clears year/make/model (keeps type)
+   picker.set(year, make, model, trim, engine, transmission, drivetrain) -> async; selects values (for saved vehicles)
+   picker.setFromString("2020 Honda Accord") -> async; best-effort parse (extras stay blank)
+   picker.reset()          -> clears year/make/model and the extras (keeps type)
+   VehiclePicker.display(vehicle, trim, engine, transmission, drivetrain) -> composed display string for a stored vehicle
+   Trim and engine are free text, transmission is Manual/Automatic, all
+   three optional. They never enter the base vehicle string, so garage
+   matching and photo lookup still key on year/make/model.
 */
 (function () {
   const OTHER = '__other';
@@ -135,6 +140,70 @@
     const makeOther = makeOtherInput(makeSel, 'Enter the make');
     const modelOther = makeOtherInput(modelSel, 'Enter the model');
 
+    // Optional trim / engine / transmission, created and managed by the
+    // picker. They sit under the model row and are never required.
+    const extrasBox = document.createElement('div');
+    extrasBox.style.display = 'flex';
+    extrasBox.style.gap = '8px';
+    extrasBox.style.flexWrap = 'wrap';
+    extrasBox.style.marginTop = '6px';
+    const trimInp = document.createElement('input');
+    trimInp.type = 'text';
+    trimInp.placeholder = 'Trim (optional), e.g. XL';
+    trimInp.maxLength = 60;
+    trimInp.style.flex = '1';
+    trimInp.style.minWidth = '120px';
+    const engineInp = document.createElement('input');
+    engineInp.type = 'text';
+    engineInp.placeholder = 'Engine (optional), e.g. 3.5L';
+    engineInp.maxLength = 60;
+    engineInp.style.flex = '1';
+    engineInp.style.minWidth = '120px';
+    const transSel = document.createElement('select');
+    transSel.style.flex = '1';
+    transSel.style.minWidth = '120px';
+    const transPh = document.createElement('option');
+    transPh.value = ''; transPh.textContent = 'Transmission (optional)'; transPh.disabled = true; transPh.selected = true;
+    transSel.appendChild(transPh);
+    ['Manual', 'Automatic'].forEach(v => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = v;
+      transSel.appendChild(o);
+    });
+    const driveSel = document.createElement('select');
+    driveSel.style.flex = '1';
+    driveSel.style.minWidth = '120px';
+    const drivePh = document.createElement('option');
+    drivePh.value = ''; drivePh.textContent = 'Drivetrain (optional)'; drivePh.disabled = true; drivePh.selected = true;
+    driveSel.appendChild(drivePh);
+    ['AWD', 'FWD', 'RWD'].forEach(v => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = v;
+      driveSel.appendChild(o);
+    });
+    extrasBox.appendChild(trimInp);
+    extrasBox.appendChild(engineInp);
+    extrasBox.appendChild(transSel);
+    extrasBox.appendChild(driveSel);
+    modelOther.insertAdjacentElement('afterend', extrasBox);
+
+    function getExtras() {
+      return {
+        trim: trimInp.value.trim(),
+        engine: engineInp.value.trim(),
+        transmission: transSel.value === 'Manual' || transSel.value === 'Automatic' ? transSel.value : '',
+        drivetrain: driveSel.value === 'AWD' || driveSel.value === 'FWD' || driveSel.value === 'RWD' ? driveSel.value : ''
+      };
+    }
+    function setExtras(trim, engine, transmission, drivetrain) {
+      trimInp.value = String(trim || '').slice(0, 60);
+      engineInp.value = String(engine || '').slice(0, 60);
+      transSel.value = (transmission === 'Manual' || transmission === 'Automatic') ? transmission : '';
+      if (!transSel.value) transSel.selectedIndex = 0;
+      driveSel.value = (drivetrain === 'AWD' || drivetrain === 'FWD' || drivetrain === 'RWD') ? drivetrain : '';
+      if (!driveSel.value) driveSel.selectedIndex = 0;
+    }
+
     function fire() { if (typeof opts.onChange === 'function') { try { opts.onChange(api.get()); } catch (e) {} } }
 
     function isSmallEngine() { return curType === 'smallengine'; }
@@ -144,6 +213,7 @@
     function configureForType() {
       const se = isSmallEngine();
       yearSel.style.display = se ? 'none' : '';
+      extrasBox.style.display = se ? 'none' : 'flex';
       const yl = yearLabel();
       if (yl) yl.style.display = se ? 'none' : '';
       if (se) {
@@ -213,9 +283,14 @@
     modelSel.addEventListener('change', () => { syncOther(); fire(); });
     makeOther.addEventListener('input', fire);
     modelOther.addEventListener('input', fire);
+    trimInp.addEventListener('input', fire);
+    engineInp.addEventListener('input', fire);
+    transSel.addEventListener('change', fire);
+    driveSel.addEventListener('change', fire);
 
     const api = {
       get type() { return curType; },
+      setExtras(trim, engine, transmission, drivetrain) { setExtras(trim, engine, transmission, drivetrain); fire(); },
       setType(t) {
         if (!allowed.some(x => x.id === t) || t === curType) return;
         curType = t;
@@ -223,6 +298,7 @@
         if (isSmallEngine()) { configureForType(); return; }
         // leaving small-engine mode: restore the normal cascade
         yearSel.style.display = '';
+        extrasBox.style.display = 'flex';
         const yl = yearLabel();
         if (yl) yl.style.display = '';
         modelSel.style.display = '';
@@ -234,7 +310,7 @@
           if (!b || b === OTHER) return null;
           const mo = modelOther.value.trim();
           if (!mo) return null;
-          return { year: '', make: b, model: mo, type: curType };
+          return { year: '', make: b, model: mo, type: curType, trim: '', engine: '', transmission: '', drivetrain: '' };
         }
         const y = yearSel.value;
         if (!y) return null;
@@ -249,14 +325,19 @@
           if (mo === OTHER) mo = modelOther.value.trim();
         }
         if (!m || !mo) return null;
-        return { year: y, make: m, model: mo, type: curType };
+        return { year: y, make: m, model: mo, type: curType, ...getExtras() };
       },
       vehicleString() {
         const v = this.get();
         if (!v) return '';
         return v.type === 'smallengine' ? (v.make + ' ' + v.model) : (v.year + ' ' + v.make + ' ' + v.model);
       },
-      async set(y, m, mo) {
+      vehicleDisplay() {
+        const v = this.get();
+        if (!v) return '';
+        return displayVehicle(this.vehicleString(), v.trim, v.engine, v.transmission, v.drivetrain);
+      },
+      async set(y, m, mo, trim, engine, transmission, drivetrain) {
         y = String(y || ''); m = String(m || ''); mo = String(mo || '');
         if (isSmallEngine()) {
           if (!SMALL_ENGINE_BRANDS.includes(m)) {
@@ -272,6 +353,7 @@
           return;
         }
         this.reset();
+        setExtras(trim, engine, transmission, drivetrain);
         const years = await getYears();
         if (y && years.map(String).includes(y)) {
           yearSel.value = y;
@@ -312,6 +394,7 @@
       },
       async setFromString(str) {
         str = String(str || '').trim();
+        setExtras('', '', '', '');
         if (isSmallEngine()) {
           // format is "Brand <equipment>" with no year
           let hit = '';
@@ -353,6 +436,7 @@
         fillSelect(modelSel, [], 'Select model');
         makeSel.disabled = true; modelSel.disabled = true;
         makeOther.value = ''; modelOther.value = '';
+        setExtras('', '', '', '');
         getYears().then(years => {
           const keep = yearSel.value;
           yearSel.innerHTML = '';
@@ -374,5 +458,18 @@
     return api;
   }
 
-  window.VehiclePicker = { attach, TYPES, _cache: cache };
+  // Compose a stored vehicle's display string: base vehicle plus any
+  // optional trim, engine, and transmission, e.g.
+  // "2020 Ford Explorer XL 3.5L Manual". The base string never carries
+  // the extras, so matching and photo lookup still key on year/make/model.
+  function displayVehicle(vehicle, trim, engine, transmission, drivetrain) {
+    const parts = [String(vehicle || '').trim()];
+    if (trim) parts.push(String(trim).trim());
+    if (engine) parts.push(String(engine).trim());
+    if (transmission) parts.push(String(transmission).trim());
+    if (drivetrain) parts.push(String(drivetrain).trim());
+    return parts.filter(Boolean).join(' ');
+  }
+
+  window.VehiclePicker = { attach, TYPES, display: displayVehicle, _cache: cache };
 })();

@@ -83,7 +83,7 @@ async function load() {
   const meta = [];
   if (row.ownerName) meta.push(`<div><span>Customer</span>${esc(row.ownerName)}</div>`);
   if (row.phone) meta.push(`<div><span>Customer phone</span>${esc(fmtPhone(row.phone))}</div>`);
-  if (row.vehicle) meta.push(`<div><span>Vehicle</span>${esc(row.vehicle)}</div>`);
+  if (row.vehicle) meta.push(`<div><span>Vehicle</span>${esc((window.VehiclePicker && window.VehiclePicker.display) ? window.VehiclePicker.display(row.vehicle, row.vehicleTrim, row.vehicleEngine, row.vehicleTransmission, row.vehicleDrivetrain) : row.vehicle)}</div>`);
   if (row.service) meta.push(`<div><span>Service</span>${esc(row.service)}${q.followUp ? ' (additional work)' : ''}</div>`);
   if (row.city) meta.push(`<div><span>Area</span>${esc(row.city)}, ${esc(row.state)}</div>`);
   if (row.date) meta.push(`<div><span>Needed by</span>${esc(row.date)}</div>`);
