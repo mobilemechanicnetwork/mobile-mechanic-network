@@ -94,7 +94,7 @@
     <h3 id="paid-prompt-title" style="margin:0 0 6px;font-size:1.1rem">Finish the receipt</h3>
     <p id="paid-prompt-text" style="margin:0 0 14px;color:#334155">A ticket can't become a receipt without the VIN and the odometer reading. Add them here and it will be marked paid.</p>
     <div style="display:grid;gap:10px">
-      <label style="font-size:.85rem;color:#64748b">VIN<input id="paid-vin" maxlength="17" placeholder="17-character VIN" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;text-transform:uppercase"></label>
+      <label style="font-size:.85rem;color:#64748b">VIN<div style="display:flex;gap:8px;align-items:center"><input id="paid-vin" maxlength="17" placeholder="17-character VIN" style="flex:1;min-width:0;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;text-transform:uppercase"><button type="button" class="ghost" onclick="openVinScanner('paid-vin')" style="flex-shrink:0;margin-top:4px">Scan</button></div></label>
       <label id="paid-mileage-row" style="font-size:.85rem;color:#64748b">Mileage<input id="paid-mileage" type="number" min="0" placeholder="Odometer reading" inputmode="numeric" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
       <label id="paid-pm-row" style="font-size:.85rem;color:#64748b">Paid by<input id="paid-pm" placeholder="Cash, card, check, Venmo…" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
     </div>
@@ -105,9 +105,23 @@
     </div>
   </div>
 </div>
+<div id="vin-scan-popup" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:60;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto" onclick="if(event.target===this)closeVinScanner()">
+  <div style="background:#fff;border-radius:14px;max-width:480px;width:100%;padding:16px;margin:24px 0;box-sizing:border-box">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <h3 style="margin:0;font-size:1.05rem">Scan VIN</h3>
+      <button type="button" class="ghost" onclick="closeVinScanner()">✕</button>
+    </div>
+    <p id="vin-scan-status" style="margin:8px 0;color:#475569;font-size:.9rem">Point the camera at the VIN barcode on the door jamb or dashboard.</p>
+    <video id="vin-scan-video" playsinline style="width:100%;border-radius:8px;background:#0f172a;display:block"></video>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button type="button" class="ghost" onclick="closeVinScanner()">Cancel</button>
+    </div>
+  </div>
+</div>
 <script src="/vehicle-picker.js"></script>
 <script src="/phone-format.js"></script>
 <script src="/inspection-cats.js"></script>
+<script src="/zxing-browser.min.js"></script>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 // Composed vehicle display: base vehicle plus optional trim, engine, and
@@ -714,6 +728,53 @@ function renderGuest(canDecide) {
     };
   });
 }
+// ---- VIN scanner: reads the barcode on the door jamb or dashboard
+// with the phone camera (ZXing, self-hosted) and fills the VIN field.
+// The rear camera is requested; a scanned value only counts when it
+// cleans to a full 17-character VIN, so other barcodes are ignored.
+let _vinScanControls = null;
+let _vinScanTarget = null;
+const _vinClean = (s) => String(s || '').toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '');
+window.openVinScanner = async (targetId) => {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  const box = document.getElementById('vin-scan-popup');
+  const statusEl = document.getElementById('vin-scan-status');
+  const video = document.getElementById('vin-scan-video');
+  if (!box || !video) return;
+  _vinScanTarget = target;
+  box.style.display = 'flex';
+  if (typeof ZXingBrowser === 'undefined' || !ZXingBrowser.BrowserMultiFormatOneDReader) {
+    if (statusEl) statusEl.textContent = 'The scanner could not load. Check your connection and try again, or type the VIN.';
+    return;
+  }
+  if (statusEl) statusEl.textContent = 'Point the camera at the VIN barcode on the door jamb or dashboard.';
+  try {
+    const reader = new ZXingBrowser.BrowserMultiFormatOneDReader();
+    _vinScanControls = await reader.decodeFromConstraints({ video: { facingMode: 'environment' } }, video, (result) => {
+      if (!result) return;
+      const vin = _vinClean(result.getText());
+      if (vin.length !== 17) return;
+      closeVinScanner();
+      target.value = vin;
+      // Fire the field's own save/refresh path: the saved ticket
+      // auto-saves on change, the new-ticket editor syncs on blur.
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+      target.dispatchEvent(new Event('blur', { bubbles: true }));
+      if (statusEl) statusEl.textContent = 'Point the camera at the VIN barcode on the door jamb or dashboard.';
+    });
+  } catch (e) {
+    if (statusEl) statusEl.textContent = 'Could not open the camera. Allow camera access for this site and try again, or type the VIN.';
+  }
+};
+window.closeVinScanner = () => {
+  try { if (_vinScanControls) _vinScanControls.stop(); } catch (e) {}
+  _vinScanControls = null;
+  const box = document.getElementById('vin-scan-popup');
+  if (box) box.style.display = 'none';
+  const video = document.getElementById('vin-scan-video');
+  if (video && video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
+};
 function renderActions() {
   const box = document.getElementById('ticket-actions');
   if (!T) { box.innerHTML = ''; return; }
@@ -1336,7 +1397,7 @@ async function renderNewTicket() {
       <div class="new-detail" data-field="vehicle" style="grid-column:1/-1"><span>Vehicle <i class="new-hint">✎</i></span><span class="new-val" id="new-vehicle-view"></span>
       <div id="new-veh-editor" hidden style="margin-top:8px"><div id="new-veh-type"></div><div style="display:flex;gap:8px"><select id="new-year" style="flex:1"></select><select id="new-make" style="flex:1"></select><select id="new-model" style="flex:1"></select></div>
       <p style="margin:8px 0 0"><button type="button" class="ghost" id="new-veh-done">Done</button></p></div></div>
-      <div class="new-detail" data-field="vin"><span>VIN <i class="new-hint">✎</i></span><span class="new-val" id="new-vin-view"></span><input id="new-vin" maxlength="17" placeholder="VIN" style="text-transform:uppercase" hidden></div>
+      <div class="new-detail" data-field="vin"><span>VIN <i class="new-hint">✎</i></span><span class="new-val" id="new-vin-view"></span><input id="new-vin" maxlength="17" placeholder="VIN" style="text-transform:uppercase" hidden><button type="button" class="ghost" id="new-vin-scan" onclick="openVinScanner('new-vin')" hidden>Scan VIN</button></div>
       <div class="new-detail" data-field="mileage"><span>Mileage <i class="new-hint">✎</i></span><span class="new-val" id="new-mileage-view"></span><input id="new-mileage" type="number" min="0" placeholder="Mileage" inputmode="numeric" hidden></div>
     </div>
     <table id="new-lines-table"><tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr></table>
@@ -1408,7 +1469,7 @@ async function renderNewTicket() {
     if (view) view.hidden = true;
     if (field === 'address') { $n('new-job-editor').hidden = false; ['new-job-street', 'new-job-name', 'new-job-city'].forEach(id => { const el = $n(id); if (el) autogrow(el); }); }
     else if (field === 'vehicle') { $n('new-veh-editor').hidden = false; }
-    else { const inp = $n(newFieldInput[field]); if (inp) { inp.hidden = false; if (inp.tagName === 'TEXTAREA') autogrow(inp); inp.focus(); } }
+    else { const inp = $n(newFieldInput[field]); if (inp) { inp.hidden = false; if (inp.tagName === 'TEXTAREA') autogrow(inp); inp.focus(); } if (field === 'vin') { const sb = $n('new-vin-scan'); if (sb) sb.hidden = false; } }
   };
   const hideNewEditor = (field) => {
     const cell = document.querySelector('.new-detail[data-field="' + field + '"]');
@@ -1417,7 +1478,7 @@ async function renderNewTicket() {
     if (view) view.hidden = false;
     if (field === 'address') $n('new-job-editor').hidden = true;
     else if (field === 'vehicle') $n('new-veh-editor').hidden = true;
-    else { const inp = $n(newFieldInput[field]); if (inp) inp.hidden = true; }
+    else { const inp = $n(newFieldInput[field]); if (inp) inp.hidden = true; if (field === 'vin') { const sb = $n('new-vin-scan'); if (sb) sb.hidden = true; } }
     syncNewDetails();
   };
   document.querySelectorAll('.new-detail').forEach(cell => {
@@ -1549,7 +1610,7 @@ async function renderNewTicket() {
         ${ro ? (t.jobAddress ? `<div><span>Job address</span>${esc(t.jobAddress)}</div>` : '') : `<div class="${t.jobAddress ? '' : 'empty-line'}"><span>Job address</span><textarea id="dt-job-in" rows="1" class="autogrow" placeholder="Job address">${esc(t.jobAddress || '')}</textarea></div>`}
         <div><span>Date</span>${new Date(t.createdAt).toLocaleDateString()}</div>
         ${t.vehicle ? `<div><span>Vehicle</span>${esc(vehDisp(t.vehicle, t.vehicleTrim, t.vehicleEngine, t.vehicleTransmission, t.vehicleDrivetrain))}</div>` : ''}
-        ${ro ? (t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : '') : `<div class="${t.vin ? '' : 'empty-line'}"><span>VIN</span><input id="dt-vin-in" value="${esc(t.vin || '')}" placeholder="VIN"></div>`}
+        ${ro ? (t.vin ? `<div><span>VIN</span>${esc(t.vin)}</div>` : '') : `<div class="${t.vin ? '' : 'empty-line'}"><span>VIN</span><div style="display:flex;gap:8px;align-items:center"><input id="dt-vin-in" value="${esc(t.vin || '')}" placeholder="VIN" style="flex:1;min-width:0"><button type="button" class="ghost" onclick="openVinScanner('dt-vin-in')" style="flex-shrink:0">Scan</button></div></div>`}
         ${ro ? ((t.mileage !== '' && t.mileage != null) ? `<div><span>Mileage</span>${Number(t.mileage).toLocaleString('en-US')} mi</div>` : '') : `<div class="${(t.mileage !== '' && t.mileage != null) ? '' : 'empty-line'}"><span>Mileage</span><input id="dt-mile-in" value="${(t.mileage !== '' && t.mileage != null) ? t.mileage : ''}" placeholder="Mileage" inputmode="numeric"></div>`}
         ${ro ? (t.paymentMethod ? `<div><span>Payment type</span>${esc(t.paymentMethod)}</div>` : '') : `<div class="${t.paymentMethod ? '' : 'empty-line'}"><span>Payment type</span><input id="dt-pm-in" value="${esc(t.paymentMethod || '')}" placeholder="e.g. cash, card, check"></div>`}
         <div><span>Ticket</span>${t.label ? esc(t.label) : '#' + esc(t.id.slice(0, 8))}</div>
