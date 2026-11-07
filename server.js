@@ -1678,7 +1678,7 @@ const server = http.createServer(async (req, res) => {
       };
       const inbox = allRequests
         .filter(r => r.status === 'open' && requestMatchesBusiness(r, biz))
-        .map(r => { const history = historyFor(r.phone, r.ownerId, r.ownerName, r.id); return { ...r, ownerEmail: ownerEmailFor(r.ownerId), myQuote: quotes.find(q => q.requestId === r.id && q.businessId === biz.id) || null, history, returning: history.length > 0 }; });
+        .map(r => { const history = historyFor(r.phone, r.ownerId, r.ownerName, r.id); const leadTicket = myTickets.find(t => t.requestId === r.id); return { ...r, ownerEmail: ownerEmailFor(r.ownerId), myQuote: quotes.find(q => q.requestId === r.id && q.businessId === biz.id) || null, history, returning: history.length > 0, hasTicket: !!leadTicket, ticketId: leadTicket ? leadTicket.id : null }; });
       const booked = allRequests
         .filter(r => r.status === 'accepted')
         .map(r => {
@@ -2354,9 +2354,18 @@ const server = http.createServer(async (req, res) => {
       const clean = cleanTicketBody(body, type);
       if (clean.error) return sendJson(res, 400, { error: clean.error });
       if (!clean.warranty && biz.warranty) clean.warranty = String(biz.warranty).slice(0, 2000);
+      // A ticket created from a lead is linked to that request, so the
+      // lead moves to Tickets once the ticket exists. The request must
+      // be one of this business's own.
+      let linkRequestId = null;
+      if (body.requestId) {
+        const reqRow = requestsStore.read().find(r => r.id === String(body.requestId));
+        if (!reqRow || !requestMatchesBusiness(reqRow, biz)) return sendJson(res, 400, { error: 'That request was not found.' });
+        linkRequestId = reqRow.id;
+      }
       const tickets = ticketsStore.read();
       const number = nextTicketNumber(biz.id, tickets);
-      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, number, label: businessAbbrev(biz.name) + '-' + number, guestToken: crypto.randomBytes(16).toString('hex'), ...clean, createdAt: new Date().toISOString() };
+      const ticket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type, number, label: businessAbbrev(biz.name) + '-' + number, guestToken: crypto.randomBytes(16).toString('hex'), ...(linkRequestId ? { requestId: linkRequestId } : {}), ...clean, createdAt: new Date().toISOString() };
       tickets.push(ticket); ticketsStore.write(tickets);
       // Optional sends, chosen on the create form. Never fail the ticket.
       const sent = { text: 'skipped', notified: false };

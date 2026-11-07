@@ -632,7 +632,9 @@ function renderInbox() {
   const qDigits = q.replace(/\D/g, '');
   const matchReq = r => !q || (r.ownerName || '').toLowerCase().includes(q) || (r.service || '').toLowerCase().includes(q) || (r.vehicle || '').toLowerCase().includes(q) || (r.city || '').toLowerCase().includes(q) || (qDigits && String(r.phone || '').replace(/\D/g, '').includes(qDigits));
   const sort = window._reqSort || 'newest';
-  let reqList = (inbox.requests || []).filter(matchReq);
+  // Leads are requests with no ticket yet. Once a ticket is created
+  // from a lead, that lead lives under Tickets, not here.
+  let reqList = (inbox.requests || []).filter(r => !r.hasTicket).filter(matchReq);
   const sortReq = (a, b) => {
     if (sort === 'newest') return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
     if (sort === 'oldest') return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
@@ -952,7 +954,7 @@ function renderToday() {
   $('today-appts').innerHTML = `<h3 style="margin:16px 0 8px">Today's appointments — ${esc(dateLabel)}</h3>` + (appts.length ? appts.map(r => `<div class="card"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><strong>${esc(r.title)}</strong>${r.time ? `<span>${esc(timeRange(r))}</span>` : ''}</div>${r.kind === 'booked' ? `<div class="muted" style="margin-top:4px">${r.address ? esc(r.address) + ' · ' : ''}<span class="ok">Booked</span></div>` : ''}${r.ticketId ? `<p style="margin:8px 0 0"><a href="/ticket?id=${r.ticketId}" target="_blank">View ticket →</a></p>` : ''}</div>`).join('') : '<p class="muted">No appointments today.</p>');
   const inbox = window._inboxData || {};
   const jobs = [
-    ...(inbox.requests || []).map(r => ({ name: r.ownerName, service: r.service, vehicle: r.vehicle, status: 'Open', ticketId: null, tab: 'requests' })),
+    ...(inbox.requests || []).map(r => ({ name: r.ownerName, service: r.service, vehicle: r.vehicle, status: 'Open', ticketId: r.ticketId || null, tab: r.hasTicket ? 'tickets' : 'requests' })),
     ...(inbox.booked || []).filter(b => !b.paid).map(b => ({ name: b.ownerName, service: b.service, vehicle: b.vehicle, status: 'Booked', ticketId: b.ticketId || null, tab: 'tickets' }))
   ].slice(0, 10);
   $('today-open').innerHTML = `<h3 style="margin:16px 0 8px">Open jobs</h3>` + (jobs.length ? jobs.map(j => `<div class="card"><strong>${esc(j.name || '')}</strong> — ${esc(j.service)} — ${esc(j.vehicle)} <span class="ok">${j.status}</span>${j.ticketId ? ` <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ` <button type="button" class="ghost" onclick="gotoTab('${j.tab}')">View in ${j.tab === 'tickets' ? 'Tickets' : 'Leads'} →</button>`}</div>`).join('') : '<p class="muted">No open jobs right now.</p>') + `<p><button type="button" class="ghost" onclick="gotoTab('calendar')">Calendar →</button></p>`;
@@ -1402,6 +1404,9 @@ window.createTicketForLead = (rid) => {
   const r = (window._inboxRequests || []).find(x => x.id === rid);
   if (!r) return;
   const q = new URLSearchParams();
+  // Link the ticket to this lead, so the lead moves to Tickets once
+  // the ticket exists.
+  q.set('requestId', r.id);
   if (r.ownerName) q.set('customer', r.ownerName);
   if (r.phone) q.set('phone', r.phone);
   if (r.ownerEmail) q.set('email', r.ownerEmail);

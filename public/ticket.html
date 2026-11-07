@@ -1266,6 +1266,10 @@ async function saveNewTicket() {
     amount: r.querySelector('[data-f="amount"]').value
   }));
   const body = { type: 'estimate', customerName: customer, phone: $n('new-cust-phone').value, email: ($n('new-email') ? $n('new-email').value.trim() : ''), vehicle: veh, vehicleTrim: vehEx ? (vehEx.trim || '') : '', vehicleEngine: vehEx ? (vehEx.engine || '') : '', vehicleTransmission: vehEx ? (vehEx.transmission || '') : '', vehicleDrivetrain: vehEx ? (vehEx.drivetrain || '') : '', vin: $n('new-vin').value, mileage: $n('new-mileage').value, jobAddress: newJobAddress(), items, taxRate: $n('new-tax').value, expenses, notes: $n('new-notes').value, warranty: $n('new-warranty').value };
+  // A ticket created from a lead carries the lead's id, so the lead
+  // moves to Tickets once the ticket exists.
+  const _newReqId = new URLSearchParams(location.search).get('requestId') || '';
+  if (_newReqId) body.requestId = _newReqId;
   try {
     const r = await fetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
