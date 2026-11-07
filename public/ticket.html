@@ -89,6 +89,22 @@
 <div id="ticket-actions" class="noprint"></div>
 <div class="actions noprint" id="ticket-foot-actions"><a href="/mechanic">← Back to mechanic portal</a> &nbsp; <button onclick="window.print()">Print / Save as PDF</button> <button onclick="window.print()">Share PDF</button></div>
 <p class="noprint" id="ticket-foot-hint" style="text-align:center;color:#64748b;font-size:.9rem;margin:0 16px">To share the PDF from your phone: tap Share PDF, then tap Share in the print preview and pick Messages, Mail, or another app.</p>
+<div id="paid-prompt" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto" onclick="if(event.target===this)closePaidPrompt()">
+  <div style="background:#fff;border-radius:14px;max-width:460px;width:100%;padding:20px;margin:24px 0;box-sizing:border-box">
+    <h3 style="margin:0 0 6px;font-size:1.1rem">Finish the receipt</h3>
+    <p style="margin:0 0 14px;color:#334155">A ticket can't become a receipt without the VIN and the odometer reading. Add them here and it will be marked paid.</p>
+    <div style="display:grid;gap:10px">
+      <label style="font-size:.85rem;color:#64748b">VIN<input id="paid-vin" maxlength="17" placeholder="17-character VIN" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;text-transform:uppercase"></label>
+      <label style="font-size:.85rem;color:#64748b">Mileage<input id="paid-mileage" type="number" min="0" placeholder="Odometer reading" inputmode="numeric" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
+      <label style="font-size:.85rem;color:#64748b">Paid by<input id="paid-pm" placeholder="Cash, card, check, Venmo…" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
+    </div>
+    <div class="err" id="paid-err"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+      <button class="primary" type="button" id="paid-confirm">Mark as paid</button>
+      <button type="button" class="ghost" id="paid-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
 <script src="/vehicle-picker.js"></script>
 <script src="/phone-format.js"></script>
 <script src="/inspection-cats.js"></script>
@@ -214,6 +230,7 @@ function passItems(items) {
 // Details auto-save: filling a field and moving on (or pressing Enter)
 // saves it immediately, with no Save button and no page reload, so the
 // mechanic can keep filling the next field.
+window.closePaidPrompt = () => { const el = document.getElementById('paid-prompt'); if (el) el.style.display = 'none'; };
 window.saveDetails = async () => {
   const msg = document.getElementById('details-msg');
   if (msg) { msg.textContent = ''; }
@@ -774,17 +791,51 @@ function renderActions() {
   }
   const paidBtn = document.getElementById('btn-paid');
   if (paidBtn) {
-    paidBtn.onclick = async () => {
-      let vin = T.vin || '';
-      if (!vin) { const el = document.getElementById('dt-vin-in'); if (el) el.focus(); alert('Enter the 17-character VIN in the ticket details above, then try again.'); return; }
-      let mileage = (T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : String(T.mileage);
-      if (!mileage) { const el = document.getElementById('dt-mile-in'); if (el) el.focus(); alert('Enter the odometer reading in the ticket details above, then try again.'); return; }
-      const pm = T.paymentMethod || '';
-      if (!pm.trim()) { const el = document.getElementById('dt-pm-in'); if (el) el.focus(); alert('Enter how it was paid in the ticket details above, then try again.'); return; }
-      if (!confirm('Mark this invoice as paid via ' + pm.trim() + '? It will become a receipt.')) return;
-      try { await api('/api/tickets/' + T.id + '/paid', { paymentMethod: pm.trim(), vin, mileage }); location.reload(); }
+    const doMarkPaid = async (pm, vin, mileage) => {
+      try { await api('/api/tickets/' + T.id + '/paid', { paymentMethod: pm, vin, mileage }); location.reload(); }
       catch (e) { alert(e.message); }
     };
+    const openPaidPrompt = () => {
+      const vinEl = document.getElementById('paid-vin');
+      const miEl = document.getElementById('paid-mileage');
+      const pmEl = document.getElementById('paid-pm');
+      if (vinEl) vinEl.value = T.vin || '';
+      if (miEl) miEl.value = (T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : String(T.mileage);
+      if (pmEl) pmEl.value = T.paymentMethod || '';
+      const err = document.getElementById('paid-err');
+      if (err) err.textContent = '';
+      const box = document.getElementById('paid-prompt');
+      if (box) box.style.display = 'flex';
+    };
+    paidBtn.onclick = () => {
+      const vin = (T.vin || '').trim();
+      const mileage = (T.mileage === undefined || T.mileage === null || T.mileage === '') ? '' : String(T.mileage);
+      const pm = (T.paymentMethod || '').trim();
+      // A receipt needs the VIN and mileage, but neither is required
+      // while the ticket is being built. If anything is missing when
+      // marking paid, prompt for it here instead of sending the
+      // mechanic back to the details.
+      if (vin && mileage && pm) {
+        if (!confirm('Mark this invoice as paid via ' + pm + '? It will become a receipt.')) return;
+        doMarkPaid(pm, vin, mileage);
+      } else {
+        openPaidPrompt();
+      }
+    };
+    const paidConfirm = document.getElementById('paid-confirm');
+    if (paidConfirm) paidConfirm.onclick = async () => {
+      const vinClean = (document.getElementById('paid-vin').value || '').toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '');
+      const mileage = (document.getElementById('paid-mileage').value || '').trim();
+      const pm = (document.getElementById('paid-pm').value || '').trim();
+      const err = document.getElementById('paid-err');
+      if (vinClean.length !== 17) { if (err) err.textContent = 'Enter the full 17-character VIN.'; document.getElementById('paid-vin').focus(); return; }
+      if (!mileage || !Number.isFinite(Number(mileage)) || Number(mileage) < 0 || Number(mileage) > 9999999) { if (err) err.textContent = 'Enter the odometer reading.'; document.getElementById('paid-mileage').focus(); return; }
+      if (!pm) { if (err) err.textContent = 'Say how it was paid (cash, card, check, etc.).'; document.getElementById('paid-pm').focus(); return; }
+      window.closePaidPrompt();
+      await doMarkPaid(pm, vinClean, mileage);
+    };
+    const paidCancel = document.getElementById('paid-cancel');
+    if (paidCancel) paidCancel.onclick = () => window.closePaidPrompt();
   }
   loadLinkedInsp();
   // After adding a repair to an estimate, land straight in Edit lines so
