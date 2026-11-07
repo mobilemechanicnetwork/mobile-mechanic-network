@@ -267,18 +267,8 @@
     <div id="cal-week" style="margin-bottom:16px"></div>
     <div id="cal-month" style="margin-bottom:16px" hidden></div>
     <input type="file" id="veh-photo-input" accept="image/*" hidden>
-    <p class="muted">Upcoming jobs, soonest first. Booked jobs show up here automatically; add anything you set up by phone below.</p>
-    <form id="cal-form">
-      <div class="row">
-        <div style="flex:0 0 auto"><label for="cal-date">Date</label><span class="dtwrap"><input id="cal-date" type="date" required style="width:160px"><span class="dtph">Date</span></span></div>
-        <div style="flex:0 0 auto"><label for="cal-time">Time (optional)</label><span class="dtwrap"><input id="cal-time" type="time" style="width:120px"><span class="dtph">Time</span></span></div>
-        <div style="flex:0 0 auto"><label for="cal-end">End time (optional)</label><span class="dtwrap"><input id="cal-end" type="time" style="width:120px"><span class="dtph">End time</span></span></div>
-        <div style="flex:1 1 240px;min-width:0"><label for="cal-title">Job</label><input id="cal-title" required placeholder="e.g. Oil change for Thomas — 2019 F-150"></div>
-      </div>
-      <label for="cal-notes">Notes (optional)</label><input id="cal-notes" placeholder="e.g. Customer will text the address in the morning">
-      <button class="primary" type="submit">Add to calendar</button>
-      <div class="err" id="cal-err"></div><div class="ok" id="cal-ok"></div>
-    </form>
+    <p class="muted">Upcoming jobs, soonest first. Booked jobs show up here automatically; tap Add job to calendar to add anything you set up by phone.</p>
+    <p><button type="button" class="primary" onclick="openCalManualPopup()">Add job to calendar</button></p>
     <div id="cal-list" style="margin-top:16px"></div>
   </section>
 
@@ -467,6 +457,27 @@
         <div style="display:flex;gap:8px;margin-top:14px">
           <button type="button" class="primary" id="cal-add-submit">Add</button>
           <button type="button" class="ghost" onclick="hideCalAddPopup()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="cal-manual-popup" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)hideCalManualPopup()">
+      <div style="background:#fff;border-radius:12px;max-width:420px;width:100%;padding:16px;box-sizing:border-box">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <h3 style="margin:0;font-size:1.05rem">Add job to calendar</h3>
+          <button type="button" class="ghost" onclick="hideCalManualPopup()">✕</button>
+        </div>
+        <div style="display:grid;gap:10px;margin-top:12px">
+          <label style="font-size:.85rem;color:#64748b">Date<input type="date" id="cal-man-date" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;background:#fff"></label>
+          <label style="font-size:.85rem;color:#64748b">Start time (optional)<input type="time" id="cal-man-time" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;background:#fff"></label>
+          <label style="font-size:.85rem;color:#64748b">End time (optional)<input type="time" id="cal-man-end" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;background:#fff"></label>
+          <label style="font-size:.85rem;color:#64748b">Job<input type="text" id="cal-man-title" placeholder="e.g. Oil change for Thomas — 2019 F-150" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;background:#fff"></label>
+          <label style="font-size:.85rem;color:#64748b">Notes (optional)<input type="text" id="cal-man-notes" placeholder="e.g. Customer will text the address in the morning" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;background:#fff"></label>
+        </div>
+        <p id="cal-man-err" style="color:#b91c1c;font-size:.9rem;margin:8px 0 0"></p>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button type="button" class="primary" id="cal-man-submit">Add</button>
+          <button type="button" class="ghost" onclick="hideCalManualPopup()">Cancel</button>
         </div>
       </div>
     </div>
@@ -1090,14 +1101,36 @@ window.expandCalForNotif = async (noteId, btn) => {
   if ((window._calByTicket || {})[ticketId]) { if (wrap) wrap.innerHTML = calControlHtml(ticketId); return; }
   openCalAddPopup(ticketId);
 };
-$('cal-form').onsubmit = async (e) => {
-  e.preventDefault(); $('cal-err').textContent = ''; $('cal-ok').textContent = '';
+// ---- Manual calendar entry popup: the add form lives in a popup
+// now, not inline on the Calendar tab. ----
+window.openCalManualPopup = () => {
+  $('cal-man-date').value = '';
+  $('cal-man-time').value = '';
+  $('cal-man-end').value = '';
+  $('cal-man-title').value = '';
+  $('cal-man-notes').value = '';
+  $('cal-man-err').textContent = '';
+  $('cal-man-submit').disabled = false;
+  $('cal-manual-popup').style.display = 'flex';
+};
+window.hideCalManualPopup = () => { const box = $('cal-manual-popup'); if (box) box.style.display = 'none'; };
+$('cal-man-submit').onclick = async () => {
+  const errEl = $('cal-man-err');
+  errEl.textContent = '';
+  const date = $('cal-man-date').value || '';
+  const time = $('cal-man-time').value || '';
+  const endTime = $('cal-man-end').value || '';
+  const title = $('cal-man-title').value.trim();
+  const notes = $('cal-man-notes').value.trim();
+  if (!date) { errEl.textContent = 'Pick a date.'; return; }
+  if (!title) { errEl.textContent = 'Enter the job.'; return; }
+  const btn = $('cal-man-submit');
+  btn.disabled = true;
   try {
-    await post('/api/calendar', { date: $('cal-date').value, time: $('cal-time').value, endTime: $('cal-end').value, title: $('cal-title').value, notes: $('cal-notes').value });
-    $('cal-ok').textContent = 'Added.';
-    $('cal-date').value = ''; $('cal-time').value = ''; $('cal-end').value = ''; $('cal-title').value = ''; $('cal-notes').value = '';
+    await post('/api/calendar', { date, time, endTime, title, notes });
+    hideCalManualPopup();
     loadCalendar();
-  } catch (ex) { $('cal-err').textContent = ex.message; }
+  } catch (ex) { errEl.textContent = ex.message; btn.disabled = false; }
 };
 document.getElementById('req-search').addEventListener('input', renderInbox);
 $('req-refresh').onclick = () => loadInbox();
