@@ -176,6 +176,10 @@
   async function api(url, opts) { const r = await fetch(url, opts); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Something went wrong.'); return d; }
   async function post(url, body) { return api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// Capitalize the first letter of each word of a person name, leaving the
+// rest of each word as typed, so a last name saved lowercase still shows
+// capitalized: "brandon masson" -> "Brandon Masson".
+const capName = s => String(s == null ? '' : s).trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1));
 
   // Tabs, same pattern as the mechanic portal: pill buttons, one visible
   // section at a time, Open Jobs first. The unread count lives as a red
@@ -261,6 +265,7 @@
     loadOwnerNotifications();
     loadMyInspections();
     const me = await api('/api/me');
+    if (me.user.name) me.user.name = capName(me.user.name);
     if (me.user.isAdmin) $('adminLink').innerHTML = '<a href="/admin">Admin</a> · ';
     $('o-email').textContent = me.user.email;
     $('o-name').value = me.user.name || '';
@@ -625,7 +630,7 @@
   (async () => {
     const me = await api('/api/me').catch(() => null);
     if (!me) { location.href = '/account'; return; }
-    $('hello').textContent = 'Welcome, ' + me.user.name;
+    $('hello').textContent = 'Welcome, ' + capName(me.user.name);
     $('who').textContent = me.user.email + ' · ' + (me.user.role === 'mechanic' ? 'Mobile mechanic' : 'Vehicle owner');
     SERVICES = (await api('/api/services')).services;
     if (me.user.role === 'mechanic') { $('mechanic').hidden = false; window.cityChips = window.CityAC ? window.CityAC.chips(document.getElementById('b-cities')) : { get: () => [], set: () => {} }; loadMechanic(); }

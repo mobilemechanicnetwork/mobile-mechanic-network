@@ -91,6 +91,10 @@
 <script src="/inspection-cats.js"></script>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// Capitalize the first letter of each word of a person name, leaving the
+// rest of each word as typed, so a last name saved lowercase still shows
+// capitalized: "brandon masson" -> "Brandon Masson".
+const capName = s => String(s == null ? '' : s).trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1));
 const money = n => '$' + Number(n).toFixed(2);
 // Text boxes grow taller to fit their text, so no description is ever
 // cut off: every free-text field on the ticket pages is an autogrow
@@ -1143,7 +1147,7 @@ async function renderNewTicket() {
     </div>
     <div class="type" style="background:#2563eb">estimate</div>
     <div class="meta">
-      <div><span>Customer</span><textarea id="new-customer" rows="1" class="autogrow" placeholder="Customer name">${esc(qp.get('customer') || '')}</textarea></div>
+      <div><span>Customer</span><textarea id="new-customer" rows="1" class="autogrow" placeholder="Customer name">${esc(capName(qp.get('customer') || ''))}</textarea></div>
       <div><span>Phone</span><input id="new-cust-phone" type="tel" value="${esc(qp.get('phone') || '')}" placeholder="Phone"></div>
       <div><span>Email</span><input id="new-email" type="email" value="${esc(qp.get('email') || '')}" placeholder="Email (optional)"></div>
       <div style="grid-column:1/-1"><span>Job address</span><textarea id="new-job-street" rows="1" class="autogrow" placeholder="Street address" autocomplete="street-address"></textarea></div>
@@ -1241,6 +1245,7 @@ async function renderNewTicket() {
     if (!r.ok) throw new Error('Ticket not found.');
     const d = await r.json();
     T = d.ticket; B = d.business; window._requestDate = d.requestDate || '';
+    if (T.customerName) T.customerName = capName(T.customerName);
     try { const ib = await (await fetch('/api/requests/inbox')).json(); const bk = (ib.booked || []).find(x => x.ticketId === T.id); window._pendingFu = !!(bk && bk.pendingFollowUp); } catch (e) { window._pendingFu = false; }
     const t = T, b = B;
     const isNew = t.items && t.items.length && t.items[0].qty !== undefined;

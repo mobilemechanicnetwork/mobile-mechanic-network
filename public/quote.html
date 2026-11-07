@@ -38,6 +38,10 @@
 <div class="page" id="quote"><p>Loading…</p></div>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// Capitalize the first letter of each word of a person name, leaving the
+// rest of each word as typed, so a last name saved lowercase still shows
+// capitalized: "brandon masson" -> "Brandon Masson".
+const capName = s => String(s == null ? '' : s).trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1));
 const money = n => '$' + Number(n).toFixed(2);
 const fmtPhone = p => {
   const d = String(p || '').replace(/\D/g, '');
@@ -70,6 +74,7 @@ async function load() {
     if (!r.ok || !d.quote) throw new Error(qtoken ? 'This quote link is no longer valid. Ask the mechanic to send you a new link.' : (d.error || 'Quote not found.'));
   } catch (e) { box.innerHTML = '<p>' + esc(e.message) + '</p>'; return; }
   const q = d.quote, row = d.request || {}, b = d.business || {};
+  if (row.ownerName) row.ownerName = capName(row.ownerName);
   const isOwner = !!d.isOwner, canDecide = isOwner || !!d.canDecide, ticketId = d.ticketId || null;
   const total = q.total != null ? q.total : q.price;
   const status = q.status === 'accepted' ? '<span style="color:#16a34a;font-weight:700">Accepted</span>'

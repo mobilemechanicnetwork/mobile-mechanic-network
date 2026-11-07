@@ -20,6 +20,13 @@ function cleanVin(v) {
   const s = String(v || '').toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '');
   return /^[A-HJ-NPR-Z0-9]{17}$/.test(s) ? s : null;
 }
+// Capitalize the first letter of each word of a person name, leaving the
+// rest of each word as typed: "brandon masson" -> "Brandon Masson".
+// Applied on write and in composed titles/texts so a last name typed
+// lowercase never shows lowercase anywhere.
+function capName(s) {
+  return String(s || '').trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1));
+}
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 function store(name) {
@@ -316,7 +323,7 @@ function cleanTicketBody(body, type) {
   const expensesTotal = r2(cleanExpenses.reduce((s, e) => s + e.amount, 0));
   const total = r2(partsSubtotal + laborAmountNum + taxAmount + expensesTotal);
   return {
-    customerName: String(customerName).trim().slice(0, 120),
+    customerName: capName(customerName).slice(0, 120),
     vehicle: String(vehicle || '').trim().slice(0, 120),
     vin: ticketVin, mileage: ticketMileage, items: cleanItems,
     laborDesc: String(laborDesc || '').trim().slice(0, 200), laborAmount: laborAmountNum,
@@ -381,7 +388,7 @@ function ticketFromAcceptedQuote(quote, row) {
   const subtotal = r2(items.reduce((s, it) => s + it.qty * it.price, 0));
   const biz = businessesStore.read().find(b => b.id === quote.businessId);
   const number = nextTicketNumber(quote.businessId);
-  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', number, label: businessAbbrev(biz ? biz.name : '') + '-' + number, customerName: row.ownerName, vehicle: row.vehicle || '', vin: row.vin || '', mileage: '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, jobAddress: String(row.vehicleLocation || '').slice(0, 200), total: subtotal, createdAt: new Date().toISOString() };
+  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', number, label: businessAbbrev(biz ? biz.name : '') + '-' + number, customerName: capName(row.ownerName), vehicle: row.vehicle || '', vin: row.vin || '', mileage: '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, jobAddress: String(row.vehicleLocation || '').slice(0, 200), total: subtotal, createdAt: new Date().toISOString() };
 }
 // Normalized lines for per-line quote decisions: the quoted items, or a
 // single synthetic line (service + total) when the quote has no items.
@@ -463,7 +470,7 @@ async function finalizeQuoteAccept(quotes, rows, quote, row, approvedItems, deni
       const d = String(row.phone || '').replace(/\D/g, '');
       const c = d.length === 11 && d[0] === '1' ? d.slice(1) : d;
       const custPhone = c.length === 10 ? `(${c.slice(0, 3)}) ${c.slice(3, 6)}-${c.slice(6)}` : (row.phone || '');
-      const sms = await sendSms(to, `Mobile Mechanic Network: ${row.ownerName || 'A customer'} accepted ${partial ? 'part of ' : ''}your ${isFollowUp ? 'additional ' : ''}quote for ${row.service} (${row.vehicle}) \u2014 $${Number(acceptedTotal).toFixed(2)}. Customer phone: ${custPhone}. See it here: https://mobilemechanicsinmyarea.com/mechanic`);
+      const sms = await sendSms(to, `Mobile Mechanic Network: ${capName(row.ownerName) || 'A customer'} accepted ${partial ? 'part of ' : ''}your ${isFollowUp ? 'additional ' : ''}quote for ${row.service} (${row.vehicle}) \u2014 $${Number(acceptedTotal).toFixed(2)}. Customer phone: ${custPhone}. See it here: https://mobilemechanicsinmyarea.com/mechanic`);
       mechanicNotified = sms.sent === true;
     }
   } catch (e) {}
@@ -471,7 +478,7 @@ async function finalizeQuoteAccept(quotes, rows, quote, row, approvedItems, deni
   // waiting on their profile even before they open a text.
   try {
     const notes = notificationsStore.read();
-    notes.push({ id: crypto.randomUUID(), userId: quote.mechanicId, type: 'quote_accepted', title: `${row.ownerName || 'A customer'} accepted ${partial ? 'part of ' : ''}your ${isFollowUp ? 'additional ' : ''}quote`, service: row.service, vehicle: row.vehicle || '', total: acceptedTotal, customerName: row.ownerName || '', customerPhone: row.phone || '', ticketId: autoTicket ? autoTicket.id : null, requestId: row.id, quoteId: quote.id, read: false, createdAt: new Date().toISOString() });
+    notes.push({ id: crypto.randomUUID(), userId: quote.mechanicId, type: 'quote_accepted', title: `${capName(row.ownerName) || 'A customer'} accepted ${partial ? 'part of ' : ''}your ${isFollowUp ? 'additional ' : ''}quote`, service: row.service, vehicle: row.vehicle || '', total: acceptedTotal, customerName: capName(row.ownerName || ''), customerPhone: row.phone || '', ticketId: autoTicket ? autoTicket.id : null, requestId: row.id, quoteId: quote.id, read: false, createdAt: new Date().toISOString() });
     notificationsStore.write(notes);
   } catch (e) {}
   return { ticket: autoTicket, mechanicNotified };
@@ -695,7 +702,7 @@ const server = http.createServer(async (req, res) => {
       if (!e164) return sendJson(res, 400, { error: 'A valid 10-digit US phone number is required.' });
       const users = usersStore.read();
       if (users.some(u => u.email === String(email).toLowerCase())) return sendJson(res, 409, { error: 'An account with this email already exists.' });
-      const user = makeUser({ name: String(name).trim(), email: String(email).trim(), password: String(password), role });
+      const user = makeUser({ name: capName(name), email: String(email).trim(), password: String(password), role });
       user.phone = e164;
       if (role === 'mechanic') {
         user.trialEndsAt = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString();
@@ -905,7 +912,7 @@ const server = http.createServer(async (req, res) => {
       const users = usersStore.read();
       const row = users.find(u => u.id === user.id);
       if (!row) return sendJson(res, 404, { error: 'Not found.' });
-      if (name && String(name).trim()) row.name = String(name).trim().slice(0, 120);
+      if (name && String(name).trim()) row.name = capName(name).slice(0, 120);
       if (phone !== undefined) {
         const e164 = normalizePhone(phone);
         if (!e164) return sendJson(res, 400, { error: 'A valid 10-digit US phone number is required.' });
@@ -1236,7 +1243,7 @@ const server = http.createServer(async (req, res) => {
       }
       const setPrice = (fromProfile === true && targetBiz && Array.isArray(targetBiz.prices)) ? (targetBiz.prices.find(pr => pr.service === service) || {}).price : null;
       const rows = requestsStore.read();
-      const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : String(name || '').trim().slice(0, 100), guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vehicleType: vt, vehicleYear: String(vehicleYear || '').slice(0, 10), vehicleMake: String(vehicleMake || '').slice(0, 60), vehicleModel: String(vehicleModel || '').slice(0, 60), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), vehicleLocation: String(vehicleLocation).trim().slice(0, 200), vehicleLocationType, status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, ...(setPrice != null ? { setPrice } : {}), createdAt: new Date().toISOString() };
+      const row = { id: crypto.randomUUID(), ownerId: user ? user.id : null, ownerName: user ? user.name : capName(name).slice(0, 100), guest: guest || undefined, phone: e164, city: String(city).trim(), state: String(state).trim().toUpperCase(), service, vehicle: String(vehicle).trim(), vehicleType: vt, vehicleYear: String(vehicleYear || '').slice(0, 10), vehicleMake: String(vehicleMake || '').slice(0, 60), vehicleModel: String(vehicleModel || '').slice(0, 60), vin: cleanVinValue, description: String(description).trim(), date: String(date || '').slice(0, 20), zip: String(zip || '').slice(0, 10), vehicleLocation: String(vehicleLocation).trim().slice(0, 200), vehicleLocationType, status: 'open', urgent: urgent === true, businessId: targetBiz ? targetBiz.id : null, ...(setPrice != null ? { setPrice } : {}), createdAt: new Date().toISOString() };
       rows.push(row); requestsStore.write(rows);
       const recipients = targetBiz ? [targetBiz] : businessesStore.read().filter(b => requestMatchesBusiness(row, b));
       // A request sitting silently in the inbox is not a notification.
@@ -1246,7 +1253,7 @@ const server = http.createServer(async (req, res) => {
         const notes = notificationsStore.read();
         const users = usersStore.read();
         for (const biz of recipients) {
-          notes.push({ id: crypto.randomUUID(), userId: biz.userId, type: 'request_received', title: (row.urgent ? 'URGENT — ' : '') + (row.ownerName ? `${row.ownerName} requested a quote` : 'New quote request'), service: row.service, vehicle: row.vehicle || '', customerName: row.ownerName || '', customerPhone: row.phone || '', requestId: row.id, urgent: row.urgent === true, read: false, createdAt: new Date().toISOString() });
+          notes.push({ id: crypto.randomUUID(), userId: biz.userId, type: 'request_received', title: (row.urgent ? 'URGENT — ' : '') + (row.ownerName ? `${capName(row.ownerName)} requested a quote` : 'New quote request'), service: row.service, vehicle: row.vehicle || '', customerName: capName(row.ownerName || ''), customerPhone: row.phone || '', requestId: row.id, urgent: row.urgent === true, read: false, createdAt: new Date().toISOString() });
           const mechUser = users.find(u => u.id === biz.userId);
           const to = (mechUser && mechUser.phone) || biz.phone || '';
           const d = String(row.phone || '').replace(/\D/g, '');
@@ -1409,7 +1416,7 @@ const server = http.createServer(async (req, res) => {
       if (et && tm && et <= tm) return sendJson(res, 400, { error: 'End time must be after the start time.' });
       if (!title || !String(title).trim()) return sendJson(res, 400, { error: 'A job title is required.' });
       const entries = calendarStore.read();
-      const entry = { id: crypto.randomUUID(), businessId: biz.id, date: d, time: tm, endTime: et, title: String(title).trim().slice(0, 120), notes: String(notes || '').trim().slice(0, 500), createdAt: new Date().toISOString(), ...(ticket ? { ticketId: ticket.id, customerName: ticket.customerName || '', vehicle: ticket.vehicle || '', service: ticketReq ? (ticketReq.service || '') : '', location: (ticket.jobAddress || '') || (ticketReq ? [ticketReq.city, ticketReq.state].filter(Boolean).join(', ') : '') } : {}) };
+      const entry = { id: crypto.randomUUID(), businessId: biz.id, date: d, time: tm, endTime: et, title: String(title).trim().slice(0, 120), notes: String(notes || '').trim().slice(0, 500), createdAt: new Date().toISOString(), ...(ticket ? { ticketId: ticket.id, customerName: capName(ticket.customerName || ''), vehicle: ticket.vehicle || '', service: ticketReq ? (ticketReq.service || '') : '', location: (ticket.jobAddress || '') || (ticketReq ? [ticketReq.city, ticketReq.state].filter(Boolean).join(', ') : '') } : {}) };
       entries.push(entry); calendarStore.write(entries);
       return sendJson(res, 200, { entry });
     }
@@ -1765,7 +1772,7 @@ const server = http.createServer(async (req, res) => {
           const m = Number(String(mileage).replace(/[^0-9]/g, ''));
           if (Number.isFinite(m) && m >= 0 && m <= 9999999) ticketMileage = m;
         }
-        linkedTicket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type: 'estimate', number, label: businessAbbrev(biz.name) + '-' + number, customerName: String(customerName).trim().slice(0, 120), phone: String(customerPhone || '').trim().slice(0, 30), vehicle: String(vehicle).trim().slice(0, 120), vin: cleanVinValue, mileage: ticketMileage, items: [], laborDesc: '', laborAmount: 0, taxRate: 0, subtotal: 0, taxAmount: 0, expenses: [], expensesTotal: 0, total: 0, notes: '', warranty: biz.warranty ? String(biz.warranty).slice(0, 2000) : '', jobAddress: '', requestId: null, createdAt: new Date().toISOString() };
+        linkedTicket = { id: crypto.randomUUID(), businessId: biz.id, mechanicId: user.id, type: 'estimate', number, label: businessAbbrev(biz.name) + '-' + number, customerName: capName(customerName).slice(0, 120), phone: String(customerPhone || '').trim().slice(0, 30), vehicle: String(vehicle).trim().slice(0, 120), vin: cleanVinValue, mileage: ticketMileage, items: [], laborDesc: '', laborAmount: 0, taxRate: 0, subtotal: 0, taxAmount: 0, expenses: [], expensesTotal: 0, total: 0, notes: '', warranty: biz.warranty ? String(biz.warranty).slice(0, 2000) : '', jobAddress: '', requestId: null, createdAt: new Date().toISOString() };
         tickets.push(linkedTicket); ticketsStore.write(tickets);
       } else if (ticketId) {
         const t = ticketsStore.read().find(x => x.id === String(ticketId));
@@ -1779,7 +1786,7 @@ const server = http.createServer(async (req, res) => {
         kind: kind === 'complete' ? 'complete' : 'ppi',
         businessId: biz.id, mechanicId: user.id,
         ticketId: linkedTicket ? linkedTicket.id : null,
-        customerName: String(customerName).trim(), customerPhone: String(customerPhone || '').trim().slice(0, 30),
+        customerName: capName(customerName), customerPhone: String(customerPhone || '').trim().slice(0, 30),
         vehicle: String(vehicle).trim().slice(0, 120), vin: cleanVinValue,
         mileage: String(mileage || '').trim().slice(0, 20),
         categories: cleanPpiCategories(categories),
@@ -1822,7 +1829,7 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET') return sendJson(res, 200, { report: row });
       if (mechanicFrozen(user)) return frozenError(res);
       const { customerName, customerPhone, vehicle, vin, mileage, categories, generalNotes } = await parseBody(req);
-      if (customerName && String(customerName).trim()) row.customerName = String(customerName).trim();
+      if (customerName && String(customerName).trim()) row.customerName = capName(customerName);
       if (typeof customerPhone === 'string') row.customerPhone = customerPhone.trim().slice(0, 30);
       if (vehicle && String(vehicle).trim()) row.vehicle = String(vehicle).trim().slice(0, 120);
       if (typeof vin === 'string') {
@@ -2334,14 +2341,14 @@ const server = http.createServer(async (req, res) => {
         if (isOwner) {
         try {
           const notes = notificationsStore.read();
-          notes.push({ id: crypto.randomUUID(), userId: t.mechanicId, type: action === 'accept' ? 'estimate_accepted' : 'estimate_declined', title: `Customer ${action === 'accept' ? 'approved' : 'denied'} your estimate${lineIdx === null ? '' : ' line'}`, service: row.service, vehicle: row.vehicle || '', total: acted.reduce((s, l) => s + Number(l.price || 0), 0), customerName: row.ownerName || '', customerPhone: row.phone || '', requestId: row.id, ticketId: t.id, read: false, createdAt: new Date().toISOString() });
+          notes.push({ id: crypto.randomUUID(), userId: t.mechanicId, type: action === 'accept' ? 'estimate_accepted' : 'estimate_declined', title: `Customer ${action === 'accept' ? 'approved' : 'denied'} your estimate${lineIdx === null ? '' : ' line'}`, service: row.service, vehicle: row.vehicle || '', total: acted.reduce((s, l) => s + Number(l.price || 0), 0), customerName: capName(row.ownerName || ''), customerPhone: row.phone || '', requestId: row.id, ticketId: t.id, read: false, createdAt: new Date().toISOString() });
           notificationsStore.write(notes);
         } catch (e) {}
         try {
           const mechUser = usersStore.read().find(u => u.id === t.mechanicId);
           const biz = businessesStore.read().find(b => b.id === t.businessId);
           const to = (mechUser && mechUser.phone) || (biz && biz.phone) || '';
-          if (to) await sendSms(to, `Mobile Mechanic Network: ${row.ownerName || 'A customer'} ${action === 'accept' ? 'approved' : 'denied'} your estimate${lineIdx === null ? '' : ' line'} for ${row.service} (${row.vehicle}). See it here: https://mobilemechanicsinmyarea.com/mechanic`);
+          if (to) await sendSms(to, `Mobile Mechanic Network: ${capName(row.ownerName) || 'A customer'} ${action === 'accept' ? 'approved' : 'denied'} your estimate${lineIdx === null ? '' : ' line'} for ${row.service} (${row.vehicle}). See it here: https://mobilemechanicsinmyarea.com/mechanic`);
         } catch (e) {}
         }
         return sendJson(res, 200, { ticket: t });

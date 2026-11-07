@@ -439,6 +439,10 @@
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// Capitalize the first letter of each word of a person name, leaving the
+// rest of each word as typed, so a last name saved lowercase still shows
+// capitalized: "brandon masson" -> "Brandon Masson".
+const capName = s => String(s == null ? '' : s).trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1));
 /* Shared badge renderer: b carries fastResponder, avgRating, reviewCount, certifications */
 function badgeHtml(b) {
   let h = '';
@@ -494,6 +498,7 @@ async function loadNotifications(markRead) {
   try {
     const d = await api('/api/notifications');
     const notes = d.notifications || [];
+    notes.forEach(n => { const orig = n.customerName || ''; if (orig) { const c = capName(orig); if (n.title && n.title.includes(orig)) n.title = n.title.replace(orig, c); n.customerName = c; } });
     window._notifs = notes;
     try { const td = await api('/api/tickets/me'); window._ticketById = {}; window._ticketByReq = {}; (td.tickets || []).forEach(t => { window._ticketById[t.id] = t; if (t.requestId) window._ticketByReq[t.requestId] = t; }); } catch (e) {}
     $('notif-list').innerHTML = notes.length ? notes.map(n => {
@@ -557,6 +562,9 @@ async function loadInbox() {
   window._inboxData = inbox;
   window._booked = inbox.booked || [];
   window._inboxRequests = inbox.requests || [];
+  // Names saved lowercase show capitalized everywhere on the portal.
+  window._booked.forEach(b => { if (b.ownerName) b.ownerName = capName(b.ownerName); });
+  window._inboxRequests.forEach(r => { if (r.ownerName) r.ownerName = capName(r.ownerName); });
   try { const d = await api('/api/quote-drafts'); window._serverDrafts = {}; (d.drafts || []).forEach(x => { window._serverDrafts[x.requestId] = x; }); } catch (e) { window._serverDrafts = {}; }
   await loadCalByTicket();
   renderInbox();
@@ -1316,6 +1324,7 @@ $('help-form').onsubmit = async (e) => {
 async function loadTickets() {
   const d = await api('/api/tickets/me');
   window._tickets = d.tickets || [];
+  window._tickets.forEach(t => { if (t.customerName) t.customerName = capName(t.customerName); });
   await loadCalByTicket();
   renderTickets();
   loadInspections();
@@ -1326,6 +1335,7 @@ async function loadInspections() {
   try {
     const d = await api('/api/ppi');
     const list = d.reports || [];
+    list.forEach(r => { if (r.customerName) r.customerName = capName(r.customerName); });
     box.innerHTML = list.length ? list.map(r => `<div class="card">
     <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
     <div style="text-align:left"><strong>${esc(r.kind === 'complete' ? 'Complete vehicle inspection' : 'Pre-purchase inspection')}</strong>
@@ -1392,6 +1402,7 @@ async function loadCustomers() {
   try {
     const d = await api('/api/mechanic/customers');
     window._customers = d.customers || [];
+    window._customers.forEach(c => { if (c.name) c.name = capName(c.name); });
     renderCustomers();
   } catch (e) { box.innerHTML = '<p class="err">' + esc(e.message) + '</p>'; }
 }

@@ -51,6 +51,10 @@
 <script src="/phone-format.js"></script>
 <script>
 const esc = s => String(s == null ? '' : s).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// Capitalize the first letter of each word of a person name, leaving the
+// rest of each word as typed, so a last name saved lowercase still shows
+// capitalized: "brandon masson" -> "Brandon Masson".
+const capName = s => String(s == null ? '' : s).trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1));
 const SOC_LABELS = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', website: 'Website', google: 'Google reviews' };
 function badgeHtml(b) {
   let h = '';
@@ -63,6 +67,7 @@ function badgeHtml(b) {
 async function reviewHtml(businessId) {
   try {
     const d = await (await fetch('/api/reviews?businessId=' + encodeURIComponent(businessId))).json();
+    (d.reviews || []).forEach(r => { if (r.ownerName) r.ownerName = capName(r.ownerName); });
     if (!d.reviews.length) return '';
     const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
     return `<div class="card"><h3>Reviews</h3>${d.reviews.map(r => `<div class="review"><div><span class="stars">${stars(r.rating)}</span> <strong>${esc(r.ownerName)}</strong></div>${r.text ? `<p style="margin:6px 0 0">${esc(r.text)}</p>` : ''}<div class="muted" style="font-size:.8rem">${new Date(r.createdAt).toLocaleDateString()}</div></div>`).join('')}</div>`;
