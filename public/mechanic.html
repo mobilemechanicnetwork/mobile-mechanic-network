@@ -264,6 +264,25 @@
         <div id="cal-popup-foot" style="margin-top:14px"></div>
       </div>
     </div>
+    <div id="cal-add-popup" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)hideCalAddPopup()">
+      <div style="background:#fff;border-radius:12px;max-width:420px;width:100%;padding:16px;box-sizing:border-box">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <h3 style="margin:0;font-size:1.05rem">Add to calendar</h3>
+          <button type="button" class="ghost" onclick="hideCalAddPopup()">✕</button>
+        </div>
+        <div id="cal-add-job" style="margin-top:8px;color:#475569;font-size:.9rem"></div>
+        <div style="display:grid;gap:10px;margin-top:12px">
+          <label style="font-size:.85rem;color:#64748b">Date<input type="date" id="cal-add-date" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;background:#fff"></label>
+          <label style="font-size:.85rem;color:#64748b">Start time (optional)<input type="time" id="cal-add-time" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;background:#fff"></label>
+          <label style="font-size:.85rem;color:#64748b">End time (optional)<input type="time" id="cal-add-end" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;background:#fff"></label>
+        </div>
+        <p id="cal-add-err" style="color:#b91c1c;font-size:.9rem;margin:8px 0 0"></p>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button type="button" class="primary" id="cal-add-submit">Add</button>
+          <button type="button" class="ghost" onclick="hideCalAddPopup()">Cancel</button>
+        </div>
+      </div>
+    </div>
     <div id="new-ticket-prompt" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto" onclick="if(event.target===this)hideNewTicketPrompt()">
       <div style="background:#fff;border-radius:14px;max-width:520px;width:100%;padding:20px;margin:24px 0;box-sizing:border-box">
         <div style="display:flex;gap:12px;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:12px;margin-bottom:14px">
@@ -954,27 +973,42 @@ async function loadCalByTicket() {
 function calControlHtml(ticketId) {
   const e = (window._calByTicket || {})[ticketId];
   if (e) return `<span class="ok">On your calendar for ${esc(new Date(e.date + 'T00:00:00').toLocaleDateString())}${timeRange(e) ? ' at ' + esc(timeRange(e)) : ''}.</span> <button type="button" class="ghost" onclick="removeCalFromCard('${ticketId}', this)">Remove from calendar</button> <span data-cal-err style="color:#b91c1c;font-size:.9rem"></span>`;
-  const pre = (window._calPrefill || {})[ticketId] || '';
-  return `<span style="display:inline-flex;gap:6px;flex-wrap:wrap;align-items:end"><label style="margin:0;font-size:.85rem;color:#64748b">Date <span class="dtwrap${pre ? ' has-val' : ''}"><input type="date" data-cal-date value="${esc(pre)}" style="width:auto"><span class="dtph">Date</span></span></label> <label style="margin:0;font-size:.85rem;color:#64748b">Time (optional) <span class="dtwrap"><input type="time" data-cal-time style="width:auto"><span class="dtph">Time</span></span></label> <label style="margin:0;font-size:.85rem;color:#64748b">End time (optional) <span class="dtwrap"><input type="time" data-cal-end style="width:auto"><span class="dtph">End time</span></span></label> <button type="button" class="primary" style="width:auto;margin:0" onclick="addCalFromCard('${ticketId}', this)">Add to calendar</button></span> <span data-cal-err style="color:#b91c1c;font-size:.9rem"></span>`;
+  return `<button type="button" class="primary" style="width:auto;margin:0" onclick="openCalAddPopup('${ticketId}')">Add to calendar</button>`;
 }
 function syncDtph(input){ const w = input.closest('.dtwrap'); if (w) w.classList.toggle('has-val', !!input.value); }
 document.addEventListener('input', e => { if (e.target.matches && e.target.matches('.dtwrap input')) syncDtph(e.target); });
 document.addEventListener('change', e => { if (e.target.matches && e.target.matches('.dtwrap input')) syncDtph(e.target); });
 document.querySelectorAll('.dtwrap input').forEach(syncDtph);
-window.addCalFromCard = async (ticketId, btn) => {
-  const wrap = btn.closest('[data-calctl]');
-  const errEl = wrap ? wrap.querySelector('[data-cal-err]') : null;
-  if (errEl) errEl.textContent = '';
-  const date = wrap ? (wrap.querySelector('[data-cal-date]').value || '') : '';
-  const time = wrap ? (wrap.querySelector('[data-cal-time]').value || '') : '';
-  const endTime = wrap ? (wrap.querySelector('[data-cal-end]').value || '') : '';
-  if (!date) { if (errEl) errEl.textContent = 'Pick a date.'; return; }
+window.openCalAddPopup = (ticketId) => {
+  window._calAddTicket = ticketId;
+  const title = (window._calTitles || {})[ticketId] || '';
+  $('cal-add-job').textContent = title;
+  $('cal-add-job').style.display = title ? '' : 'none';
+  $('cal-add-date').value = (window._calPrefill || {})[ticketId] || '';
+  $('cal-add-time').value = '';
+  $('cal-add-end').value = '';
+  $('cal-add-err').textContent = '';
+  $('cal-add-submit').disabled = false;
+  $('cal-add-popup').style.display = 'flex';
+};
+window.hideCalAddPopup = () => { const box = $('cal-add-popup'); if (box) box.style.display = 'none'; };
+$('cal-add-submit').onclick = async () => {
+  const ticketId = window._calAddTicket;
+  const errEl = $('cal-add-err');
+  errEl.textContent = '';
+  const date = $('cal-add-date').value || '';
+  const time = $('cal-add-time').value || '';
+  const endTime = $('cal-add-end').value || '';
+  if (!date) { errEl.textContent = 'Pick a date.'; return; }
+  if (!ticketId) return;
+  const btn = $('cal-add-submit');
   btn.disabled = true;
   try {
     const d = await post('/api/calendar', { ticketId, date, time, endTime, title: (window._calTitles || {})[ticketId] || 'Job' });
     if (d.entry) window._calByTicket[ticketId] = d.entry;
-    if (wrap) wrap.innerHTML = calControlHtml(ticketId);
-  } catch (ex) { if (errEl) errEl.textContent = ex.message; btn.disabled = false; }
+    hideCalAddPopup();
+    document.querySelectorAll('[data-calctl="' + ticketId + '"]').forEach(w => { w.innerHTML = calControlHtml(ticketId); });
+  } catch (ex) { errEl.textContent = ex.message; btn.disabled = false; }
 };
 window.removeCalFromCard = async (ticketId, btn) => {
   const entry = (window._calByTicket || {})[ticketId];
@@ -1003,7 +1037,8 @@ window.expandCalForNotif = async (noteId, btn) => {
   const ticketId = ticket.id;
   window._calTitles = window._calTitles || {};
   window._calTitles[ticketId] = [note.customerName, note.vehicle].filter(Boolean).join(' — ') || 'Job';
-  if (wrap) wrap.innerHTML = calControlHtml(ticketId);
+  if ((window._calByTicket || {})[ticketId]) { if (wrap) wrap.innerHTML = calControlHtml(ticketId); return; }
+  openCalAddPopup(ticketId);
 };
 $('cal-form').onsubmit = async (e) => {
   e.preventDefault(); $('cal-err').textContent = ''; $('cal-ok').textContent = '';
