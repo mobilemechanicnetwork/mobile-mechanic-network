@@ -14,7 +14,8 @@
   .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0}
   .tabs button{background:#ffffff;border:1px solid #e2e8f0;color:#475569;border-radius:999px;padding:9px 16px;cursor:pointer;font-size:.9rem;box-shadow:0 1px 2px rgba(15,23,42,.06)}
   .tabs button.active{background:#2563eb;border-color:#2563eb;color:#fff}
-  @media (max-width:640px){.tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.tabs button{flex:none}}
+  .tab-select{display:none;width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;font-size:1rem;margin:16px 0;box-sizing:border-box}
+  @media (max-width:640px){.tabs{display:none}.tab-select{display:block}}
   section.tab{display:none}
   section.tab.active{display:block}
   label{display:block;margin:12px 0 4px;font-size:.9rem;color:#475569}
@@ -131,6 +132,15 @@
     <button data-tab="customers">Customers</button>
     <button data-tab="finances">Finances</button>
   </div>
+  <select id="tab-select" class="tab-select noprint" aria-label="Section">
+    <option value="requests">Leads</option>
+    <option value="today">Today</option>
+    <option value="profile">Profile</option>
+    <option value="tickets">Tickets</option>
+    <option value="calendar">Calendar</option>
+    <option value="customers">Customers</option>
+    <option value="finances">Finances</option>
+  </select>
 
   <section class="tab" id="tab-today">
     <h2>Today</h2>
@@ -516,6 +526,7 @@ window.showTab = (name) => {
   document.querySelectorAll('section.tab').forEach(x => x.classList.remove('active'));
   const btn = document.querySelector('.tabs button[data-tab="' + name + '"]');
   if (btn) btn.classList.add('active');
+  const sel = $('tab-select'); if (sel) sel.value = name;
   (TAB_SECTIONS[name] || [name]).forEach(s => { const el = $('tab-' + s); if (el) el.classList.add('active'); });
   if (name === 'profile') renderPvView();
   if (name === 'today') { loadToday(); loadNotifications(true); }
@@ -523,6 +534,7 @@ window.showTab = (name) => {
   if (name === 'calendar') loadCalendar();
 };
 document.querySelectorAll('.tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.tab); });
+const _tabSel = $('tab-select'); if (_tabSel) _tabSel.onchange = (e) => showTab(e.target.value);
 $('logout').onclick = async (e) => { e.preventDefault(); await post('/api/logout', {}); location.href = '/'; };
 $('portal-help').onclick = (e) => { e.preventDefault(); showTab('help'); window.scrollTo(0, 0); };
 
@@ -539,6 +551,10 @@ function updateNotifBadge(count) {
   if (!badge) return;
   if (count > 0) { badge.style.display = 'inline-block'; badge.textContent = count; }
   else badge.style.display = 'none';
+  // The phone dropdown has no badge, so the unread count rides on the
+  // Today option label instead.
+  const sel = $('tab-select');
+  if (sel) { const opt = sel.querySelector('option[value="today"]'); if (opt) opt.textContent = count > 0 ? 'Today (' + count + ')' : 'Today'; }
 }
 async function loadNotifications(markRead) {
   await loadCalByTicket();

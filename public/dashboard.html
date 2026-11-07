@@ -30,7 +30,8 @@
   .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0}
   .tabs button{background:#ffffff;border:1px solid #e2e8f0;color:#475569;border-radius:999px;padding:9px 16px;cursor:pointer;font-size:.9rem;box-shadow:0 1px 2px rgba(15,23,42,.06)}
   .tabs button.active{background:#2563eb;border-color:#2563eb;color:#fff}
-  @media (max-width:640px){.tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.tabs button{flex:none}}
+  .tab-select{display:none;width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;font-size:1rem;margin:16px 0;box-sizing:border-box}
+  @media (max-width:640px){.tabs{display:none}.tab-select{display:block}}
   section.tab{display:none}
   section.tab.active{display:block}
 </style>
@@ -57,6 +58,14 @@
       <button type="button" data-tab="mechanics">Mechanics</button>
       <button type="button" data-tab="help">Help</button>
     </div>
+    <select id="owner-tab-select" class="tab-select" aria-label="Section">
+      <option value="jobs">Open Jobs</option>
+      <option value="garage">My garage</option>
+      <option value="history">Repair history</option>
+      <option value="inspections">Inspections</option>
+      <option value="mechanics">Mechanics</option>
+      <option value="help">Help</option>
+    </select>
 
     <section class="tab active" id="tab-notifications">
       <h2>Notifications</h2>
@@ -192,15 +201,21 @@ const capName = s => String(s == null ? '' : s).trim().replace(/\S+/g, w => w.ch
     document.querySelectorAll('section.tab').forEach(x => x.classList.remove('active'));
     const btn = document.querySelector('#owner-tabs button[data-tab="' + name + '"]');
     if (btn) btn.classList.add('active');
+    const sel = $('owner-tab-select'); if (sel) sel.value = name;
     (TAB_SECTIONS[name] || [name]).forEach(s => { const el = document.getElementById('tab-' + s); if (el) el.classList.add('active'); });
   };
   window.gotoTab = (t) => { showTab(t); window.scrollTo(0, 0); };
   document.querySelectorAll('#owner-tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.tab); });
+  const _ownerTabSel = $('owner-tab-select'); if (_ownerTabSel) _ownerTabSel.onchange = (e) => showTab(e.target.value);
   function updateNotifBadge(count) {
     const badge = $('notif-badge');
     if (!badge) return;
     if (count > 0) { badge.style.display = 'inline-block'; badge.textContent = count; }
     else badge.style.display = 'none';
+    // The phone dropdown has no badge, so the unread count rides on the
+    // Open Jobs option label instead.
+    const sel = $('owner-tab-select');
+    if (sel) { const opt = sel.querySelector('option[value="jobs"]'); if (opt) opt.textContent = count > 0 ? 'Open Jobs (' + count + ')' : 'Open Jobs'; }
   }
 
   $('logout').onclick = async (e) => { e.preventDefault(); await fetch('/api/logout', { method: 'POST' }); location.href = '/'; };
