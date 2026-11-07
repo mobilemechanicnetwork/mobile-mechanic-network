@@ -264,6 +264,28 @@
         <div id="cal-popup-foot" style="margin-top:14px"></div>
       </div>
     </div>
+    <div id="new-ticket-prompt" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto" onclick="if(event.target===this)hideNewTicketPrompt()">
+      <div style="background:#fff;border-radius:14px;max-width:520px;width:100%;padding:20px;margin:24px 0;box-sizing:border-box">
+        <div style="display:flex;gap:12px;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:12px;margin-bottom:14px">
+          <img id="ntp-logo" src="" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;display:none">
+          <div><h3 id="ntp-name" style="margin:0;font-size:1.15rem"></h3><div id="ntp-sub" style="color:#475569;font-size:.85rem"></div></div>
+        </div>
+        <p style="margin:0 0 14px;color:#334155">Enter the customer and vehicle, then Next fills in a new ticket the same way a lead does. You can still change anything on the ticket after it opens.</p>
+        <div style="display:grid;gap:10px">
+          <label style="font-size:.85rem;color:#64748b">Customer name<input id="ntp-customer" placeholder="Customer name" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
+          <label style="font-size:.85rem;color:#64748b">Phone<input id="ntp-phone" type="tel" placeholder="Phone" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
+          <label style="font-size:.85rem;color:#64748b">Email<input id="ntp-email" type="email" placeholder="Email (optional)" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
+          <div><span style="font-size:.85rem;color:#64748b">Vehicle</span><div id="ntp-veh-type"></div><div style="display:flex;gap:8px;margin-top:4px"><select id="ntp-year" style="flex:1;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></select><select id="ntp-make" style="flex:1;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></select><select id="ntp-model" style="flex:1;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></select></div></div>
+          <label style="font-size:.85rem;color:#64748b">VIN<input id="ntp-vin" maxlength="17" placeholder="VIN" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;text-transform:uppercase"></label>
+          <label style="font-size:.85rem;color:#64748b">Mileage<input id="ntp-mileage" type="number" min="0" placeholder="Mileage" inputmode="numeric" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+          <button class="primary" type="button" id="ntp-next">Next →</button>
+          <button type="button" class="ghost" id="ntp-blank">Skip — start blank</button>
+          <button type="button" class="ghost" id="ntp-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
     <p class="muted">Upcoming jobs, soonest first. Booked jobs show up here automatically; add anything you set up by phone below.</p>
     <form id="cal-form">
       <div class="row">
@@ -323,7 +345,7 @@
       <details>
         <summary>Create a ticket</summary>
         <div class="help-body"><ol>
-          <li>Open the Tickets tab and tap Create new ticket. The ticket page opens as the branded document your customer will see.</li>
+          <li>Open the Tickets tab and tap Create new ticket. Enter the customer and vehicle, tap Next, and the ticket opens with them filled in (or Skip to start blank). The ticket page opens as the branded document your customer will see.</li>
           <li>Type straight into the document: customer name, phone number, email if you have it, job address and its type, access code if there is one, vehicle, VIN if you have it, and mileage.</li>
           <li>Add each job as a main line, with its parts lines and its labor line underneath. The job line totals its parts and labor automatically. A labor line is hours times your labor rate.</li>
           <li>Add a tax rate and any mobile expenses and supplies.</li>
@@ -436,6 +458,7 @@
 </main>
 <script src="/city-autocomplete.js"></script>
 <script src="/phone-format.js"></script>
+<script src="/vehicle-picker.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -1040,6 +1063,7 @@ async function loadProfile() {
     const b = d.business;
     window._bizName = b.name;
     window._bizId = b.id;
+    window._biz = b;
     if (b.logoUrl) { const lg = $('hello-logo'); lg.src = b.logoUrl; lg.hidden = false; }
     $('hello').textContent = b.name;
     $('b-name').value = b.name; $('b-city').value = b.city; $('b-state').value = b.state;
@@ -1285,7 +1309,40 @@ $('g-upload').onclick = async () => {
 /* ---------- Tickets ---------- */
 // Creating a ticket opens its own branded page, and the
 // mechanic types straight into the document the customer will see.
-$('t-new').onclick = () => { location.href = '/ticket?new=1'; };
+// From scratch, the mechanic enters the customer and vehicle first:
+// the prompt fills the ticket the same way a lead does, and anything
+// on the ticket can still be changed after it opens.
+let _ntpVeh = null;
+const showNewTicketPrompt = () => {
+  const b = window._biz || {};
+  const logo = $('ntp-logo');
+  if (b.logoUrl) { logo.src = b.logoUrl; logo.style.display = ''; } else logo.style.display = 'none';
+  $('ntp-name').textContent = b.name || '';
+  $('ntp-sub').textContent = [b.city, b.state].filter(Boolean).join(', ') + (b.phone ? ' · ' + b.phone : '');
+  if (!_ntpVeh && window.VehiclePicker) _ntpVeh = VehiclePicker.attach({ year: 'ntp-year', make: 'ntp-make', model: 'ntp-model', type: 'ntp-veh-type' });
+  if (window.PhoneFmt && !window._ntpPhoneFmt) { window.PhoneFmt.attach($('ntp-phone')); window._ntpPhoneFmt = true; }
+  $('new-ticket-prompt').style.display = 'flex';
+};
+const hideNewTicketPrompt = () => { $('new-ticket-prompt').style.display = 'none'; };
+$('t-new').onclick = showNewTicketPrompt;
+$('ntp-cancel').onclick = hideNewTicketPrompt;
+$('ntp-blank').onclick = () => { location.href = '/ticket?new=1'; };
+$('ntp-next').onclick = () => {
+  const q = new URLSearchParams();
+  const cust = $('ntp-customer').value.trim();
+  if (cust) q.set('customer', cust);
+  const ph = $('ntp-phone').value.trim();
+  if (ph) q.set('phone', ph);
+  const em = $('ntp-email').value.trim();
+  if (em) q.set('email', em);
+  const veh = _ntpVeh ? _ntpVeh.vehicleString() : '';
+  if (veh) q.set('vehicle', veh);
+  const vin = $('ntp-vin').value.trim();
+  if (vin) q.set('vin', vin);
+  const mi = $('ntp-mileage').value;
+  if (mi !== '' && mi != null) q.set('mileage', mi);
+  location.href = '/ticket?new=1&' + q.toString();
+};
 // From a Leads card: open the new-ticket page with this lead's customer
 // name, phone, vehicle, and VIN prefilled. Same pattern as the
 // Customers-tab button; the ticket itself is a standalone estimate, not
