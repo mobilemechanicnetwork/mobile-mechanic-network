@@ -920,7 +920,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/profile' && req.method === 'POST') {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
-      const { name, phone } = await parseBody(req);
+      const { name, phone, email } = await parseBody(req);
       const users = usersStore.read();
       const row = users.find(u => u.id === user.id);
       if (!row) return sendJson(res, 404, { error: 'Not found.' });
@@ -929,6 +929,12 @@ const server = http.createServer(async (req, res) => {
         const e164 = normalizePhone(phone);
         if (!e164) return sendJson(res, 400, { error: 'A valid 10-digit US phone number is required.' });
         row.phone = e164;
+      
+      if (email !== undefined) {
+        const next = String(email || '').trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next)) return sendJson(res, 400, { error: 'Enter a valid email address.' });
+        if (next !== row.email && users.some(u => u.id !== row.id && u.email === next)) return sendJson(res, 409, { error: 'An account with this email already exists.' });
+        row.email = next;
       }
       usersStore.write(users);
       return sendJson(res, 200, { user: publicUser(row) });
