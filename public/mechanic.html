@@ -471,8 +471,6 @@
           <label style="font-size:.85rem;color:#64748b">Phone<input id="ntp-phone" type="tel" placeholder="Phone" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
           <label style="font-size:.85rem;color:#64748b">Email<input id="ntp-email" type="email" placeholder="Email (optional)" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
           <div><span style="font-size:.85rem;color:#64748b">Vehicle</span><div id="ntp-veh-type"></div><div style="display:flex;gap:8px;margin-top:4px"><select id="ntp-year" style="flex:1;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></select><select id="ntp-make" style="flex:1;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></select><select id="ntp-model" style="flex:1;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></select></div></div>
-          <label style="font-size:.85rem;color:#64748b">VIN<input id="ntp-vin" maxlength="17" placeholder="VIN" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;text-transform:uppercase"></label>
-          <label style="font-size:.85rem;color:#64748b">Mileage<input id="ntp-mileage" type="number" min="0" placeholder="Mileage" inputmode="numeric" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
         </div>
         <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
           <button class="primary" type="button" id="ntp-next">Next →</button>
@@ -1392,10 +1390,9 @@ $('ntp-next').onclick = () => {
   if (vehEx && vehEx.engine) q.set('engine', vehEx.engine);
   if (vehEx && vehEx.transmission) q.set('transmission', vehEx.transmission);
   if (vehEx && vehEx.drivetrain) q.set('drivetrain', vehEx.drivetrain);
-  const vin = $('ntp-vin').value.trim();
-  if (vin) q.set('vin', vin);
-  const mi = $('ntp-mileage').value;
-  if (mi !== '' && mi != null) q.set('mileage', mi);
+  // No VIN or mileage here: the mechanic adds them on the ticket
+  // itself once it is created (the ticket's VIN and Mileage lines
+  // show an Add hint when empty).
   location.href = '/ticket?new=1&' + q.toString();
 };
 // From a Leads card: open the new-ticket page with this lead's customer
