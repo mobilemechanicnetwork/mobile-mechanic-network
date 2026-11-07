@@ -53,6 +53,12 @@
     </div>
     <label for="vin">VIN (optional, 17 characters)</label>
     <input id="vin" maxlength="17" placeholder="e.g. 1HGCM82633A004352" style="text-transform:uppercase">
+    <div id="r-loc-confirm" hidden style="border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#ffffff">
+      <div style="font-weight:700">Job location</div>
+      <div class="muted" id="r-loc-confirm-text"></div>
+      <button type="button" class="ghost" id="r-loc-change-btn" style="margin-top:8px">Change location</button>
+    </div>
+    <div id="r-loc-edit">
     <label for="vehicle-location">Street address of the vehicle</label>
     <input id="vehicle-location" required placeholder="e.g. 123 Main St" autocomplete="street-address">
     <label style="display:block;margin-top:6px"><input type="checkbox" id="vehicle-contact-loc" onchange="toggleReqContact(this)"> Contact me for the exact location</label>
@@ -64,14 +70,22 @@
     <input id="state" required maxlength="2">
     <label for="zip">ZIP code (optional)</label>
     <input id="zip" inputmode="numeric" maxlength="10" placeholder="e.g. 70460">
+    </div>
     <label for="description" id="description-label">What is going on with the vehicle?</label>
     <textarea id="description" rows="4" required></textarea>
     <label for="date">When do you need it? (optional)</label>
     <input id="date" type="date">
+    <div id="r-info-confirm" hidden style="border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#ffffff">
+      <div style="font-weight:700">Requesting as</div>
+      <div class="muted" id="r-info-confirm-text"></div>
+      <button type="button" class="ghost" id="r-info-edit-btn" style="margin-top:8px">Edit name or phone</button>
+    </div>
     <div id="guest-name-row" hidden><label for="guest-name">Your name</label>
     <input id="guest-name" autocomplete="name"></div>
+    <div id="r-phone-edit">
     <label for="phone">Phone number (mechanics reach you here)</label>
     <input id="phone" type="tel" required autocomplete="tel">
+    </div>
     <button type="submit">Send request</button>
     <div class="err" id="err"></div>
     <div class="ok" id="ok"></div>
@@ -101,6 +115,16 @@
     sel.appendChild(prompt);
     d.services.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
     if (me.user.phone) document.getElementById('phone').value = window.PhoneFmt ? window.PhoneFmt.display(me.user.phone) : me.user.phone;
+    // Signed in: your name and phone are already filled in, so show
+    // them as a confirmation instead of a field to re-type. Edit reveals
+    // the phone field; the value stays in the input either way.
+    if (me.user && document.getElementById('phone').value) {
+      const who = [me.user.name, document.getElementById('phone').value].filter(Boolean).join(' · ');
+      document.getElementById('r-info-confirm-text').textContent = who;
+      document.getElementById('r-info-confirm').hidden = false;
+      document.getElementById('r-phone-edit').hidden = true;
+      document.getElementById('r-info-edit-btn').onclick = () => { document.getElementById('r-info-confirm').hidden = true; document.getElementById('r-phone-edit').hidden = false; };
+    }
     const qp = new URLSearchParams(location.search);
     let pre = {};
     try { pre = JSON.parse(sessionStorage.getItem('mmn_find') || '{}'); } catch (e) {}
@@ -202,6 +226,45 @@
       // vehicle (from find or a link) keeps the manual tabs visible.
       const preVeh = get('vehicle') || (pre && pre.vehicle);
       if ((!window._reqVeh || !window._reqVeh.get()) && !preVeh) document.getElementById('v-vehicle-manual').hidden = true;
+    }
+    // Job location is a confirmation, not a blank form. Use the location
+    // already on the form (carried over from find or a link) if there is
+    // one; otherwise fall back to your most recent request. No saved
+    // location means the form stays open. Change reveals the fields,
+    // already filled in, so you can correct them.
+    if (me.user) {
+      const showLocConfirm = () => {
+        const contact = document.getElementById('vehicle-contact-loc').checked;
+        const city = document.getElementById('city').value.trim();
+        const state = document.getElementById('state').value.trim();
+        const street = document.getElementById('vehicle-location').value.trim();
+        if (!city || !state || (!contact && !street)) return false;
+        const typeName = { house: 'House', work: 'Work', business: 'Business' }[document.getElementById('vehicle-loctype').value] || '';
+        const place = contact ? 'Contact me for the exact location' : street;
+        const zip = document.getElementById('zip').value.trim();
+        document.getElementById('r-loc-confirm-text').textContent = [place, [city, state].filter(Boolean).join(', ') + (zip ? ' ' + zip : ''), typeName].filter(Boolean).join(' · ');
+        document.getElementById('r-loc-confirm').hidden = false;
+        document.getElementById('r-loc-edit').hidden = true;
+        document.getElementById('r-loc-change-btn').onclick = () => { document.getElementById('r-loc-confirm').hidden = true; document.getElementById('r-loc-edit').hidden = false; };
+        return true;
+      };
+      if (!showLocConfirm()) {
+        try {
+          const mine = await (await fetch('/api/requests/mine')).json().catch(() => ({}));
+          const last = (mine.requests || []).filter(r => r.vehicleLocation && r.city && r.state).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
+          if (last) {
+            const contact = String(last.vehicleLocation || '').toLowerCase().includes('contact for exact location');
+            document.getElementById('vehicle-contact-loc').checked = contact;
+            if (contact) { document.getElementById('vehicle-location').value = ''; document.getElementById('vehicle-location').disabled = true; }
+            else document.getElementById('vehicle-location').value = last.vehicleLocation || '';
+            if (last.vehicleLocationType) document.getElementById('vehicle-loctype').value = last.vehicleLocationType;
+            document.getElementById('city').value = last.city || '';
+            document.getElementById('state').value = last.state || '';
+            document.getElementById('zip').value = last.zip || '';
+            showLocConfirm();
+          }
+        } catch (e) {}
+      }
     }
   })();
   function toggleReqContact(cb) { const inp = document.getElementById('vehicle-location'); if (cb.checked) { inp.value = ''; inp.disabled = true; } else inp.disabled = false; }

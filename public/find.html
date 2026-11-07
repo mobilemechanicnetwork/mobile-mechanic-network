@@ -41,10 +41,29 @@
     <h1>Find a mobile mechanic</h1>
     <p class="muted">Tell us what you need. We'll show you independent mobile mechanics in your area.</p>
     <form id="find-form" novalidate>
+      <div id="f-info-confirm" hidden style="border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#ffffff">
+        <div style="font-weight:700">Requesting as</div>
+        <div class="muted" id="f-info-confirm-text"></div>
+        <button type="button" class="ghost" id="f-info-edit-btn" style="margin-top:8px">Edit name or phone</button>
+      </div>
+      <div id="f-info-edit">
       <label for="f-name">Your name</label>
       <input id="f-name" autocomplete="name" required>
       <label for="f-phone">Phone number <span class="muted">(mechanics reach you here)</span></label>
       <input id="f-phone" type="tel" autocomplete="tel" required>
+      </div>
+      <div id="f-garage-row" hidden><label for="f-garage-select">Your garage</label><select id="f-garage-select"></select></div>
+      <label id="f-vehicle-label">Vehicle (year, make, model)</label>
+      <div id="f-vehicle-manual">
+      <div id="f-type"></div>
+      <div class="row"><div><label for="f-year">Year</label><select id="f-year"></select></div><div><label for="f-make">Make</label><select id="f-make"></select></div><div><label for="f-model">Model</label><select id="f-model"></select></div></div>
+      </div>
+      <div id="f-loc-confirm" hidden style="border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#ffffff">
+        <div style="font-weight:700">Job location</div>
+        <div class="muted" id="f-loc-confirm-text"></div>
+        <button type="button" class="ghost" id="f-loc-change-btn" style="margin-top:8px">Change location</button>
+      </div>
+      <div id="f-loc-edit">
       <label for="f-location">Street address of the vehicle</label>
       <input id="f-location" required placeholder="e.g. 123 Main St" autocomplete="street-address">
       <label style="display:block;margin-top:6px"><input type="checkbox" id="f-contact-loc" onchange="toggleFindContact(this)"> Contact me for the exact location</label>
@@ -55,11 +74,6 @@
         <div><label for="f-state">State</label><input id="f-state" required maxlength="2"></div>
         <div><label for="f-zip">ZIP <span class="muted">(optional)</span></label><input id="f-zip" inputmode="numeric" maxlength="10" placeholder="e.g. 70460"></div>
       </div>
-      <div id="f-garage-row" hidden><label for="f-garage-select">Your garage</label><select id="f-garage-select"></select></div>
-      <label id="f-vehicle-label">Vehicle (year, make, model)</label>
-      <div id="f-vehicle-manual">
-      <div id="f-type"></div>
-      <div class="row"><div><label for="f-year">Year</label><select id="f-year"></select></div><div><label for="f-make">Make</label><select id="f-make"></select></div><div><label for="f-model">Model</label><select id="f-model"></select></div></div>
       </div>
       <label for="f-service">Service needed</label>
       <select id="f-service" required></select>
@@ -154,6 +168,15 @@ const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABE
     if (me2.user) {
       if (me2.user.name && !$('f-name').value) $('f-name').value = me2.user.name;
       if (me2.user.phone && !$('f-phone').value) $('f-phone').value = window.PhoneFmt ? window.PhoneFmt.display(me2.user.phone) : me2.user.phone;
+      // Signed in: your name and phone are already filled in, so show
+      // them as a confirmation instead of fields to re-type. Edit reveals
+      // the fields; the values stay in the inputs either way.
+      if ($('f-name').value || $('f-phone').value) {
+        $('f-info-confirm-text').textContent = [$('f-name').value, $('f-phone').value].filter(Boolean).join(' · ');
+        $('f-info-confirm').hidden = false;
+        $('f-info-edit').hidden = true;
+        $('f-info-edit-btn').onclick = () => { $('f-info-confirm').hidden = true; $('f-info-edit').hidden = false; };
+      }
       const v = await (await fetch('/api/vehicles/me')).json().catch(() => ({}));
       if (v.vehicles && v.vehicles.length) {
         const sel = $('f-garage-select');
@@ -191,6 +214,30 @@ const socialLinks = soc => { soc = soc || {}; const links = Object.keys(SOC_LABE
         $('f-vehicle-manual').hidden = true;
         $('f-vehicle-label').hidden = true;
       }
+      // Job location is a confirmation, not a blank form: prefill it from
+      // your most recent request and let you confirm it. Change reveals
+      // the address fields, already filled in, so you can correct them.
+      // No past request means no saved location, so the form stays open.
+      try {
+        const mine = await (await fetch('/api/requests/mine')).json().catch(() => ({}));
+        const last = (mine.requests || []).filter(r => r.vehicleLocation && r.city && r.state).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
+        if (last) {
+          const contact = String(last.vehicleLocation || '').toLowerCase().includes('contact for exact location');
+          $('f-contact-loc').checked = contact;
+          if (contact) { $('f-location').value = ''; $('f-location').disabled = true; }
+          else $('f-location').value = last.vehicleLocation || '';
+          if (last.vehicleLocationType) $('f-loctype').value = last.vehicleLocationType;
+          $('f-city').value = last.city || '';
+          $('f-state').value = last.state || '';
+          $('f-zip').value = last.zip || '';
+          const typeName = { house: 'House', work: 'Work', business: 'Business' }[last.vehicleLocationType] || '';
+          const place = contact ? 'Contact me for the exact location' : (last.vehicleLocation || '');
+          $('f-loc-confirm-text').textContent = [place, [last.city, last.state].filter(Boolean).join(', ') + (last.zip ? ' ' + last.zip : ''), typeName].filter(Boolean).join(' · ');
+          $('f-loc-confirm').hidden = false;
+          $('f-loc-edit').hidden = true;
+          $('f-loc-change-btn').onclick = () => { $('f-loc-confirm').hidden = true; $('f-loc-edit').hidden = false; };
+        }
+      } catch (e) {}
     }
   } catch (e) {}
 })();
