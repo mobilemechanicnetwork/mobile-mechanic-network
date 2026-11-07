@@ -1959,6 +1959,20 @@ const server = http.createServer(async (req, res) => {
       if (changed) notificationsStore.write(notes);
       return sendJson(res, 200, { ok: true });
     }
+    // Mark one notification read (opening it). The mark-all endpoint above
+    // is for the Mark all read button; opening a single notification should
+    // clear only that one, not every unread notification.
+    const mNotifRead = p.match(/^\/api\/notifications\/([0-9a-f-]+)\/read$/);
+    if (mNotifRead && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (!['mechanic', 'owner'].includes(user.role)) return sendJson(res, 403, { error: 'Not allowed.' });
+      const notes = notificationsStore.read();
+      const n = notes.find(x => x.id === mNotifRead[1] && x.userId === user.id);
+      if (!n) return sendJson(res, 404, { error: 'Notification not found.' });
+      if (!n.read) { n.read = true; notificationsStore.write(notes); }
+      return sendJson(res, 200, { ok: true });
+    }
     if (p === '/api/notifications/clear' && req.method === 'POST') {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });

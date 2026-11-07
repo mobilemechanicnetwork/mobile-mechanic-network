@@ -262,11 +262,18 @@ const capName = s => String(s == null ? '' : s).trim().replace(/\S+/g, w => w.ch
         const line1 = [n.service, n.vehicle].filter(Boolean).map(esc).join(' · ');
         const line2 = [(n.total != null ? '$' + Number(n.total).toFixed(2) : ''), new Date(n.createdAt).toLocaleDateString()].filter(Boolean).join(' · ');
         const hasJob = n.requestId || n.ticketId;
-        return `<div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:10px"><div style="display:flex;gap:8px;align-items:flex-start">${n.read ? '' : '<span style="flex:none;width:8px;height:8px;border-radius:50%;background:#2563eb;margin-top:6px"></span>'}<div style="flex:1;min-width:0"><strong>${esc(n.title)}</strong>${line1 ? `<div class="muted">${line1}</div>` : ''}${line2 ? `<div class="muted">${line2}</div>` : ''}</div></div>${hasJob ? `<button type="button" class="ghost" style="width:100%;margin-top:10px" onclick="viewOwnerJob('${n.requestId || ''}', '${n.ticketId || ''}')">View job →</button>` : ''}</div>`;
+        return `<div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:10px"><div style="display:flex;gap:8px;align-items:flex-start">${n.read ? '' : '<span style="flex:none;width:8px;height:8px;border-radius:50%;background:#2563eb;margin-top:6px"></span>'}<div style="flex:1;min-width:0"><strong>${esc(n.title)}</strong>${line1 ? `<div class="muted">${line1}</div>` : ''}${line2 ? `<div class="muted">${line2}</div>` : ''}</div></div>${hasJob ? `<button type="button" class="ghost" style="width:100%;margin-top:10px" onclick="viewOwnerJob('${n.id}', '${n.requestId || ''}', '${n.ticketId || ''}')">View job →</button>` : ''}</div>`;
       }).join('') : '<p class="muted">No notifications yet. New quotes, estimates, and tickets from your mechanics will show up here.</p>';
     } catch (e) { $('notif-list').innerHTML = '<p class="muted">Notifications could not be loaded.</p>'; }
   }
-  window.viewOwnerJob = (requestId, ticketId) => {
+  window.viewOwnerJob = async (notifId, requestId, ticketId) => {
+    // Opening a notification marks that one read, so its dot clears and
+    // the badge drops by one. It used to mark nothing, so an opened
+    // notification stayed unread. Only the one opened is marked, not
+    // every unread notification.
+    if (notifId) {
+      try { await post('/api/notifications/' + notifId + '/read', {}); await loadOwnerNotifications(); } catch (e) {}
+    }
     // A job with a ticket opens the ticket; anything else opens the tab
     // the job lives on first (paid jobs are in Repair history, unpaid in
     // Open Jobs), then scrolls to the job's own card, expanding it first
