@@ -988,7 +988,7 @@ window.textCustomer = (rid) => {
   if (!r) return;
   const bizName = window._bizName || 'your mobile mechanic';
   const ownerName = (r.ownerName || '').trim();
-  const msg = `Hi${ownerName ? ' ' + ownerName : ''}, this is ${bizName} with Mobile Mechanic Network. I got your request for ${r.service} (${r.vehicle}) — a couple of quick questions before I put your quote together.`;
+  const msg = `Hi${ownerName ? ' ' + ownerName : ''}, this is ${bizName} with Mobile Mechanic Network. I got your request for ${r.service}${r.vehicle ? ' on your ' + r.vehicle : ''}.`;
   const phone = String(r.phone || '').replace(/[^+\d]/g, '');
   if (!phone) { alert('No phone number on this request.'); return; }
   window.location.href = `sms:${phone}?body=${encodeURIComponent(msg)}`;
