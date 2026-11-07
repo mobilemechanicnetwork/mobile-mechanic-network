@@ -306,18 +306,17 @@
         <div class="help-body"><ol>
           <li>Leads is your home tab. It opens every time you sign in.</li>
           <li>New requests land here first. Call or text the customer from the card if you need more detail before pricing the job.</li>
-          <li>Tap Build quote when you are ready to price it, or Create a ticket to open a ticket with the customer's details filled in.</li>
+          <li>Tap Create a ticket when you are ready to price it: it opens a ticket with the customer's details filled in.</li>
           <li>The Today tab still holds your appointments, open jobs, and notifications.</li>
         </ol></div>
       </details>
       <details>
-        <summary>Quote a request</summary>
+        <summary>Create a ticket for a request</summary>
         <div class="help-body"><ol>
           <li>Open the Leads tab and find the request card. Cards marked Urgent or Sent directly to you stand out.</li>
           <li>Call or text the customer from the card first if you need more detail before pricing the job.</li>
-          <li>Tap Build quote and fill in your price and warranty on the card's quote builder.</li>
-          <li>Your draft saves automatically as you type, so you can finish it later from any device.</li>
-          <li>Tap Send quote. The customer is notified and can accept, decline, or decide on each line.</li>
+          <li>Tap Create a ticket. It opens a new ticket with the customer's name, phone, vehicle, and VIN filled in.</li>
+          <li>Build the job on the ticket, then send it to the customer from the ticket page. The customer can approve the estimate there, or you can record their approval by phone.</li>
           <li>Under a pending quote you will also see Text quote from my phone, which opens the quote in your phone's texting app.</li>
         </ol></div>
       </details>
@@ -592,18 +591,8 @@ function renderInbox() {
     <p>${esc(r.description)}</p>
     ${historyBlock(r)}
     ${r.myQuote ? (r.myQuote.status === 'declined' ? `<p>You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (<span style="color:#dc2626;font-weight:700">denied</span>).</p><p><a href="/quote?id=${r.myQuote.id}" target="_blank">View quote →</a></p>` : `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p><p><a href="/quote?id=${r.myQuote.id}" target="_blank">View quote →</a>${r.myQuote.status === 'pending' ? ` <button type="button" class="ghost" onclick="textQuote('${r.id}')">Text quote from my phone</button>` : ''}</p>`) : `
-    <p style="margin:12px 0 0"><button type="button" class="primary" id="qb-btn-${r.id}" onclick="showQuoteBuilder('${r.id}')">Build quote</button> <button type="button" class="ghost" onclick="createTicketForLead('${r.id}')">Create a ticket</button></p>
-    <div id="qb-${r.id}" hidden>
-      <p style="margin:8px 0 4px"><strong>Build your itemized quote</strong> <span class="muted">— sent under your business name</span></p>
-      <div id="qi-${r.id}"></div>
-      <p style="margin:6px 0"><button type="button" class="ghost" onclick="addQuoteRow('${r.id}')">+ Add line item</button></p>
-      <label>Notes (optional)</label><input id="qn-${r.id}" placeholder="e.g. Parts are OEM, labor includes diagnostic">
-      <p style="margin:8px 0"><strong>Total: $<span id="qt-${r.id}">0.00</span></strong></p>
-      <p><button class="primary" type="button" onclick="sendItemizedQuote('${r.id}')">Send quote</button></p>
-    </div>`}
+    <p style="margin:12px 0 0"><button type="button" class="primary" onclick="createTicketForLead('${r.id}')">Create a ticket</button></p>`}
   </div>`).join('');
-  reqList.forEach(r => { if (!r.myQuote) { addQuoteRow(r.id); const qn = document.getElementById('qn-' + r.id); if (qn) qn.oninput = () => saveQuoteDraft(r.id); } });
-  restoreQuoteDrafts();
 }
 
 /* ---------- Calendar: upcoming jobs list ---------- */
@@ -1005,14 +994,6 @@ window.textCustomer = (rid) => {
   if (!phone) { alert('No phone number on this request.'); return; }
   window.location.href = `sms:${phone}?body=${encodeURIComponent(msg)}`;
 };
-// The quote builder stays hidden until the mechanic is ready to price the
-// job, so a new lead reads as contact first, quote second.
-window.showQuoteBuilder = (rid) => {
-  const el = document.getElementById('qb-' + rid);
-  if (el) el.hidden = false;
-  const b = document.getElementById('qb-btn-' + rid);
-  if (b) b.hidden = true;
-};
 window.textQuote = (rid) => {
   const r = (window._inboxRequests || []).find(x => x.id === rid);
   if (!r || !r.myQuote) return;
@@ -1045,90 +1026,6 @@ window.bookedToTicket = async (bid) => {
     window.scrollTo(0, 0);
   } catch (e) { alert(e.message); }
 };
-window.addQuoteRow = (rid) => {
-  const wrap = document.getElementById('qi-' + rid);
-  if (!wrap) return;
-  const row = document.createElement('div');
-  row.style.cssText = 'display:flex;gap:8px;margin:6px 0';
-  row.innerHTML = `<input placeholder="Description (e.g. Brake pads — parts)" style="flex:2" aria-label="Line item description"><input type="number" min="0.01" step="0.01" placeholder="$" style="flex:1;max-width:110px" aria-label="Line item amount"><button type="button" class="ghost" aria-label="Remove line item">✕</button>`;
-  const ins = row.querySelectorAll('input');
-  ins.forEach(i => i.oninput = () => { updateQuoteTotal(rid); saveQuoteDraft(rid); });
-  row.querySelector('button').onclick = () => { row.remove(); updateQuoteTotal(rid); saveQuoteDraft(rid); };
-  wrap.appendChild(row);
-};
-const quoteDraftKey = rid => 'mmn-quote-draft-' + rid;
-function readQuoteForm(rid) {
-  const wrap = document.getElementById('qi-' + rid); if (!wrap) return null;
-  const items = [...wrap.children].map(row => { const ins = row.querySelectorAll('input'); return { desc: ins[0].value, amount: ins[1].value }; });
-  const notesEl = document.getElementById('qn-' + rid);
-  return { items, notes: notesEl ? notesEl.value : '' };
-}
-window._draftTimers = {};
-async function syncQuoteDraft(rid) {
-  const data = readQuoteForm(rid); if (!data) return;
-  try { await api('/api/quote-drafts/' + rid, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); } catch (e) {}
-}
-window.saveQuoteDraft = (rid) => {
-  const data = readQuoteForm(rid); if (!data) return;
-  const hasContent = (data.notes || '').trim() || data.items.some(i => (i.desc || '').trim() || i.amount);
-  try { if (hasContent) localStorage.setItem(quoteDraftKey(rid), JSON.stringify({ items: data.items, notes: data.notes, at: Date.now() })); else localStorage.removeItem(quoteDraftKey(rid)); } catch (e) {}
-  // Sync to the server (debounced) so the draft follows the mechanic to
-  // any device. The local copy stays as the instant/offline fallback.
-  try {
-    clearTimeout(window._draftTimers[rid]);
-    window._draftTimers[rid] = setTimeout(() => { window._draftTimers[rid] = null; syncQuoteDraft(rid); }, 600);
-  } catch (e) {}
-};
-// Flush any pending sync if the tab closes before the debounce fires.
-window.addEventListener('pagehide', () => {
-  Object.keys(window._draftTimers || {}).forEach(rid => {
-    if (!window._draftTimers[rid]) return;
-    clearTimeout(window._draftTimers[rid]); window._draftTimers[rid] = null;
-    const data = readQuoteForm(rid); if (!data) return;
-    try { fetch('/api/quote-drafts/' + rid, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: true }); } catch (e) {}
-  });
-});
-function restoreQuoteDrafts() {
-  // Prune drafts for requests that no longer have an open quote form,
-  // but only restore into cards actually on screen (search may hide some).
-  const live = new Set((window._inboxRequests || []).filter(r => !r.myQuote).map(r => r.id));
-  try { const keys = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('mmn-quote-draft-')) keys.push(k); } keys.forEach(k => { if (!live.has(k.replace('mmn-quote-draft-', ''))) localStorage.removeItem(k); }); } catch (e) {}
-  (window._renderedRequests || []).filter(r => !r.myQuote).forEach(r => {
-    // Newest wins between this device's copy and the server's copy, so a
-    // draft started on another device shows up here, and a just-typed
-    // local draft is pushed up instead of being overwritten.
-    let data = null; let dataAt = 0;
-    try { const l = JSON.parse(localStorage.getItem(quoteDraftKey(r.id)) || 'null'); if (l) { data = l; dataAt = l.at || 0; } } catch (e) {}
-    const s = (window._serverDrafts || {})[r.id];
-    const sAt = s ? new Date(s.updatedAt).getTime() || 0 : 0;
-    if (s && sAt >= dataAt) { data = { items: s.items || [], notes: s.notes || '' }; dataAt = sAt; try { localStorage.setItem(quoteDraftKey(r.id), JSON.stringify({ items: data.items, notes: data.notes, at: sAt })); } catch (e) {} }
-    else if (s && data && dataAt > sAt) { syncQuoteDraft(r.id); }
-    if (!data) return;
-    const wrap = document.getElementById('qi-' + r.id); if (!wrap) return;
-    wrap.innerHTML = '';
-    (data.items && data.items.length ? data.items : [{}]).forEach(it => { addQuoteRow(r.id); const row = wrap.lastElementChild; const ins = row.querySelectorAll('input'); ins[0].value = it.desc || ''; ins[1].value = it.amount || ''; });
-    const notesEl = document.getElementById('qn-' + r.id); if (notesEl) notesEl.value = data.notes || '';
-    updateQuoteTotal(r.id);
-    // A saved draft means the mechanic already started pricing, so the
-    // builder opens on its own instead of hiding behind the button.
-    showQuoteBuilder(r.id);
-  });
-}
-window.updateQuoteTotal = (rid) => {
-  let t = 0;
-  document.querySelectorAll('#qi-' + rid + ' input[type="number"]').forEach(i => { t += Number(i.value) || 0; });
-  document.getElementById('qt-' + rid).textContent = t.toFixed(2);
-};
-window.sendItemizedQuote = async (rid) => {
-  const items = [];
-  document.querySelectorAll('#qi-' + rid + ' > div').forEach(row => {
-    const ins = row.querySelectorAll('input');
-    items.push({ desc: ins[0].value, amount: ins[1].value });
-  });
-  try { await post('/api/quotes', { requestId: rid, items, notes: document.getElementById('qn-' + rid).value }); try { localStorage.removeItem(quoteDraftKey(rid)); } catch (e) {} try { await api('/api/quote-drafts/' + rid, { method: 'DELETE' }); } catch (e) {} loadInbox(); }
-  catch (e) { alert(e.message); }
-};
-
 /* ---------- Business profile ---------- */
 async function loadProfile() {
   const d = await api('/api/business/me');
