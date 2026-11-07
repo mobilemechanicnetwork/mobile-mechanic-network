@@ -1418,19 +1418,14 @@ async function renderNewTicket() {
     try { const ib = await (await fetch('/api/requests/inbox')).json(); const bk = (ib.booked || []).find(x => x.ticketId === T.id); window._pendingFu = !!(bk && bk.pendingFollowUp); } catch (e) { window._pendingFu = false; }
     const t = T, b = B;
     const isNew = t.items && t.items.length && t.items[0].qty !== undefined;
-    const lineDetailText = i => {
-      const bits = [];
-      if (Number(i.hours) > 0) bits.push(Number(i.hours) + ' hr' + (Number(i.hours) === 1 ? '' : 's'));
-      if (Number(i.parts) > 0) bits.push(Number(i.parts) + ' part' + (Number(i.parts) === 1 ? '' : 's'));
-      return bits.join(' · ');
-    };
-    const lineDetail = i => { const tx = lineDetailText(i); return tx ? `<div class="muted" style="font-size:.85rem">${tx}</div>` : ''; };
-    // Invoices: the line's own row carries editable hours/parts inputs
-    // (screen only; print shows the plain text instead).
-    const cellDetail = (i, idx) => {
-      if (t.type !== 'invoice') return lineDetail(i);
-      return `<div class="noprint" style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><label style="font-size:.8rem;color:#64748b">Labor <input data-whours="${idx}" type="number" step="any" min="0" value="${i.hours || ''}" style="width:70px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:6px"> hrs</label><label style="font-size:.8rem;color:#64748b">Parts <input data-wparts="${idx}" type="number" step="any" min="0" value="${i.parts || ''}" style="width:60px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:6px"></label></div><div class="wdetail-text" id="wdetail-text-${idx}" style="font-size:.85rem;color:#64748b">${lineDetailText(i)}</div>`;
-    };
+    // The per-line labor-hours / parts-used detail is not shown on the
+    // ticket document: a flat line is a single fee, and the grouped
+    // jobs already break their parts and labor out into child lines.
+    // (The inputs and the "1 hr · 120 parts" text used to sit under
+    // flat lines like an inspection; Brandon said they are not needed
+    // there.) The fields still exist on the line for data entry, but
+    // nothing on the document renders them.
+    const cellDetail = (i, idx) => '';
     const groupRows = (i, idx) => {
       const hasKids = (i.partLines && i.partLines.length) || i.laborLine;
       if (!hasKids) return `<tr><td>${esc(i.desc)}${cellDetail(i, idx)}</td><td class="num">${esc(i.qty)}</td><td class="num">${money(i.price)}</td><td class="num">${money(i.qty * i.price)}</td></tr>`;
