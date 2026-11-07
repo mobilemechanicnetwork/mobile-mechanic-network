@@ -388,7 +388,8 @@ function ticketFromAcceptedQuote(quote, row) {
   const subtotal = r2(items.reduce((s, it) => s + it.qty * it.price, 0));
   const biz = businessesStore.read().find(b => b.id === quote.businessId);
   const number = nextTicketNumber(quote.businessId);
-  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', number, label: businessAbbrev(biz ? biz.name : '') + '-' + number, customerName: capName(row.ownerName), vehicle: row.vehicle || '', vin: row.vin || '', mileage: '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, jobAddress: String(row.vehicleLocation || '').slice(0, 200), total: subtotal, createdAt: new Date().toISOString() };
+  const owner = row.ownerId ? usersStore.read().find(u => u.id === row.ownerId) : null;
+  return { id: crypto.randomUUID(), businessId: quote.businessId, mechanicId: quote.mechanicId, type: 'invoice', number, label: businessAbbrev(biz ? biz.name : '') + '-' + number, customerName: capName(row.ownerName), email: owner ? (owner.email || '') : '', vehicle: row.vehicle || '', vin: row.vin || '', mileage: '', items, laborDesc: '', laborAmount: 0, taxRate: 0, subtotal, taxAmount: 0, notes: String(quote.notes || '').slice(0, 1000), warranty: biz && biz.warranty ? String(biz.warranty).slice(0, 2000) : '', requestId: row.id, quoteId: quote.id, jobAddress: String(row.vehicleLocation || '').slice(0, 200), total: subtotal, createdAt: new Date().toISOString() };
 }
 // Normalized lines for per-line quote decisions: the quoted items, or a
 // single synthetic line (service + total) when the quote has no items.
@@ -1317,6 +1318,10 @@ const server = http.createServer(async (req, res) => {
       if (minted) quotesStore.write(quotes);
       const myTickets = ticketsStore.read().filter(t => t.mechanicId === user.id);
       const allRequests = requestsStore.read();
+      const users = usersStore.read();
+      // The owner's account email, when the request came from a signed-in
+      // owner. Guest requests have no email on file, so this is ''.
+      const ownerEmailFor = (ownerId) => { const u = ownerId ? users.find(x => x.id === ownerId) : null; return u ? (u.email || '') : ''; };
       const normName = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
       // Service history with THIS mechanic only, newest first. Platform
       // jobs: this business's accepted quotes, matched by customer phone
@@ -1349,7 +1354,7 @@ const server = http.createServer(async (req, res) => {
       };
       const inbox = allRequests
         .filter(r => r.status === 'open' && requestMatchesBusiness(r, biz))
-        .map(r => { const history = historyFor(r.phone, r.ownerId, r.ownerName, r.id); return { ...r, myQuote: quotes.find(q => q.requestId === r.id && q.businessId === biz.id) || null, history, returning: history.length > 0 }; });
+        .map(r => { const history = historyFor(r.phone, r.ownerId, r.ownerName, r.id); return { ...r, ownerEmail: ownerEmailFor(r.ownerId), myQuote: quotes.find(q => q.requestId === r.id && q.businessId === biz.id) || null, history, returning: history.length > 0 }; });
       const booked = allRequests
         .filter(r => r.status === 'accepted')
         .map(r => {
@@ -1367,7 +1372,7 @@ const server = http.createServer(async (req, res) => {
                ...(jobTicket.taxAmount > 0 ? [{ desc: 'Tax (' + jobTicket.taxRate + '%)', amount: jobTicket.taxAmount }] : []),
                ...(jobTicket.expensesTotal > 0 ? [{ desc: 'Mobile expenses & supplies', amount: jobTicket.expensesTotal }] : [])]
             : (q.items || []).map(it => ({ desc: it.desc, amount: it.amount != null ? it.amount : it.price }));
-          return { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, vehicleLocation: r.vehicleLocation || '', vehicleLocationType: r.vehicleLocationType || '', ownerName: r.ownerName, ownerId: r.ownerId || null, phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, ticketTotal: jobTicket ? jobTicket.total : null, lines, hasTicket: myTickets.some(t => t.requestId === r.id), ticketId: jobTicket ? jobTicket.id : null, address: jobTicket ? (jobTicket.jobAddress || '') : '', paid: myTickets.some(t => t.requestId === r.id && t.type === 'receipt'), pendingFollowUp: quotes.find(q2 => q2.requestId === r.id && q2.businessId === biz.id && q2.status === 'pending' && q2.followUp === true) || null, history, returning: history.length > 0 };
+          return { id: r.id, service: r.service, vehicle: r.vehicle, vin: r.vin || '', description: r.description, city: r.city, state: r.state, vehicleLocation: r.vehicleLocation || '', vehicleLocationType: r.vehicleLocationType || '', ownerName: r.ownerName, ownerId: r.ownerId || null, ownerEmail: ownerEmailFor(r.ownerId), phone: r.phone, date: r.date || '', createdAt: r.createdAt, acceptedTotal: q.total != null ? q.total : q.price, ticketTotal: jobTicket ? jobTicket.total : null, lines, hasTicket: myTickets.some(t => t.requestId === r.id), ticketId: jobTicket ? jobTicket.id : null, address: jobTicket ? (jobTicket.jobAddress || '') : '', paid: myTickets.some(t => t.requestId === r.id && t.type === 'receipt'), pendingFollowUp: quotes.find(q2 => q2.requestId === r.id && q2.businessId === biz.id && q2.status === 'pending' && q2.followUp === true) || null, history, returning: history.length > 0 };
         })
         .filter(Boolean)
         .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));

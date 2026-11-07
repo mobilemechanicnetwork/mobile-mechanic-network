@@ -1296,8 +1296,19 @@ window.createTicketForLead = (rid) => {
   const q = new URLSearchParams();
   if (r.ownerName) q.set('customer', r.ownerName);
   if (r.phone) q.set('phone', r.phone);
+  if (r.ownerEmail) q.set('email', r.ownerEmail);
   if (r.vehicle) q.set('vehicle', r.vehicle);
   if (r.vin) q.set('vin', r.vin);
+  // Job address from the request: the vehicle's location, plus the
+  // customer's city, state, and ZIP. The street is skipped when the
+  // customer asked to be contacted for the exact location instead of
+  // typing one.
+  if (r.vehicleLocation && r.vehicleLocation !== 'contact for exact location') q.set('street', r.vehicleLocation);
+  if (r.city) q.set('city', r.city);
+  if (r.state) q.set('state', r.state);
+  if (r.zip) q.set('zip', r.zip);
+  if (r.vehicleLocationType === 'house') q.set('addrType', 'home');
+  else if (r.vehicleLocationType === 'work' || r.vehicleLocationType === 'business') q.set('addrType', 'business');
   location.href = '/ticket?new=1&' + q.toString();
 };
 // From a Customers card: open the new-ticket page with this customer's

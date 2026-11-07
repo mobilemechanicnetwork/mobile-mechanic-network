@@ -1190,11 +1190,23 @@ async function renderNewTicket() {
   if (preVin) $n('new-vin').value = preVin;
   const preMileage = qp.get('mileage');
   if (preMileage) $n('new-mileage').value = preMileage;
+  // Job address from a lead: street, city, state, and ZIP, so the ticket
+  // opens with the address the customer already gave.
+  const preStreet = qp.get('street');
+  if (preStreet) { $n('new-job-street').value = preStreet; autogrow($n('new-job-street')); }
+  const preCity = qp.get('city');
+  if (preCity) { $n('new-job-city').value = preCity; autogrow($n('new-job-city')); }
+  const preState = qp.get('state');
+  if (preState) $n('new-job-state').value = preState;
+  const preZip = qp.get('zip');
+  if (preZip) $n('new-job-zip').value = preZip;
   if (window.PhoneFmt) { window.PhoneFmt.attach($n('new-cust-phone')); }
   const jobTypeEl = $n('new-job-type');
   const jobNameCell = $n('new-job-name-cell');
   const syncJobName = () => { const type = jobTypeEl.value; const show = type === 'apt' || type === 'business'; jobNameCell.hidden = !show; if (show) { const label = type === 'apt' ? 'Apartment name' : 'Business name'; $n('new-job-name-label').textContent = label; $n('new-job-name').placeholder = label; autogrow($n('new-job-name')); } else { $n('new-job-name').value = ''; } };
   jobTypeEl.addEventListener('change', syncJobName);
+  const preAddrType = qp.get('addrType');
+  if (preAddrType && ['home', 'apt', 'business'].includes(preAddrType)) { jobTypeEl.value = preAddrType; syncJobName(); }
   const linesTable = $n('new-lines-table');
   linesTable.appendChild(newGroupEl());
   $n('new-add-item').onclick = () => { linesTable.appendChild(newGroupEl()); };
