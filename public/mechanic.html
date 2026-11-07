@@ -255,7 +255,7 @@
     <div id="waiting-list"></div>
     </div>
     <p><input id="ticket-search" placeholder="Search tickets by name, vehicle, or ticket number…" style="width:100%;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"></p>
-    <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between"><span id="ticket-chips" style="display:flex;gap:6px;flex-wrap:wrap"></span><select id="ticket-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Newest first</option><option value="oldest">Sort: Oldest first</option><option value="az">Sort: Customer A to Z</option><option value="za">Sort: Customer Z to A</option></select></p>
+    <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between"><span id="ticket-chips" style="display:flex;gap:6px;flex-wrap:wrap"></span><select id="ticket-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Newest first</option><option value="oldest">Sort: Oldest first</option><option value="estfirst">Sort: Estimates first</option><option value="invfirst">Sort: Invoices first</option><option value="az">Sort: Customer A to Z</option><option value="za">Sort: Customer Z to A</option></select></p>
     <div id="ticket-list"></div>
     <h2 style="margin-top:28px">Past inspections</h2>
     <div id="insp-list"></div>
@@ -1606,20 +1606,42 @@ function renderTickets() {
   const filter = window._ticketFilter || 'open';
   const sort = window._ticketSort || 'default';
   const all = (window._tickets || []);
-  const tCounts = { open: all.filter(t => t.type === 'estimate' || t.type === 'invoice').length, estimate: all.filter(t => t.type === 'estimate').length, invoice: all.filter(t => t.type === 'invoice').length, receipt: all.filter(t => t.type === 'receipt').length };
-  $('ticket-chips').innerHTML = [['open', 'Open'], ['estimate', 'Estimates'], ['invoice', 'Active'], ['receipt', 'Completed']].map(([f, label]) => `<button type="button" class="ghost" onclick="setTicketFilter('${f}')" style="${filter === f ? 'background:#2563eb;color:#fff;border-color:#2563eb' : ''}">${label} · ${tCounts[f]}</button>`).join('');
+  const tCounts = { open: all.filter(t => t.type === 'estimate' || t.type === 'invoice').length, receipt: all.filter(t => t.type === 'receipt').length };
+  $('ticket-chips').innerHTML = [['open', 'Open'], ['receipt', 'Completed']].map(([f, label]) => `<button type="button" class="ghost" onclick="setTicketFilter('${f}')" style="${filter === f ? 'background:#2563eb;color:#fff;border-color:#2563eb' : ''}">${label} · ${tCounts[f]}</button>`).join('');
   let list = all.filter(t => !q || (t.customerName || '').toLowerCase().includes(q) || (t.vehicle || '').toLowerCase().includes(q) || (t.label || '').toLowerCase().includes(q) || (t.type || '').includes(q));
   if (filter === 'open') list = list.filter(t => t.type === 'estimate' || t.type === 'invoice');
-  else list = list.filter(t => t.type === filter);
+  else list = list.filter(t => t.type === 'receipt');
   if (sort === 'oldest') list.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
   else if (sort === 'az') list.sort((a, b) => String(a.customerName || '').localeCompare(String(b.customerName || '')));
   else if (sort === 'za') list.sort((a, b) => String(b.customerName || '').localeCompare(String(a.customerName || '')));
+  else if (sort === 'estfirst') list.sort((a, b) => ((a.type === 'estimate' ? 0 : 1) - (b.type === 'estimate' ? 0 : 1)) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  else if (sort === 'invfirst') list.sort((a, b) => ((a.type === 'invoice' ? 0 : 1) - (b.type === 'invoice' ? 0 : 1)) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   else list.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   const ticketBadge = t => t.type === 'estimate'
     ? '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:#dbeafe;color:#1e40af">Estimate</span>'
     : t.type === 'receipt'
     ? '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:#dcfce7;color:#15803d">Completed</span>'
     : '<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:#fef08a;color:#854d0e">Active</span>';
+  // Approval state of the estimate on this ticket. A standalone estimate
+  // carries its whole-estimate decision; an invoice carries a pending
+  // estimate, or the recorded outcome of the last estimate that was
+  // fully decided (approved / denied / partial). Receipts show none.
+  const approvalBadge = t => {
+    const pill = (label, bg, fg) => `<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;background:${bg};color:${fg}">${label}</span>`;
+    if (t.type === 'estimate') {
+      if (t.estimateDecision && t.estimateDecision.action === 'approved') return pill('Approved', '#dcfce7', '#15803d');
+      if (t.estimateDecision && t.estimateDecision.action === 'denied') return pill('Denied', '#fee2e2', '#b91c1c');
+      return pill('Waiting on approval', '#fef3c7', '#92400e');
+    }
+    if (t.type === 'invoice') {
+      if (t.estimateStatus === 'pending') return pill('Waiting on approval', '#fef3c7', '#92400e');
+      if (t.estimateOutcome === 'approved') return pill('Approved', '#dcfce7', '#15803d');
+      if (t.estimateOutcome === 'denied') return pill('Denied', '#fee2e2', '#b91c1c');
+      if (t.estimateOutcome === 'partial') return pill('Partial approval', '#ffedd5', '#9a3412');
+      return '';
+    }
+    return '';
+  };
   window._calTitles = window._calTitles || {};
   list.forEach(t => { window._calTitles[t.id] = [t.customerName, vehDisp(t.vehicle, t.vehicleTrim, t.vehicleEngine, t.vehicleTransmission, t.vehicleDrivetrain)].filter(Boolean).join(' — ') || 'Job'; });
   $('ticket-list').innerHTML = list.length ? list.map(t => `<div class="card" id="ticket-${t.id}">
@@ -1629,7 +1651,7 @@ function renderTickets() {
         ${t.customerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(t.customerName)}</div>` : ''}
       </div>
     </div>
-    <h3>${ticketBadge(t)} — $${esc(t.total)}</h3>
+    <h3>${ticketBadge(t)}${approvalBadge(t) ? ' ' + approvalBadge(t) : ''} — $${esc(t.total)}</h3>
     <div class="muted">${t.label ? 'Ticket ' + esc(t.label) + ' · ' : ''}${t.vehicle ? esc(vehDisp(t.vehicle, t.vehicleTrim, t.vehicleEngine, t.vehicleTransmission, t.vehicleDrivetrain)) + ' · ' : ''}${new Date(t.createdAt).toLocaleDateString()}${t.paidAt ? ' · Paid ' + new Date(t.paidAt).toLocaleDateString() + (t.paymentMethod ? ' via ' + esc(t.paymentMethod) : '') : ''}</div>
     ${t.jobAddress ? `<div class="muted">Job location: ${esc(t.jobAddress)}</div>` : ''}
     <p><a href="/ticket?id=${t.id}" target="_blank">View ticket →</a></p>

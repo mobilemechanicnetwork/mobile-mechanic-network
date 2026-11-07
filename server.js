@@ -2708,7 +2708,16 @@ const server = http.createServer(async (req, res) => {
           t.estimateLines = remaining; t.estimateStatus = remaining.length ? 'pending' : 'none';
         } else {
           t.deniedLines = [...(t.deniedLines || []), ...acted];
+          t.estimateDeniedCount = (t.estimateDeniedCount || 0) + acted.length;
           t.estimateLines = remaining; t.estimateStatus = remaining.length ? 'pending' : 'none';
+        }
+        // The estimate is fully decided: record the outcome so the
+        // Tickets tab can badge it. Approved = no denials, denied =
+        // every line denied, partial = some approved and some denied.
+        if (!remaining.length && t.estimateStatus === 'none') {
+          const sent = t.estimateSentCount || 0;
+          const denied = t.estimateDeniedCount || 0;
+          t.estimateOutcome = sent > 0 ? (denied === 0 ? 'approved' : denied >= sent ? 'denied' : 'partial') : null;
         }
         if (isMechanic && !isOwner) {
           t.phoneApprovals = [...(t.phoneApprovals || []), { action, lines: acted.map(l => l.desc), total: acted.reduce((s, l) => s + Number(l.price || 0), 0), at: new Date().toISOString() }];
@@ -2747,6 +2756,10 @@ const server = http.createServer(async (req, res) => {
         if (quotesStore.read().some(q => q.requestId === t.requestId && q.businessId === t.businessId && q.status === 'pending' && q.followUp === true))
           return sendJson(res, 409, { error: 'A quote is already awaiting approval for this job.' });
         t.estimateLines = lines; t.estimateStatus = 'pending';
+        // Track this estimate so the Tickets tab can badge its outcome
+        // once it is fully decided: how many lines were sent, how many
+        // were denied, and the outcome (approved / denied / partial).
+        t.estimateSentCount = lines.length; t.estimateDeniedCount = 0; t.estimateOutcome = null;
       } else {
         // Save draft (empty lines clears the draft).
         t.estimateLines = lines; t.estimateStatus = lines.length ? 'draft' : 'none';
