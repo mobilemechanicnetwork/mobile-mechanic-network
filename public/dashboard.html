@@ -251,12 +251,18 @@ const capName = s => String(s == null ? '' : s).trim().replace(/\S+/g, w => w.ch
       const notes = d.notifications || [];
       updateNotifBadge(d.unread || 0);
       $('notif-list').innerHTML = notes.length ? notes.map(n => {
-        const bits = [];
-        if (n.service) bits.push(esc(n.service));
-        if (n.vehicle) bits.push(esc(n.vehicle));
-        if (n.total != null) bits.push('$' + Number(n.total).toFixed(2));
-        bits.push(new Date(n.createdAt).toLocaleDateString());
-        return `<div style="padding:10px 0;border-bottom:1px solid #e2e8f0;display:flex;gap:10px;align-items:center;justify-content:space-between;${n.read ? '' : 'border-left:4px solid #2563eb;padding-left:8px'}"><div style="text-align:left;flex:1"><strong>${esc(n.title)}</strong><div class="muted">${bits.join(' · ')}</div></div>${n.requestId ? `<button type="button" class="ghost" style="flex:none" onclick="viewOwnerJob('${n.requestId}', '${n.ticketId || ''}')">View job →</button>` : ''}</div>`;
+        // Each notification is its own card: title, then service and
+        // vehicle on one line, price and date on the next, and the button
+        // below the text. The old flex row squeezed the button against
+        // multi-line text and the unread border shifted the row, so the
+        // list read as jumbled. Unread is a small dot now, so every card
+        // lines up the same. The button shows whenever there is a job to
+        // open (a ticket or a request); invoice notifications carry a
+        // ticket but no request, so they used to lose the button entirely.
+        const line1 = [n.service, n.vehicle].filter(Boolean).map(esc).join(' · ');
+        const line2 = [(n.total != null ? '$' + Number(n.total).toFixed(2) : ''), new Date(n.createdAt).toLocaleDateString()].filter(Boolean).join(' · ');
+        const hasJob = n.requestId || n.ticketId;
+        return `<div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:10px"><div style="display:flex;gap:8px;align-items:flex-start">${n.read ? '' : '<span style="flex:none;width:8px;height:8px;border-radius:50%;background:#2563eb;margin-top:6px"></span>'}<div style="flex:1;min-width:0"><strong>${esc(n.title)}</strong>${line1 ? `<div class="muted">${line1}</div>` : ''}${line2 ? `<div class="muted">${line2}</div>` : ''}</div></div>${hasJob ? `<button type="button" class="ghost" style="width:100%;margin-top:10px" onclick="viewOwnerJob('${n.requestId || ''}', '${n.ticketId || ''}')">View job →</button>` : ''}</div>`;
       }).join('') : '<p class="muted">No notifications yet. New quotes, estimates, and tickets from your mechanics will show up here.</p>';
     } catch (e) { $('notif-list').innerHTML = '<p class="muted">Notifications could not be loaded.</p>'; }
   }
