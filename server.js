@@ -1058,6 +1058,31 @@ const server = http.createServer(async (req, res) => {
       }
       return { vehiclePhotoUrl: null, vehiclePhotoSource: null, vehiclePhotoKind: null, vehicleId: gv ? gv.id : null };
     }
+    // Commons photo for a vehicle string with no garage row to attach it
+    // to (a guest or manual ticket, or a customer whose garage has no such
+    // vehicle). Cached in memory by vehicle string so a page load does
+    // not re-fetch what it already looked up.
+    const commonsPhotoCache = new Map();
+    async function commonsPhotoForVehicleString(vehicleStr) {
+      const key = normVehicleString(vehicleStr);
+      if (!key) return null;
+      if (commonsPhotoCache.has(key)) return commonsPhotoCache.get(key);
+      let found = null;
+      try {
+        const gv = vehicleFromRequest({ vehicle: vehicleStr, vehicleType: 'car' });
+        if (gv) found = await commonsVehiclePhoto(gv.year, gv.make, gv.model);
+      } catch (e) { found = null; }
+      commonsPhotoCache.set(key, found);
+      return found;
+    }
+    async function fillMissingVehiclePhotos(items, getVehicle) {
+      const missing = items.filter(it => !it.vehiclePhotoUrl && getVehicle(it));
+      if (!missing.length) return;
+      const results = await Promise.all(missing.map(async (it) => ({ it, found: await commonsPhotoForVehicleString(getVehicle(it)) })));
+      for (const { it, found } of results) {
+        if (found) { it.vehiclePhotoUrl = found.url; it.vehiclePhotoSource = 'commons'; it.vehiclePhotoKind = found.kind || 'vehicle'; }
+      }
+    }
     if (p === '/api/vehicles/me' && req.method === 'GET') {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
@@ -2322,6 +2347,7 @@ const server = http.createServer(async (req, res) => {
       const gvs = refs.map(findGarageVehicle);
       await ensureCommonsPhotos(gvs);
       const out = tickets.map((t, i) => ({ ...t, ...resolveVehiclePhoto(biz ? biz.id : '', refs[i], gvs[i]) }));
+      await fillMissingVehiclePhotos(out, t => t.vehicle || '');
       return sendJson(res, 200, { tickets: out });
     }
     const ticketConvert = p.match(/^\/api\/tickets\/([0-9a-f-]+)\/convert$/);
@@ -2559,7 +2585,7 @@ const server = http.createServer(async (req, res) => {
         const c = getCust('phone:' + (pr.phone || pr.ownerId || q.requestId), pr.ownerName, pr.phone, pr.city, pr.state);
         const job = { service: pr.service, vehicle: pr.vehicle || '', date: (pr.createdAt || '').slice(0, 10), total: ticket ? ticket.total : (q.total != null ? q.total : q.price), paid: myTickets.some(t => t.requestId === pr.id && t.type === 'receipt'), ticketId: ticket ? ticket.id : null, address: ticket ? (ticket.jobAddress || '') : '', vin: ticket ? (ticket.vin || '') : '', createdAt: pr.createdAt || '' };
         c.jobs.push(job);
-        jobPhotoQueue.push({ job, ref: { vehicle: pr.vehicle || '', customerName: pr.ownerName || '', email: ownerEmailFor(pr.ownerId), ownerId: pr.ownerId || null } });
+        jobPhotoQueue.push({ job, ref: { vehicle: pr.vehicle || '', customerName: pr.ownerName || '', email: '', ownerId: pr.ownerId || null } });
       }
       for (const t of myTickets) {
         if (t.requestId || (t.type !== 'invoice' && t.type !== 'receipt')) continue;
@@ -2585,6 +2611,7 @@ const server = http.createServer(async (req, res) => {
         job.vehiclePhotoKind = photo.vehiclePhotoKind;
         job.vehicleId = photo.vehicleId;
       });
+      await fillMissingVehiclePhotos(jobPhotoQueue.map(({ job }) => job), j => j.vehicle || '');
       return sendJson(res, 200, { customers });
     }
     if (p === '/api/tickets/customers' && req.method === 'GET') {
