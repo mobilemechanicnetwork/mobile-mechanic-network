@@ -352,6 +352,20 @@ function ticketMailto() {
   const body = biz + ' sent you a ' + type + ' for ' + (T.vehicle || 'your vehicle') + ' — $' + Number(T.total || 0).toFixed(2) + '. Ticket ' + (T.label || '') + '.\n\nView it in your Mobile Mechanic Network dashboard.';
   return 'mailto:' + (T.email || '') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
 }
+// Texting a ticket goes from the mechanic's own phone, like the lead
+// card's Text button: an sms: link opens their messaging app with the
+// estimate/invoice summary prefilled. The server send (Twilio) is not
+// used for the text itself — texting is not set up on the server yet.
+// The dashboard notice still goes out via the server when the
+// customer has an account (see the Text handlers below, which post
+// { text: false } so only the notice fires).
+function ticketSms() {
+  const biz = (typeof B !== 'undefined' && B) ? B.name : 'your mechanic';
+  const type = T.type || 'ticket';
+  const phone = String(T.phone || '').replace(/[^+\d]/g, '');
+  const msg = 'Hi ' + (T.customerName || '') + ', this is ' + biz + ' with Mobile Mechanic Network. I sent you a ' + type + ' for your ' + (T.vehicle || 'vehicle') + ' — $' + Number(T.total || 0).toFixed(2) + '. Ticket ' + (T.label || '') + '.\n\nView it in your Mobile Mechanic Network dashboard.';
+  return { phone, url: 'sms:' + phone + '?body=' + encodeURIComponent(msg) };
+}
 function bindSendPrompt() {
   const box = document.getElementById('send-prompt');
   if (!box) return;
@@ -363,13 +377,15 @@ function bindSendPrompt() {
   const bt = document.getElementById('send-prompt-text');
   if (bt) bt.onclick = async () => {
     msg.textContent = ''; err.textContent = '';
+    const s = ticketSms();
+    if (!s.phone) { err.textContent = 'No phone on file for this customer.'; return; }
+    let notified = false;
     try {
-      const d = await api('/api/tickets/' + T.id + '/send', { text: true });
-      const parts = [];
-      parts.push(d.sent.text === 'sent' ? 'Text sent.' : d.sent.text === 'no-phone' ? 'Text skipped: no phone on file.' : d.sent.text === 'twilio-not-configured' ? 'Text not sent yet: texting is not set up.' : 'Text failed to send.');
-      parts.push(d.sent.notified ? 'Dashboard notice sent.' : 'No dashboard notice: customer has no account.');
-      msg.textContent = parts.join(' ');
-    } catch (e) { err.textContent = e.message; }
+      const d = await api('/api/tickets/' + T.id + '/send', { text: false });
+      notified = !!(d.sent && d.sent.notified);
+    } catch (e) {}
+    location.href = s.url;
+    msg.textContent = 'Opened your messaging app — send the text from your phone.' + (notified ? ' Dashboard notice sent.' : '');
   };
   const be = document.getElementById('send-prompt-email');
   if (be) be.onclick = () => { location.href = ticketMailto(); };
@@ -387,17 +403,19 @@ function sendHtml() {
 function bindSend() {
   const msg = document.getElementById('send-msg'), err = document.getElementById('send-err');
   if (!msg) return;
-  const run = async (body) => {
+  const bt = document.getElementById('btn-send-text');
+  if (bt) bt.onclick = async () => {
     msg.textContent = ''; err.textContent = '';
+    const s = ticketSms();
+    if (!s.phone) { err.textContent = 'No phone on file for this customer.'; return; }
+    let notified = false;
     try {
-      const d = await api('/api/tickets/' + T.id + '/send', body);
-      const parts = [];
-      if (body.text) parts.push(d.sent.text === 'sent' ? 'Text sent.' : d.sent.text === 'no-phone' ? 'Text skipped: no phone on file.' : d.sent.text === 'twilio-not-configured' ? 'Text not sent yet: texting is not set up.' : 'Text failed to send.');
-      parts.push(d.sent.notified ? 'Dashboard notice sent.' : 'No dashboard notice: customer has no account.');
-      msg.textContent = parts.join(' ');
-    } catch (e) { err.textContent = e.message; }
+      const d = await api('/api/tickets/' + T.id + '/send', { text: false });
+      notified = !!(d.sent && d.sent.notified);
+    } catch (e) {}
+    location.href = s.url;
+    msg.textContent = 'Opened your messaging app — send the text from your phone.' + (notified ? ' Dashboard notice sent.' : '');
   };
-  const bt = document.getElementById('btn-send-text'); if (bt) bt.onclick = () => run({ text: true });
 }
 function fmtTime(t) {
   const m = String(t || '').match(/^(\d{2}):(\d{2})$/);
