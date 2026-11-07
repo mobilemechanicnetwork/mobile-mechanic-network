@@ -3215,8 +3215,20 @@ const server = http.createServer(async (req, res) => {
       return serveFile(res, path.join(PUBLIC_DIR, 'mechanic.html'));
     }
     if (p === '/ticket') {
-      if (!getSessionUser(req)) { res.writeHead(302, { Location: '/account' }); return res.end(); }
-      return serveFile(res, path.join(PUBLIC_DIR, 'ticket.html'));
+      const u = getSessionUser(req);
+      if (u) return serveFile(res, path.join(PUBLIC_DIR, 'ticket.html'));
+      // A guest ticket link opens the ticket with no account: a
+      // matching id + token serves the page, the same way /quote does.
+      // Anything else still goes to sign-in. The page itself still
+      // fetches the ticket through /api/ticket, which enforces the
+      // token, so this only lets the page load.
+      const tid = String(url.searchParams.get('id') || '');
+      const tok = String(url.searchParams.get('token') || '');
+      if (tid && tok) {
+        const t = ticketsStore.read().find(x => x.id === tid);
+        if (t && t.guestToken && t.guestToken === tok) return serveFile(res, path.join(PUBLIC_DIR, 'ticket.html'));
+      }
+      res.writeHead(302, { Location: '/account' }); return res.end();
     }
     if (p === '/job-ticket') {
       return serveFile(res, path.join(PUBLIC_DIR, 'customer-ticket.html'));
