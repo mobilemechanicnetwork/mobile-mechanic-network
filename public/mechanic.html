@@ -126,7 +126,7 @@
     <button data-tab="requests" class="active">Leads</button>
     <button data-tab="today">Today <span id="notif-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700;margin-left:4px;vertical-align:middle"></span></button>
     <button data-tab="profile">Profile</button>
-    <button data-tab="tickets">Job tickets</button>
+    <button data-tab="tickets">Tickets</button>
     <button data-tab="calendar">Calendar</button>
     <button data-tab="customers">Customers</button>
     <button data-tab="finances">Finances</button>
@@ -147,7 +147,7 @@
 
   <section class="tab active" id="tab-requests">
     <h2>Leads</h2>
-    <p class="muted">Leads that don't have a ticket yet. Once a job has a ticket, it lives under Job tickets.</p>
+    <p class="muted">Leads that don't have a ticket yet. Once a job has a ticket, it lives under Tickets.</p>
     <p style="display:flex;gap:8px;flex-wrap:wrap"><input id="req-search" placeholder="Search requests by name, phone, service, or vehicle…" style="flex:1;min-width:220px;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"><button type="button" class="ghost" id="req-refresh">Refresh requests</button></p>
     <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end"><select id="req-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Default order</option><option value="newest">Sort: Newest first</option><option value="oldest">Sort: Oldest first</option><option value="az">Sort: Customer A to Z</option><option value="za">Sort: Customer Z to A</option><option value="due">Sort: Due date</option></select></p>
     <div id="inbox"></div>
@@ -234,7 +234,7 @@
   </section>
 
   <section class="tab" id="tab-tickets">
-    <h2>Job tickets</h2>
+    <h2>Tickets</h2>
     <p class="muted">Create estimates, invoices, and receipts branded with your logo and contact info. Open a ticket to print or save it as a PDF. Booked jobs live here once they have a ticket.</p>
     <p style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" type="button" id="t-new">Create new ticket</button></p>
     <div id="waiting-wrap">
@@ -324,7 +324,7 @@
       <details>
         <summary>Create a ticket</summary>
         <div class="help-body"><ol>
-          <li>Open the Job tickets tab and tap Create new ticket. The ticket page opens as the branded document your customer will see.</li>
+          <li>Open the Tickets tab and tap Create new ticket. The ticket page opens as the branded document your customer will see.</li>
           <li>Type straight into the document: customer name, phone number, email if you have it, job address and its type, access code if there is one, vehicle, VIN if you have it, and mileage.</li>
           <li>Add each job as a main line, with its parts lines and its labor line underneath. The job line totals its parts and labor automatically. A labor line is hours times your labor rate.</li>
           <li>Add a tax rate and any mobile expenses and supplies.</li>
@@ -355,7 +355,7 @@
         <summary>Add a job to your calendar</summary>
         <div class="help-body"><ol>
           <li>Any unpaid ticket has a Calendar card. Pick a date, an optional time, and an optional end time, then tap Add.</li>
-          <li>You can also add from a Job tickets card or a booked-job notification.</li>
+          <li>You can also add from a Tickets card or a booked-job notification.</li>
           <li>On the Calendar tab, the week view shows a time grid. Tap a block for a short synopsis and an Open full ticket button.</li>
           <li>The month view shows dots on days with jobs. Tap a day to list that day's jobs.</li>
           <li>Calendar entries drop off automatically once the job is paid.</li>
@@ -905,7 +905,7 @@ function renderToday() {
     ...(inbox.requests || []).map(r => ({ name: r.ownerName, service: r.service, vehicle: r.vehicle, status: 'Open', ticketId: null, tab: 'requests' })),
     ...(inbox.booked || []).filter(b => !b.paid).map(b => ({ name: b.ownerName, service: b.service, vehicle: b.vehicle, status: 'Booked', ticketId: b.ticketId || null, tab: 'tickets' }))
   ].slice(0, 10);
-  $('today-open').innerHTML = `<h3 style="margin:16px 0 8px">Open jobs</h3>` + (jobs.length ? jobs.map(j => `<div class="card"><strong>${esc(j.name || '')}</strong> — ${esc(j.service)} — ${esc(j.vehicle)} <span class="ok">${j.status}</span>${j.ticketId ? ` <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ` <button type="button" class="ghost" onclick="gotoTab('${j.tab}')">View in ${j.tab === 'tickets' ? 'Job tickets' : 'Leads'} →</button>`}</div>`).join('') : '<p class="muted">No open jobs right now.</p>') + `<p><button type="button" class="ghost" onclick="gotoTab('calendar')">Calendar →</button></p>`;
+  $('today-open').innerHTML = `<h3 style="margin:16px 0 8px">Open jobs</h3>` + (jobs.length ? jobs.map(j => `<div class="card"><strong>${esc(j.name || '')}</strong> — ${esc(j.service)} — ${esc(j.vehicle)} <span class="ok">${j.status}</span>${j.ticketId ? ` <a href="/ticket?id=${j.ticketId}" target="_blank">View ticket →</a>` : ` <button type="button" class="ghost" onclick="gotoTab('${j.tab}')">View in ${j.tab === 'tickets' ? 'Tickets' : 'Leads'} →</button>`}</div>`).join('') : '<p class="muted">No open jobs right now.</p>') + `<p><button type="button" class="ghost" onclick="gotoTab('calendar')">Calendar →</button></p>`;
 }
 window.delCalEntry = async (id) => {
   if (!confirm('Delete this calendar entry?')) return;
