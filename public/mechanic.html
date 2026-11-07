@@ -123,8 +123,8 @@
   </div>
   <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600">Add your phone number so you get new requests by text. <a href="/security" style="color:#b91c1c">Add it now →</a></div>
   <div class="tabs noprint">
-    <button data-tab="today" class="active">Today <span id="notif-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700;margin-left:4px;vertical-align:middle"></span></button>
-    <button data-tab="requests">Leads</button>
+    <button data-tab="requests" class="active">Leads</button>
+    <button data-tab="today">Today <span id="notif-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700;margin-left:4px;vertical-align:middle"></span></button>
     <button data-tab="profile">Profile</button>
     <button data-tab="tickets">Job tickets</button>
     <button data-tab="calendar">Calendar</button>
@@ -132,20 +132,20 @@
     <button data-tab="finances">Finances</button>
   </div>
 
-  <section class="tab active" id="tab-today">
+  <section class="tab" id="tab-today">
     <h2>Today</h2>
     <p class="muted">Today's appointments, open jobs, and notifications at a glance.</p>
     <div id="today-appts"></div>
     <div id="today-open"></div>
   </section>
 
-  <section class="tab active" id="tab-notifications">
+  <section class="tab" id="tab-notifications">
     <h2>Notifications</h2>
     <p><button type="button" class="ghost" id="notif-read">Mark all read</button> <button type="button" class="ghost" id="notif-clear">Clear all</button></p>
     <div id="notif-list"></div>
   </section>
 
-  <section class="tab" id="tab-requests">
+  <section class="tab active" id="tab-requests">
     <h2>Leads</h2>
     <p class="muted">Leads that don't have a ticket yet. Once a job has a ticket, it lives under Job tickets.</p>
     <p style="display:flex;gap:8px;flex-wrap:wrap"><input id="req-search" placeholder="Search requests by name, phone, service, or vehicle…" style="flex:1;min-width:220px;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"><button type="button" class="ghost" id="req-refresh">Refresh requests</button></p>
@@ -302,19 +302,20 @@
     <p class="muted">Tap a task for step-by-step instructions.</p>
     <div class="help-acc">
       <details>
-        <summary>Start on Today</summary>
+        <summary>Start on Leads</summary>
         <div class="help-body"><ol>
-          <li>Today is your home tab. It opens every time you sign in.</li>
-          <li>Today's appointments shows the jobs on your calendar for today, with a link to open each ticket.</li>
-          <li>Open jobs shows your open requests and unpaid booked jobs, with a shortcut to the calendar.</li>
-          <li>Your notifications sit below, on the same page.</li>
+          <li>Leads is your home tab. It opens every time you sign in.</li>
+          <li>New requests land here first. Call or text the customer from the card if you need more detail before pricing the job.</li>
+          <li>Tap Build quote when you are ready to price it, or Create a ticket to open a ticket with the customer's details filled in.</li>
+          <li>The Today tab still holds your appointments, open jobs, and notifications.</li>
         </ol></div>
       </details>
       <details>
         <summary>Quote a request</summary>
         <div class="help-body"><ol>
           <li>Open the Leads tab and find the request card. Cards marked Urgent or Sent directly to you stand out.</li>
-          <li>Fill in your price and warranty on the card's quote builder.</li>
+          <li>Call or text the customer from the card first if you need more detail before pricing the job.</li>
+          <li>Tap Build quote and fill in your price and warranty on the card's quote builder.</li>
           <li>Your draft saves automatically as you type, so you can finish it later from any device.</li>
           <li>Tap Send quote. The customer is notified and can accept, decline, or decide on each line.</li>
           <li>Under a pending quote you will also see Text quote from my phone, which opens the quote in your phone's texting app.</li>
@@ -587,10 +588,12 @@ function renderInbox() {
   if (!reqList.length) { box.innerHTML = q ? '<p class="muted">No open requests match your search.</p>' : '<p class="muted">No open requests match your area and services right now.</p>'; return; }
   box.innerHTML = reqList.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
     ${r.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(r.ownerName)}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(r)}${historyButton(r)}</div>${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(r.vehicle)}${r.vin ? ' · VIN ' + esc(r.vin) : ''}${r.setPrice != null ? ` <span class="ok">Set price: $${Number(r.setPrice).toFixed(2)}</span>` : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)}${r.phone ? ` · <a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · <a href="sms:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>${r.vehicleLocation ? `<div class="muted">Vehicle location: ${esc(r.vehicleLocation)}${r.vehicleLocationType ? ' (' + esc({ house: 'House', work: 'Work', business: 'Business' }[r.vehicleLocationType] || r.vehicleLocationType) + ')' : ''}</div>` : ''}
+    ${!r.myQuote && r.phone ? `<p style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 0"><button type="button" class="primary" style="margin-top:0" onclick="location.href='tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}'">Call</button> <button type="button" class="ghost" onclick="textCustomer('${r.id}')">Text</button></p>` : ''}
     <p>${esc(r.description)}</p>
     ${historyBlock(r)}
     ${r.myQuote ? (r.myQuote.status === 'declined' ? `<p>You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (<span style="color:#dc2626;font-weight:700">denied</span>).</p><p><a href="/quote?id=${r.myQuote.id}" target="_blank">View quote →</a></p>` : `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p><p><a href="/quote?id=${r.myQuote.id}" target="_blank">View quote →</a>${r.myQuote.status === 'pending' ? ` <button type="button" class="ghost" onclick="textQuote('${r.id}')">Text quote from my phone</button>` : ''}</p>`) : `
-    <div id="qb-${r.id}">
+    <p style="margin:12px 0 0"><button type="button" class="primary" id="qb-btn-${r.id}" onclick="showQuoteBuilder('${r.id}')">Build quote</button> <button type="button" class="ghost" onclick="createTicketForLead('${r.id}')">Create a ticket</button></p>
+    <div id="qb-${r.id}" hidden>
       <p style="margin:8px 0 4px"><strong>Build your itemized quote</strong> <span class="muted">— sent under your business name</span></p>
       <div id="qi-${r.id}"></div>
       <p style="margin:6px 0"><button type="button" class="ghost" onclick="addQuoteRow('${r.id}')">+ Add line item</button></p>
@@ -992,6 +995,24 @@ document.getElementById('cust-sort').onchange = (e) => { window._custSort = e.ta
 window.setTicketFilter = (f) => { window._ticketFilter = f; renderTickets(); };
 $('cal-view-week').onclick = () => { window._calView = 'week'; renderCalendar(); };
 $('cal-view-month').onclick = () => { window._calView = 'month'; renderCalendar(); };
+window.textCustomer = (rid) => {
+  const r = (window._inboxRequests || []).find(x => x.id === rid);
+  if (!r) return;
+  const bizName = window._bizName || 'your mobile mechanic';
+  const ownerName = (r.ownerName || '').trim();
+  const msg = `Hi${ownerName ? ' ' + ownerName : ''}, this is ${bizName} with Mobile Mechanic Network. I got your request for ${r.service} (${r.vehicle}) — a couple of quick questions before I put your quote together.`;
+  const phone = String(r.phone || '').replace(/[^+\d]/g, '');
+  if (!phone) { alert('No phone number on this request.'); return; }
+  window.location.href = `sms:${phone}?body=${encodeURIComponent(msg)}`;
+};
+// The quote builder stays hidden until the mechanic is ready to price the
+// job, so a new lead reads as contact first, quote second.
+window.showQuoteBuilder = (rid) => {
+  const el = document.getElementById('qb-' + rid);
+  if (el) el.hidden = false;
+  const b = document.getElementById('qb-btn-' + rid);
+  if (b) b.hidden = true;
+};
 window.textQuote = (rid) => {
   const r = (window._inboxRequests || []).find(x => x.id === rid);
   if (!r || !r.myQuote) return;
@@ -1088,6 +1109,9 @@ function restoreQuoteDrafts() {
     (data.items && data.items.length ? data.items : [{}]).forEach(it => { addQuoteRow(r.id); const row = wrap.lastElementChild; const ins = row.querySelectorAll('input'); ins[0].value = it.desc || ''; ins[1].value = it.amount || ''; });
     const notesEl = document.getElementById('qn-' + r.id); if (notesEl) notesEl.value = data.notes || '';
     updateQuoteTotal(r.id);
+    // A saved draft means the mechanic already started pricing, so the
+    // builder opens on its own instead of hiding behind the button.
+    showQuoteBuilder(r.id);
   });
 }
 window.updateQuoteTotal = (rid) => {
@@ -1358,6 +1382,20 @@ $('g-upload').onclick = async () => {
 // Creating a ticket opens its own branded page, and the
 // mechanic types straight into the document the customer will see.
 $('t-new').onclick = () => { location.href = '/ticket?new=1'; };
+// From a Leads card: open the new-ticket page with this lead's customer
+// name, phone, vehicle, and VIN prefilled. Same pattern as the
+// Customers-tab button; the ticket itself is a standalone estimate, not
+// linked to the request.
+window.createTicketForLead = (rid) => {
+  const r = (window._inboxRequests || []).find(x => x.id === rid);
+  if (!r) return;
+  const q = new URLSearchParams();
+  if (r.ownerName) q.set('customer', r.ownerName);
+  if (r.phone) q.set('phone', r.phone);
+  if (r.vehicle) q.set('vehicle', r.vehicle);
+  if (r.vin) q.set('vin', r.vin);
+  location.href = '/ticket?new=1&' + q.toString();
+};
 // From a Customers card: open the new-ticket page with this customer's
 // name, phone, and first vehicle on the card prefilled.
 window.createTicketForCustomer = (i) => {
