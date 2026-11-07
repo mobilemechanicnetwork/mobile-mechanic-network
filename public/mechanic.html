@@ -36,6 +36,16 @@
   button.danger{background:#dc2626;color:#ffffff;border:0;border-radius:10px;padding:8px 14px;cursor:pointer;font-size:.85rem}
   button.green{background:#16a34a;color:#ffffff;border:0;border-radius:10px;padding:11px 20px;cursor:pointer;font-size:1rem}
   .card{border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin:12px 0;background:#ffffff;box-shadow:0 1px 3px rgba(15,23,42,.08)}
+  /* Swipe-to-delete on lead cards (phone): swipe left reveals a red delete area. Desktop shows a trash icon instead. */
+  .lead-swipe{position:relative;overflow:hidden;border-radius:14px;margin:12px 0}
+  .lead-swipe .card{margin:0;position:relative;z-index:1;transition:transform .2s ease;touch-action:pan-y}
+  .lead-swipe-delete{position:absolute;top:0;right:0;bottom:0;width:84px;background:#dc2626;display:flex;align-items:center;justify-content:center;z-index:0}
+  .lead-swipe-delete button{background:none;border:0;color:#fff;font-size:1.7rem;cursor:pointer;padding:0;line-height:1}
+  .lead-swipe.open .card{transform:translateX(-84px)}
+  .lead-del-desktop{display:none}
+  @media (min-width:641px){
+    .lead-del-desktop{display:inline-flex;position:absolute;top:10px;right:12px;background:none;border:0;font-size:1.15rem;cursor:pointer;padding:4px;line-height:1;z-index:2}
+  }
   .badges{display:inline-flex;flex-wrap:wrap;gap:6px;margin:6px 0}
   .badge{display:inline-block;font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:999px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569}
   .badge-fr{background:#052e1b;border-color:#16a34a;color:#86efac}
@@ -718,13 +728,16 @@ function renderInbox() {
   (inbox.booked || []).forEach(b => { if (b.ticketId) { window._calTitles[b.ticketId] = [b.ownerName, b.vehicle].filter(Boolean).join(' — ') || 'Job'; window._calPrefill[b.ticketId] = b.date || ''; } });
   renderWaitingTickets();
   if (!reqList.length) { box.innerHTML = q ? '<p class="muted">No open requests match your search.</p>' : '<p class="muted">No open requests match your area and services right now.</p>'; return; }
-  box.innerHTML = reqList.map(r => `<div class="card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
+    box.innerHTML = reqList.map(r => `<div class="lead-swipe" data-rid="${r.id}">
+    <div class="lead-swipe-delete"><button type="button" aria-label="Delete lead" onclick="deleteLead('${r.id}')">🗑️</button></div>
+    <div class="card lead-card"${r.urgent ? ' style="border:2px solid #b91c1c;background:#fef2f2"' : ''}>
+    <button type="button" class="lead-del-desktop" aria-label="Delete lead" onclick="deleteLead('${r.id}')">🗑️</button>
     ${r.ownerName ? `<div style="font-size:1.3rem;font-weight:800;line-height:1.3">${esc(r.ownerName)}</div>` : ''}${r.createdAt ? `<div class="muted" style="font-size:.85rem">Requested ${new Date(r.createdAt).toLocaleDateString()}</div>` : ''}<div style="margin:2px 0 6px">${customerBadge(r)}${historyButton(r)}</div>${r.businessId ? '<span class="urgent-badge" style="background:#2563eb">SENT DIRECTLY TO YOU</span> ' : ''}${r.urgent ? '<span class="urgent-badge">URGENT — NEEDS HELP NOW</span> ' : ''}<strong>${esc(r.service)}</strong> — ${esc(vehDisp(r.vehicle, r.vehicleTrim, r.vehicleEngine, r.vehicleTransmission, r.vehicleDrivetrain))}${r.vin ? ' · VIN ' + esc(r.vin) : ''}${r.setPrice != null ? ` <span class="ok">Set price: $${Number(r.setPrice).toFixed(2)}</span>` : ''}<div class="muted">${esc(r.city)}, ${esc(r.state)}${r.phone ? ` · <a href="tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">${esc(window.PhoneFmt ? window.PhoneFmt.display(r.phone) : r.phone)}</a> · <a href="sms:${esc(String(r.phone).replace(/[^+\d]/g, ''))}">Text</a>` : ''}${r.date ? ' · Needed by ' + esc(r.date) : ''}</div>${r.vehicleLocation ? `<div class="muted">Vehicle location: ${esc(fullVehicleLocation(r))}${r.vehicleLocationType ? ' (' + esc({ house: 'House', work: 'Work', business: 'Business' }[r.vehicleLocationType] || r.vehicleLocationType) + ')' : ''}</div>` : ''}
     <p>${esc(r.description)}</p>
     ${historyBlock(r)}
     ${r.myQuote ? (r.myQuote.status === 'declined' ? `<p>You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (<span style="color:#dc2626;font-weight:700">denied</span>).</p><p><button type="button" class="ghost" onclick="window.open('/quote?id=${r.myQuote.id}','_blank')">View quote →</button></p>` : `<p class="ok">You quoted $${esc(r.myQuote.total != null ? r.myQuote.total : r.myQuote.price)} (${esc(r.myQuote.status)}).</p><p><button type="button" class="ghost" onclick="window.open('/quote?id=${r.myQuote.id}','_blank')">View quote →</button>${r.myQuote.status === 'pending' ? ` <button type="button" class="green" onclick="textQuote('${r.id}')">Text quote from my phone</button>` : ''}</p>`) : `
     <p style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 0;align-items:center">${r.phone ? `<button type="button" class="primary" style="margin-top:0" onclick="location.href='tel:${esc(String(r.phone).replace(/[^+\d]/g, ''))}'">Call</button> <button type="button" class="green" style="margin-top:0" onclick="textCustomer('${r.id}')">Text</button>` : ''}<button type="button" class="primary" style="margin-top:0" onclick="createTicketForLead('${r.id}')">Create a ticket</button></p>`}
-  </div>`).join('');
+  </div></div>`).join('');
 }
 
 /* ---------- Calendar: upcoming jobs list ---------- */
@@ -1193,6 +1206,53 @@ window.textCustomer = (rid) => {
   if (!phone) { alert('No phone number on this request.'); return; }
   window.location.href = `sms:${phone}?body=${encodeURIComponent(msg)}`;
 };
+ // Delete a lead from this mechanic's inbox (the request itself is not
+ // deleted for anyone else). Phone: swipe left on the card to reveal the
+ // trash icon. Desktop: tap the trash icon on the card.
+ window.deleteLead = async (rid) => {
+   const r = (window._inboxRequests || []).find(x => x.id === rid);
+   const who = r && r.ownerName ? ` from ${r.ownerName}` : '';
+   if (!confirm(`Delete this lead${who}? It will be removed from your inbox.`)) return;
+   try {
+     await api(`/api/requests/${rid}/dismiss`, { method: 'POST' });
+     await loadInbox();
+   } catch (e) { alert(e.message); }
+ };
+ // Swipe-to-delete wiring for lead cards (touch devices). Attached once to
+ // the inbox container; cards are re-rendered, so delegation is used.
+ (function initLeadSwipe() {
+   const box = document.getElementById('inbox');
+   if (!box || box._swipeInit) return;
+   box._swipeInit = true;
+   let startX = null, currentEl = null, currentDx = 0;
+   box.addEventListener('touchstart', (e) => {
+     const wrap = e.target.closest('.lead-swipe');
+     if (!wrap) return;
+     box.querySelectorAll('.lead-swipe.open').forEach(el => { if (el !== wrap) el.classList.remove('open'); });
+     startX = e.touches[0].clientX;
+     currentEl = wrap;
+     currentDx = 0;
+     const card = wrap.querySelector('.lead-card');
+     if (card) card.style.transition = 'none';
+   }, { passive: true });
+   box.addEventListener('touchmove', (e) => {
+     if (!currentEl || startX === null) return;
+     const dx = e.touches[0].clientX - startX;
+     if (dx < 0) {
+       currentDx = Math.max(dx, -84);
+       const card = currentEl.querySelector('.lead-card');
+       if (card) card.style.transform = `translateX(${currentDx}px)`;
+     }
+   }, { passive: true });
+   box.addEventListener('touchend', () => {
+     if (!currentEl) return;
+     const card = currentEl.querySelector('.lead-card');
+     if (card) { card.style.transition = ''; card.style.transform = ''; }
+     if (currentDx < -40) currentEl.classList.add('open');
+     else currentEl.classList.remove('open');
+     startX = null; currentEl = null; currentDx = 0;
+   });
+ })();
 window.textQuote = (rid) => {
   const r = (window._inboxRequests || []).find(x => x.id === rid);
   if (!r || !r.myQuote) return;

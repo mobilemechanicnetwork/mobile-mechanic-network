@@ -1697,7 +1697,7 @@ const server = http.createServer(async (req, res) => {
         return jobs;
       };
       const inbox = allRequests
-        .filter(r => r.status === 'open' && requestMatchesBusiness(r, biz))
+        .filter(r => r.status === 'open' && requestMatchesBusiness(r, biz) && !(r.dismissedBy || []).includes(biz.id))
         .map(r => { const history = historyFor(r.phone, r.ownerId, r.ownerName, r.id); const leadTicket = myTickets.find(t => t.requestId === r.id); return { ...r, ownerEmail: ownerEmailFor(r.ownerId), myQuote: quotes.find(q => q.requestId === r.id && q.businessId === biz.id) || null, history, returning: history.length > 0, hasTicket: !!leadTicket, ticketId: leadTicket ? leadTicket.id : null }; });
       const booked = allRequests
         .filter(r => r.status === 'accepted')
@@ -1723,6 +1723,25 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { requests: inbox, booked });
     }
 
+
+        // ---------- Dismiss a lead (mechanic hides it from their own inbox) ----------
+    // The request itself is not deleted: other mechanics and the customer
+    // still see it. Only this business stops seeing it.
+    const dismissMatch = p.match(/^\/api\/requests\/([0-9a-f-]+)\/dismiss$/);
+    if (dismissMatch && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const biz = myBusiness(user.id);
+      if (!biz) return sendJson(res, 400, { error: 'Save your business page first.' });
+      const reqs = requestsStore.read();
+      const row = reqs.find(r => r.id === dismissMatch[1]);
+      if (!row) return sendJson(res, 404, { error: 'Request not found.' });
+      row.dismissedBy = Array.isArray(row.dismissedBy) ? row.dismissedBy : [];
+      if (!row.dismissedBy.includes(biz.id)) row.dismissedBy.push(biz.id);
+      requestsStore.write(reqs);
+      return sendJson(res, 200, { ok: true });
+    }
 
     // ---------- Calendar: the mechanic's upcoming-jobs list ----------
     // Booked jobs appear automatically (from the inbox); manual entries
