@@ -254,58 +254,7 @@
     <p style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px"><button type="button" class="ghost" id="cal-view-week">Week</button><button type="button" class="ghost" id="cal-view-month">Month</button></p>
     <div id="cal-week" style="margin-bottom:16px"></div>
     <div id="cal-month" style="margin-bottom:16px" hidden></div>
-    <div id="cal-popup" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)calHidePopup()">
-      <div style="background:#fff;border-radius:12px;max-width:420px;width:100%;padding:16px;box-sizing:border-box">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-          <h3 id="cal-popup-title" style="margin:0;font-size:1.05rem"></h3>
-          <button type="button" class="ghost" onclick="calHidePopup()">✕</button>
-        </div>
-        <div id="cal-popup-body" style="margin-top:8px;color:#334155;line-height:1.6"></div>
-        <div id="cal-popup-foot" style="margin-top:14px"></div>
-      </div>
-    </div>
-    <div id="cal-add-popup" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)hideCalAddPopup()">
-      <div style="background:#fff;border-radius:12px;max-width:420px;width:100%;padding:16px;box-sizing:border-box">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-          <h3 style="margin:0;font-size:1.05rem">Add to calendar</h3>
-          <button type="button" class="ghost" onclick="hideCalAddPopup()">✕</button>
-        </div>
-        <div id="cal-add-job" style="margin-top:8px;color:#475569;font-size:.9rem"></div>
-        <div style="display:grid;gap:10px;margin-top:12px">
-          <label style="font-size:.85rem;color:#64748b">Date<input type="date" id="cal-add-date" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;background:#fff"></label>
-          <label style="font-size:.85rem;color:#64748b">Start time (optional)<input type="time" id="cal-add-time" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;background:#fff"></label>
-          <label style="font-size:.85rem;color:#64748b">End time (optional)<input type="time" id="cal-add-end" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;background:#fff"></label>
-        </div>
-        <p id="cal-add-err" style="color:#b91c1c;font-size:.9rem;margin:8px 0 0"></p>
-        <div style="display:flex;gap:8px;margin-top:14px">
-          <button type="button" class="primary" id="cal-add-submit">Add</button>
-          <button type="button" class="ghost" onclick="hideCalAddPopup()">Cancel</button>
-        </div>
-      </div>
-    </div>
     <input type="file" id="veh-photo-input" accept="image/*" hidden>
-    <div id="new-ticket-prompt" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto" onclick="if(event.target===this)hideNewTicketPrompt()">
-      <div style="background:#fff;border-radius:14px;max-width:520px;width:100%;padding:20px;margin:24px 0;box-sizing:border-box">
-        <div style="display:flex;gap:12px;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:12px;margin-bottom:14px">
-          <img id="ntp-logo" src="" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;display:none">
-          <div><h3 id="ntp-name" style="margin:0;font-size:1.15rem"></h3><div id="ntp-sub" style="color:#475569;font-size:.85rem"></div></div>
-        </div>
-        <p style="margin:0 0 14px;color:#334155">Enter the customer and vehicle, then Next fills in a new ticket the same way a lead does. You can still change anything on the ticket after it opens.</p>
-        <div style="display:grid;gap:10px">
-          <label style="font-size:.85rem;color:#64748b">Customer name<input id="ntp-customer" placeholder="Customer name" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
-          <label style="font-size:.85rem;color:#64748b">Phone<input id="ntp-phone" type="tel" placeholder="Phone" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
-          <label style="font-size:.85rem;color:#64748b">Email<input id="ntp-email" type="email" placeholder="Email (optional)" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
-          <div><span style="font-size:.85rem;color:#64748b">Vehicle</span><div id="ntp-veh-type"></div><div style="display:flex;gap:8px;margin-top:4px"><select id="ntp-year" style="flex:1;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></select><select id="ntp-make" style="flex:1;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></select><select id="ntp-model" style="flex:1;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></select></div></div>
-          <label style="font-size:.85rem;color:#64748b">VIN<input id="ntp-vin" maxlength="17" placeholder="VIN" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;text-transform:uppercase"></label>
-          <label style="font-size:.85rem;color:#64748b">Mileage<input id="ntp-mileage" type="number" min="0" placeholder="Mileage" inputmode="numeric" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
-          <button class="primary" type="button" id="ntp-next">Next →</button>
-          <button type="button" class="ghost" id="ntp-blank">Skip — start blank</button>
-          <button type="button" class="ghost" id="ntp-cancel">Cancel</button>
-        </div>
-      </div>
-    </div>
     <p class="muted">Upcoming jobs, soonest first. Booked jobs show up here automatically; add anything you set up by phone below.</p>
     <form id="cal-form">
       <div class="row">
@@ -479,6 +428,60 @@
 <script src="/city-autocomplete.js"></script>
 <script src="/phone-format.js"></script>
 <script src="/vehicle-picker.js"></script>
+    <div id="cal-popup" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)calHidePopup()">
+      <div style="background:#fff;border-radius:12px;max-width:420px;width:100%;padding:16px;box-sizing:border-box">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <h3 id="cal-popup-title" style="margin:0;font-size:1.05rem"></h3>
+          <button type="button" class="ghost" onclick="calHidePopup()">✕</button>
+        </div>
+        <div id="cal-popup-body" style="margin-top:8px;color:#334155;line-height:1.6"></div>
+        <div id="cal-popup-foot" style="margin-top:14px"></div>
+      </div>
+    </div>
+
+    <div id="cal-add-popup" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)hideCalAddPopup()">
+      <div style="background:#fff;border-radius:12px;max-width:420px;width:100%;padding:16px;box-sizing:border-box">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <h3 style="margin:0;font-size:1.05rem">Add to calendar</h3>
+          <button type="button" class="ghost" onclick="hideCalAddPopup()">✕</button>
+        </div>
+        <div id="cal-add-job" style="margin-top:8px;color:#475569;font-size:.9rem"></div>
+        <div style="display:grid;gap:10px;margin-top:12px">
+          <label style="font-size:.85rem;color:#64748b">Date<input type="date" id="cal-add-date" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;background:#fff"></label>
+          <label style="font-size:.85rem;color:#64748b">Start time (optional)<input type="time" id="cal-add-time" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;background:#fff"></label>
+          <label style="font-size:.85rem;color:#64748b">End time (optional)<input type="time" id="cal-add-end" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;background:#fff"></label>
+        </div>
+        <p id="cal-add-err" style="color:#b91c1c;font-size:.9rem;margin:8px 0 0"></p>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button type="button" class="primary" id="cal-add-submit">Add</button>
+          <button type="button" class="ghost" onclick="hideCalAddPopup()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="new-ticket-prompt" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto" onclick="if(event.target===this)hideNewTicketPrompt()">
+      <div style="background:#fff;border-radius:14px;max-width:520px;width:100%;padding:20px;margin:24px 0;box-sizing:border-box">
+        <div style="display:flex;gap:12px;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:12px;margin-bottom:14px">
+          <img id="ntp-logo" src="" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;display:none">
+          <div><h3 id="ntp-name" style="margin:0;font-size:1.15rem"></h3><div id="ntp-sub" style="color:#475569;font-size:.85rem"></div></div>
+        </div>
+        <p style="margin:0 0 14px;color:#334155">Enter the customer and vehicle, then Next fills in a new ticket the same way a lead does. You can still change anything on the ticket after it opens.</p>
+        <div style="display:grid;gap:10px">
+          <label style="font-size:.85rem;color:#64748b">Customer name<input id="ntp-customer" placeholder="Customer name" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
+          <label style="font-size:.85rem;color:#64748b">Phone<input id="ntp-phone" type="tel" placeholder="Phone" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
+          <label style="font-size:.85rem;color:#64748b">Email<input id="ntp-email" type="email" placeholder="Email (optional)" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
+          <div><span style="font-size:.85rem;color:#64748b">Vehicle</span><div id="ntp-veh-type"></div><div style="display:flex;gap:8px;margin-top:4px"><select id="ntp-year" style="flex:1;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></select><select id="ntp-make" style="flex:1;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></select><select id="ntp-model" style="flex:1;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></select></div></div>
+          <label style="font-size:.85rem;color:#64748b">VIN<input id="ntp-vin" maxlength="17" placeholder="VIN" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px;text-transform:uppercase"></label>
+          <label style="font-size:.85rem;color:#64748b">Mileage<input id="ntp-mileage" type="number" min="0" placeholder="Mileage" inputmode="numeric" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box;margin-top:4px"></label>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+          <button class="primary" type="button" id="ntp-next">Next →</button>
+          <button type="button" class="ghost" id="ntp-blank">Skip — start blank</button>
+          <button type="button" class="ghost" id="ntp-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
