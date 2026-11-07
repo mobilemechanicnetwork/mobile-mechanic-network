@@ -54,6 +54,7 @@
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
   .row > div{flex:1;min-width:140px}
   @media (max-width:520px){ #cal-week-nav strong{flex-basis:100% !important} }
+  @media (max-width:640px){ #cal-view-week{display:none} #cal-week{display:none !important} }
   .dtwrap{position:relative;display:inline-flex;align-items:center}
   .dtwrap .dtph{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none}
   .dtwrap.has-val .dtph{display:none}
@@ -357,7 +358,7 @@
         <div class="help-body"><ol>
           <li>Any unpaid ticket has a Calendar card. Pick a date, an optional time, and an optional end time, then tap Add.</li>
           <li>You can also add from a Tickets card or a booked-job notification.</li>
-          <li>On the Calendar tab, the week view shows a time grid. Tap a block for a short synopsis and an Open full ticket button.</li>
+          <li>On the Calendar tab, the week view shows a time grid. Tap a block for a short synopsis and an Open full ticket button. On a phone the calendar shows the month view instead, so there is no sideways scrolling.</li>
           <li>The month view shows dots on days with jobs. Tap a day to list that day's jobs.</li>
           <li>Calendar entries drop off automatically once the job is paid.</li>
         </ol></div>
@@ -922,7 +923,12 @@ function renderCalendar() {
   window._calDated = dated;
   renderCalWeek(dated);
   renderCalMonth(dated);
-  const view = window._calView || 'week';
+  // On a phone the week time grid is 720px wide and forces sideways
+  // scrolling, so the calendar shows the month view instead, which
+  // fits the screen. The Week button is hidden on phones too.
+  let view = window._calView || 'week';
+  if (window.matchMedia('(max-width:640px)').matches) view = 'month';
+  window._calView = view;
   $('cal-week').hidden = (view !== 'week');
   $('cal-month').hidden = (view !== 'month');
   $('cal-view-week').style.cssText = view === 'week' ? 'background:#2563eb;color:#fff;border-color:#2563eb' : '';
