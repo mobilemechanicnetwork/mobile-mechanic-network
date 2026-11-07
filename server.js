@@ -2665,22 +2665,64 @@ const server = http.createServer(async (req, res) => {
         // decision is recorded on the ticket and the mechanic is
         // notified; converting it to an invoice stays the mechanic's
         // step, since that needs a VIN.
+        // A standalone estimate is decided line by line, the same way a
+        // quote is: the customer approves or denies each line, and the
+        // estimate is decided once every line has a decision. Denied
+        // lines leave the estimate (they are never charged) and are
+        // recorded on the ticket; converting it to an invoice stays the
+        // mechanic's step, since that needs a VIN.
         if (t.type === 'estimate') {
           if (t.estimateDecision) return sendJson(res, 400, { error: 'This estimate was already decided.' });
           if (t.requestId && tickets.some(x => x.requestId === t.requestId && x.type === 'receipt')) return sendJson(res, 400, { error: 'This job is already paid.' });
-          t.estimateDecision = { action, at: new Date().toISOString() };
+          const items = t.items || [];
+          if (!items.length) return sendJson(res, 400, { error: 'This estimate has no lines to decide.' });
+          const decisions = Array.isArray(t.lineDecisions) ? [...t.lineDecisions] : [];
+          while (decisions.length < items.length) decisions.push(null);
+          let lineIdx = body.line;
+          if (lineIdx !== undefined && lineIdx !== null && lineIdx !== 'all') {
+            lineIdx = Number(lineIdx);
+            if (!Number.isInteger(lineIdx) || lineIdx < 0 || lineIdx >= items.length) return sendJson(res, 400, { error: 'That estimate line no longer exists.' });
+            if (decisions[lineIdx]) return sendJson(res, 400, { error: 'That line was already decided.' });
+            decisions[lineIdx] = action;
+          } else {
+            // Whole estimate: decide every line that is still undecided.
+            for (let i = 0; i < items.length; i++) if (!decisions[i]) decisions[i] = action;
+          }
+          t.lineDecisions = decisions;
+          const decided = decisions.filter(Boolean).length;
+          if (decided < items.length) {
+            // Still waiting on some lines; the estimate is not decided yet.
+            ticketsStore.write(tickets);
+            return sendJson(res, 200, { ticket: t });
+          }
+          // Every line decided. Drop the denied lines from the estimate
+          // (they are never charged) and record the outcome.
+          const accepted = items.filter((_, i) => decisions[i] === 'accept');
+          const denied = items.filter((_, i) => decisions[i] === 'decline');
+          const outcome = denied.length === 0 ? 'accept' : accepted.length === 0 ? 'decline' : 'partial';
+          if (denied.length) {
+            t.deniedLines = [...(t.deniedLines || []), ...denied.map(l => ({ desc: l.desc, price: ticketItemTotal(l) }))];
+            t.items = accepted;
+            const r2 = n => Math.round(n * 100) / 100;
+            const parts = r2(t.items.reduce((s, it) => s + ticketItemTotal(it), 0));
+            t.subtotal = parts;
+            t.taxAmount = r2(r2(parts + (t.laborAmount || 0)) * (t.taxRate || 0) / 100);
+            t.total = r2(parts + (t.laborAmount || 0) + t.taxAmount + (t.expensesTotal || 0));
+          }
+          t.estimateDecision = { action: outcome, at: new Date().toISOString() };
           ticketsStore.write(tickets);
           if (!isMechanic) {
+            const outcomeWord = outcome === 'accept' ? 'approved' : outcome === 'decline' ? 'denied' : 'partially approved';
             try {
               const notes = notificationsStore.read();
-              notes.push({ id: crypto.randomUUID(), userId: t.mechanicId, type: action === 'accept' ? 'estimate_accepted' : 'estimate_declined', title: `Customer ${action === 'accept' ? 'approved' : 'denied'} your estimate`, service: row ? row.service : '', vehicle: t.vehicle || '', total: t.total, customerName: capName(t.customerName || ''), customerPhone: t.phone || '', requestId: t.requestId || null, ticketId: t.id, read: false, createdAt: new Date().toISOString() });
+              notes.push({ id: crypto.randomUUID(), userId: t.mechanicId, type: outcome === 'decline' ? 'estimate_declined' : 'estimate_accepted', title: `Customer ${outcomeWord} your estimate`, service: row ? row.service : '', vehicle: t.vehicle || '', total: t.total, customerName: capName(t.customerName || ''), customerPhone: t.phone || '', requestId: t.requestId || null, ticketId: t.id, read: false, createdAt: new Date().toISOString() });
               notificationsStore.write(notes);
             } catch (e) {}
             try {
               const mechUser = usersStore.read().find(u => u.id === t.mechanicId);
               const biz = businessesStore.read().find(b => b.id === t.businessId);
               const to = (mechUser && mechUser.phone) || (biz && biz.phone) || '';
-              if (to) await sendSms(to, `Mobile Mechanic Network: ${capName(t.customerName) || 'A customer'} ${action === 'accept' ? 'approved' : 'denied'} your estimate for ${t.vehicle} — $${Number(t.total).toFixed(2)}. See it here: https://mobilemechanicsinmyarea.com/mechanic`);
+              if (to) await sendSms(to, `Mobile Mechanic Network: ${capName(t.customerName) || 'A customer'} ${outcomeWord} your estimate for ${t.vehicle} — $${Number(t.total).toFixed(2)}. See it here: https://mobilemechanicsinmyarea.com/mechanic`);
             } catch (e) {}
           }
           return sendJson(res, 200, { ticket: t });
