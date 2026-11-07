@@ -1070,7 +1070,19 @@ const server = http.createServer(async (req, res) => {
       let found = null;
       try {
         const gv = vehicleFromRequest({ vehicle: vehicleStr, vehicleType: 'car' });
-        if (gv) found = await commonsVehiclePhoto(gv.year, gv.make, gv.model);
+        if (gv) {
+          found = await commonsVehiclePhoto(gv.year, gv.make, gv.model);
+          // A trim in the model (GT, Shelby) can be too strict for photo
+          // titles; retry with just the first model word.
+          if (!found && gv.model && gv.model.includes(' ')) {
+            found = await commonsVehiclePhoto(gv.year, gv.make, gv.model.split(' ')[0]);
+          }
+        } else {
+          // No make in the string (e.g. "2020 Mustang"): search by year
+          // and the model word alone.
+          const m = String(vehicleStr || '').trim().match(/^(\d{4})\s+(.+)$/);
+          if (m) found = await commonsVehiclePhoto(m[1], '', m[2].split(' ')[0]);
+        }
       } catch (e) { found = null; }
       commonsPhotoCache.set(key, found);
       return found;
