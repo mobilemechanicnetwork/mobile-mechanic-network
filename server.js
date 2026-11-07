@@ -45,6 +45,7 @@ const promotionsStore = store('promotions.json');
 const ticketsStore = store('tickets.json');
 const calendarStore = store('calendar.json');
 const vehiclesStore = store('vehicles.json');
+const vehiclePhotoOverridesStore = store('vehicle-photo-overrides.json');
 const helpStore = store('help.json');
 const smsCodeStore = store('smscodes.json'); // password-reset + 2FA + login-challenge codes
 const ppiStore = store('ppi.json');
@@ -999,6 +1000,64 @@ const server = http.createServer(async (req, res) => {
       } catch (e) {}
       return null;
     }
+    // ---------- Mechanic-side vehicle photos ----------
+    // The photo a mechanic sees for a vehicle on the Tickets and Customers
+    // tabs. Resolution: the mechanic's own override (changed from the
+    // portal, never written back to the customer's garage), then the
+    // customer's own uploaded photo, then a Wikimedia Commons photo of the
+    // model (lazy, same rule as the owner's garage). Garage vehicle rows
+    // carry no VIN, so matching is by owner + year/make/model.
+    function normVehicleString(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
+    function garageVehicleString(v) { return normVehicleString([v.year, v.make, v.model].filter(Boolean).join(' ')); }
+    function findGarageVehicle(ref) {
+      const vehicles = vehiclesStore.read();
+      if (ref.vehicleId) { const v = vehicles.find(x => x.id === ref.vehicleId); if (v) return v; }
+      if (!ref.vehicle) return null;
+      const want = normVehicleString(ref.vehicle);
+      let ownerId = ref.ownerId || null;
+      if (!ownerId && ref.email) { const u = usersStore.read().find(u => (u.email || '').toLowerCase() === String(ref.email).toLowerCase()); if (u) ownerId = u.id; }
+      if (!ownerId && ref.customerName) { const u = usersStore.read().find(u => normVehicleString(u.name) === normVehicleString(ref.customerName)); if (u) ownerId = u.id; }
+      if (!ownerId) return null;
+      return vehicles.find(x => x.ownerId === ownerId && garageVehicleString(x) === want) || null;
+    }
+    async function ensureCommonsPhotos(list) {
+      const unchecked = (list || []).filter(v => v && !v.photoUrl && v.photoRule !== 2);
+      if (!unchecked.length) return;
+      const results = await Promise.all(unchecked.map(async (v) => ({ v, found: await commonsVehiclePhoto(v.year, v.make, v.model) })));
+      const all = vehiclesStore.read();
+      let changed = false;
+      for (const { v, found } of results) {
+        const row = all.find(x => x.id === v.id);
+        if (!row) continue;
+        row.photoChecked = true;
+        row.photoRule = 2;
+        if (found) { row.autoPhotoUrl = found.url; row.autoPhotoPage = found.page; row.photoKind = found.kind || 'vehicle'; }
+        else { row.autoPhotoUrl = null; row.autoPhotoPage = null; row.photoKind = null; }
+        v.photoChecked = row.photoChecked;
+        v.photoRule = row.photoRule;
+        v.autoPhotoUrl = row.autoPhotoUrl;
+        v.autoPhotoPage = row.autoPhotoPage;
+        v.photoKind = row.photoKind;
+        changed = true;
+      }
+      if (changed) vehiclesStore.write(all);
+    }
+    function findVehiclePhotoOverride(bizId, ref, gv) {
+      const overrides = vehiclePhotoOverridesStore.read().filter(o => o.businessId === bizId);
+      return overrides.find(o =>
+        (gv && o.vehicleId && o.vehicleId === gv.id) ||
+        (ref.vehicle && ref.customerName && o.vehicle && o.customerName && normVehicleString(o.vehicle) === normVehicleString(ref.vehicle) && normVehicleString(o.customerName) === normVehicleString(ref.customerName))
+      ) || null;
+    }
+    function resolveVehiclePhoto(bizId, ref, gv) {
+      const over = findVehiclePhotoOverride(bizId, ref, gv);
+      if (over && over.photoUrl) return { vehiclePhotoUrl: over.photoUrl, vehiclePhotoSource: 'override', vehiclePhotoKind: 'upload', vehicleId: gv ? gv.id : (over.vehicleId || null) };
+      if (gv) {
+        if (gv.photoUrl) return { vehiclePhotoUrl: gv.photoUrl, vehiclePhotoSource: 'upload', vehiclePhotoKind: 'upload', vehicleId: gv.id };
+        if (gv.autoPhotoUrl) return { vehiclePhotoUrl: gv.autoPhotoUrl, vehiclePhotoSource: 'commons', vehiclePhotoKind: gv.photoKind || 'vehicle', vehicleId: gv.id };
+      }
+      return { vehiclePhotoUrl: null, vehiclePhotoSource: null, vehiclePhotoKind: null, vehicleId: gv ? gv.id : null };
+    }
     if (p === '/api/vehicles/me' && req.method === 'GET') {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
@@ -1106,6 +1165,72 @@ const server = http.createServer(async (req, res) => {
         row.photoUrl = null;
         vehiclesStore.write(vehicles);
       }
+      return sendJson(res, 200, {});
+    }
+    // Mechanic-side vehicle photos: the mechanic can change the picture a
+    // vehicle shows on the Tickets and Customers tabs. The change is stored
+    // as an override for this business only and never touches the
+    // customer's garage vehicle, so the customer's profile is unchanged.
+    if (p === '/api/mechanic/vehicle-photo' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
+      const biz = myBusiness(user.id);
+      if (!biz) return sendJson(res, 400, { error: 'No business profile yet.' });
+      let parts;
+      try { parts = await parseMultipart(req); } catch (e) { return sendJson(res, 400, { error: 'Upload failed.' }); }
+      const filePart = parts.find(x => x.filename);
+      if (!filePart) return sendJson(res, 400, { error: 'Choose a photo to upload.' });
+      const allowed = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
+      const ext = allowed[filePart.contentType];
+      if (!ext) return sendJson(res, 400, { error: 'Only JPG, PNG, WebP or GIF images.' });
+      if (filePart.data.length > 5 * 1024 * 1024) return sendJson(res, 400, { error: 'Image must be under 5 MB.' });
+      const field = (name) => { const f = parts.find(x => x.name === name && !x.filename); return f ? String(f.data) : ''; };
+      const ref = { vehicleId: field('vehicleId'), vehicle: field('vehicle'), customerName: field('customerName') };
+      const gv = findGarageVehicle(ref);
+      const overrides = vehiclePhotoOverridesStore.read();
+      let over = overrides.find(o => o.businessId === biz.id && ((gv && o.vehicleId && o.vehicleId === gv.id) || (ref.vehicle && ref.customerName && o.vehicle && o.customerName && normVehicleString(o.vehicle) === normVehicleString(ref.vehicle) && normVehicleString(o.customerName) === normVehicleString(ref.customerName))));
+      const dir = path.join(DATA_DIR, 'uploads');
+      fs.mkdirSync(dir, { recursive: true });
+      if (!over) {
+        over = { id: crypto.randomUUID(), businessId: biz.id, vehicleId: gv ? gv.id : '', vehicle: ref.vehicle || '', customerName: ref.customerName || '', photoUrl: '', createdAt: new Date().toISOString() };
+        overrides.push(over);
+      }
+      if (over.photoUrl) {
+        const name = over.photoUrl.slice('/uploads/'.length);
+        if (/^[A-Za-z0-9._-]+$/.test(name)) { try { fs.unlinkSync(path.join(dir, name)); } catch (e) {} }
+      }
+      const fname = over.id + '-photo.' + ext;
+      fs.writeFileSync(path.join(dir, fname), filePart.data);
+      over.photoUrl = '/uploads/' + fname;
+      over.vehicleId = gv ? gv.id : over.vehicleId;
+      over.vehicle = ref.vehicle || over.vehicle;
+      over.customerName = ref.customerName || over.customerName;
+      over.updatedAt = new Date().toISOString();
+      vehiclePhotoOverridesStore.write(overrides);
+      return sendJson(res, 200, { url: over.photoUrl, vehicleId: over.vehicleId || null });
+    }
+    if (p === '/api/mechanic/vehicle-photo/remove' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      if (mechanicFrozen(user)) return frozenError(res);
+      const biz = myBusiness(user.id);
+      if (!biz) return sendJson(res, 400, { error: 'No business profile yet.' });
+      const body = await parseBody(req);
+      const ref = { vehicleId: String(body.vehicleId || ''), vehicle: String(body.vehicle || ''), customerName: String(body.customerName || '') };
+      const gv = findGarageVehicle(ref);
+      const overrides = vehiclePhotoOverridesStore.read();
+      const ix = overrides.findIndex(o => o.businessId === biz.id && ((gv && o.vehicleId && o.vehicleId === gv.id) || (ref.vehicle && ref.customerName && o.vehicle && o.customerName && normVehicleString(o.vehicle) === normVehicleString(ref.vehicle) && normVehicleString(o.customerName) === normVehicleString(ref.customerName))));
+      if (ix === -1) return sendJson(res, 200, {});
+      const over = overrides[ix];
+      if (over.photoUrl) {
+        const name = over.photoUrl.slice('/uploads/'.length);
+        if (/^[A-Za-z0-9._-]+$/.test(name)) { try { fs.unlinkSync(path.join(DATA_DIR, 'uploads', name)); } catch (e) {} }
+      }
+      overrides.splice(ix, 1);
+      vehiclePhotoOverridesStore.write(overrides);
       return sendJson(res, 200, {});
     }
 
@@ -2187,8 +2312,17 @@ const server = http.createServer(async (req, res) => {
       const user = getSessionUser(req);
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const biz = myBusiness(user.id);
       const tickets = ticketsStore.read().filter(t => t.mechanicId === user.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-      return sendJson(res, 200, { tickets });
+      const requests = requestsStore.read();
+      const refs = tickets.map(t => {
+        const row = t.requestId ? requests.find(r => r.id === t.requestId) : null;
+        return { vehicle: t.vehicle || '', customerName: t.customerName || '', email: t.email || '', ownerId: row ? (row.ownerId || null) : null };
+      });
+      const gvs = refs.map(findGarageVehicle);
+      await ensureCommonsPhotos(gvs);
+      const out = tickets.map((t, i) => ({ ...t, ...resolveVehiclePhoto(biz ? biz.id : '', refs[i], gvs[i]) }));
+      return sendJson(res, 200, { tickets: out });
     }
     const ticketConvert = p.match(/^\/api\/tickets\/([0-9a-f-]+)\/convert$/);
     if (ticketConvert && req.method === 'POST') {
@@ -2406,6 +2540,7 @@ const server = http.createServer(async (req, res) => {
       const myTickets = ticketsStore.read().filter(t => t.mechanicId === user.id);
       const allRequests = requestsStore.read();
       const allQuotes = quotesStore.read();
+      const jobPhotoQueue = [];
       const normName = s => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
       const byKey = new Map();
       const getCust = (key, name, phone, city, state) => {
@@ -2422,7 +2557,9 @@ const server = http.createServer(async (req, res) => {
         if (!pr) continue;
         const ticket = myTickets.find(t => t.requestId === pr.id);
         const c = getCust('phone:' + (pr.phone || pr.ownerId || q.requestId), pr.ownerName, pr.phone, pr.city, pr.state);
-        c.jobs.push({ service: pr.service, vehicle: pr.vehicle || '', date: (pr.createdAt || '').slice(0, 10), total: ticket ? ticket.total : (q.total != null ? q.total : q.price), paid: myTickets.some(t => t.requestId === pr.id && t.type === 'receipt'), ticketId: ticket ? ticket.id : null, address: ticket ? (ticket.jobAddress || '') : '', vin: ticket ? (ticket.vin || '') : '', createdAt: pr.createdAt || '' });
+        const job = { service: pr.service, vehicle: pr.vehicle || '', date: (pr.createdAt || '').slice(0, 10), total: ticket ? ticket.total : (q.total != null ? q.total : q.price), paid: myTickets.some(t => t.requestId === pr.id && t.type === 'receipt'), ticketId: ticket ? ticket.id : null, address: ticket ? (ticket.jobAddress || '') : '', vin: ticket ? (ticket.vin || '') : '', createdAt: pr.createdAt || '' };
+        c.jobs.push(job);
+        jobPhotoQueue.push({ job, ref: { vehicle: pr.vehicle || '', customerName: pr.ownerName || '', email: ownerEmailFor(pr.ownerId), ownerId: pr.ownerId || null } });
       }
       for (const t of myTickets) {
         if (t.requestId || (t.type !== 'invoice' && t.type !== 'receipt')) continue;
@@ -2430,12 +2567,24 @@ const server = http.createServer(async (req, res) => {
         if (!want) continue;
         let c = [...byKey.values()].find(x => normName(x.name) === want);
         if (!c) c = getCust('name:' + want, t.customerName, '', '', '');
-        c.jobs.push({ service: (t.items || []).map(it => it.desc).filter(Boolean).join(', ') || t.laborDesc || 'Service', vehicle: t.vehicle || '', date: (t.createdAt || '').slice(0, 10), total: t.total, paid: t.type === 'receipt', ticketId: t.id, address: t.jobAddress || '', vin: t.vin || '', createdAt: t.createdAt || '' });
+        const job = { service: (t.items || []).map(it => it.desc).filter(Boolean).join(', ') || t.laborDesc || 'Service', vehicle: t.vehicle || '', date: (t.createdAt || '').slice(0, 10), total: t.total, paid: t.type === 'receipt', ticketId: t.id, address: t.jobAddress || '', vin: t.vin || '', createdAt: t.createdAt || '' };
+        c.jobs.push(job);
+        const tReq = t.requestId ? allRequests.find(r => r.id === t.requestId) : null;
+        jobPhotoQueue.push({ job, ref: { vehicle: t.vehicle || '', customerName: t.customerName || '', email: t.email || '', ownerId: tReq ? (tReq.ownerId || null) : null } });
       }
       const customers = [...byKey.values()].map(c => {
         c.jobs.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
         return { name: c.name, phone: c.phone, city: c.city, state: c.state, jobs: c.jobs, lastJob: c.jobs.length ? c.jobs[0].createdAt : '' };
       }).filter(c => c.name).sort((a, b) => String(b.lastJob).localeCompare(String(a.lastJob)));
+      const gvs = jobPhotoQueue.map(({ ref }) => findGarageVehicle(ref));
+      await ensureCommonsPhotos(gvs);
+      jobPhotoQueue.forEach(({ job, ref }, i) => {
+        const photo = resolveVehiclePhoto(biz.id, ref, gvs[i]);
+        job.vehiclePhotoUrl = photo.vehiclePhotoUrl;
+        job.vehiclePhotoSource = photo.vehiclePhotoSource;
+        job.vehiclePhotoKind = photo.vehiclePhotoKind;
+        job.vehicleId = photo.vehicleId;
+      });
       return sendJson(res, 200, { customers });
     }
     if (p === '/api/tickets/customers' && req.method === 'GET') {
@@ -2741,6 +2890,7 @@ const server = http.createServer(async (req, res) => {
         promotions: promotionsStore.read(),
         tickets: ticketsStore.read(),
         vehicles: vehiclesStore.read(),
+        vehiclePhotoOverrides: vehiclePhotoOverridesStore.read(),
         help: helpStore.read(),
         ppi: ppiStore.read(),
         reviews: reviewsStore.read(),
