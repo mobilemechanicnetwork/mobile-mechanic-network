@@ -572,7 +572,7 @@ function requestMatchesBusiness(reqRow, biz) {
 function publicBusiness(b) {
   const owner = usersStore.read().find(u => u.id === b.userId);
   const rating = businessRating(b.id);
-  return { id: b.id, name: b.name, city: b.city, state: b.state, serviceCities: b.serviceCities || [], services: b.services, vehicleTypes: Array.isArray(b.vehicleTypes) && b.vehicleTypes.length ? b.vehicleTypes : ['car'], about: b.about, phone: b.phone || '', logoUrl: b.logoUrl || '', coverUrl: b.coverUrl || '', coverPosition: b.coverPosition || '50% 50%', gallery: b.gallery || [], socials: b.socials || {}, warranty: b.warranty || '', acceptUrgent: !!b.acceptUrgent, certifications: b.certifications || [], prices: b.prices || [], avgRating: rating.avg, reviewCount: rating.count, fastResponder: isFastResponder(b.id), mechanicName: owner ? owner.name : '' };
+  return { id: b.id, name: b.name, city: b.city, state: b.state, serviceCities: b.serviceCities || [], services: b.services, vehicleTypes: Array.isArray(b.vehicleTypes) && b.vehicleTypes.length ? b.vehicleTypes : ['car'], about: b.about, phone: b.phone || '', logoUrl: b.logoUrl || '', coverUrl: b.coverUrl || '', coverPosition: b.coverPosition || '50% 50%', gallery: b.gallery || [], socials: b.socials || {}, warranty: b.warranty || '', acceptUrgent: !!b.acceptUrgent, certifications: b.certifications || [], prices: b.prices || [], tutorialSeen: !!b.tutorialSeen, avgRating: rating.avg, reviewCount: rating.count, fastResponder: isFastResponder(b.id), mechanicName: owner ? owner.name : '' };
 }
 function businessRating(businessId) {
   const revs = reviewsStore.read().filter(r => r.businessId === businessId);
@@ -1466,6 +1466,20 @@ const server = http.createServer(async (req, res) => {
       if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
       const biz = myBusiness(user.id);
       return sendJson(res, 200, { business: biz ? { ...publicBusiness(biz), promotion: latestPromotion(biz.id) } : null });
+    }
+    // The first-run tutorial is shown until the mechanic dismisses it.
+    // Recorded on the business so it shows once per account, not once
+    // per device.
+    if (p === '/api/business/tutorial-seen' && req.method === 'POST') {
+      const user = getSessionUser(req);
+      if (!user) return sendJson(res, 401, { error: 'Not signed in.' });
+      if (user.role !== 'mechanic') return sendJson(res, 403, { error: 'Mechanics only.' });
+      const businesses = businessesStore.read();
+      const biz = businesses.find(b => b.userId === user.id);
+      if (!biz) return sendJson(res, 404, { error: 'No business profile.' });
+      biz.tutorialSeen = true;
+      businessesStore.write(businesses);
+      return sendJson(res, 200, { ok: true });
     }
     if (p === '/api/mechanics' && req.method === 'GET') {
       const city = (url.searchParams.get('city') || '').toLowerCase();

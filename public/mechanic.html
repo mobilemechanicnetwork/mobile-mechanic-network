@@ -266,21 +266,18 @@
     <div id="cal-week" style="margin-bottom:16px"></div>
     <div id="cal-month" style="margin-bottom:16px" hidden></div>
     <input type="file" id="veh-photo-input" accept="image/*" hidden>
-    <p class="muted">Upcoming jobs, soonest first. Booked jobs show up here automatically; tap Add job to calendar to add anything you set up by phone.</p>
     <p><button type="button" class="primary" onclick="openCalManualPopup()">Add job to calendar</button></p>
     <div id="cal-list" style="margin-top:16px"></div>
   </section>
 
   <section class="tab" id="tab-customers">
     <h2>Customers</h2>
-    <p class="muted">Prior customers and their service history with you. A customer appears here once they have a booked or billed job.</p>
     <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="cust-search" placeholder="Search by name or phone…" style="flex:1;min-width:220px;max-width:420px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;box-sizing:border-box"><select id="cust-sort" style="padding:9px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"><option value="default">Sort: Default order</option><option value="az">Sort: Name A to Z</option><option value="za">Sort: Name Z to A</option></select></p>
     <div id="customer-list"><p class="muted">Loading…</p></div>
   </section>
 
   <section class="tab" id="tab-earnings">
     <h2>Earnings</h2>
-    <p class="muted">Income counts jobs marked paid (receipts). Quotes and booked jobs show up here once they're paid.</p>
     <div id="stats-box"><p class="muted">Loading…</p></div>
   </section>
 
@@ -415,6 +412,7 @@
         </ol></div>
       </details>
     </div>
+    <p style="margin-top:16px"><button type="button" class="ghost" onclick="showTutorial()">Take the tour again</button></p>
     <h3 style="margin-top:28px">Still need help?</h3>
     <p class="muted">Something not working or have a question? Describe it below and it goes straight to us.</p>
     <form id="help-form">
@@ -498,6 +496,25 @@
           <button class="primary" type="button" id="ntp-next">Next →</button>
           <button type="button" class="ghost" id="ntp-blank">Skip — start blank</button>
           <button type="button" class="ghost" id="ntp-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="tutorial-popup" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:60;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto" onclick="if(event.target===this)hideTutorial()">
+      <div style="background:#fff;border-radius:14px;max-width:520px;width:100%;padding:20px;margin:24px 0;box-sizing:border-box">
+        <h3 style="margin:0 0 4px">Welcome to your portal</h3>
+        <p style="margin:0 0 14px;color:#334155">A quick tour of where everything lives.</p>
+        <div style="display:grid;gap:12px">
+          <div><strong>Leads</strong><div style="color:#475569">New requests land here first. Leads that don't have a ticket yet. Once a job has a ticket, it lives under Tickets. Call or text the customer from the card, then tap Create a ticket when you're ready to price it.</div></div>
+          <div><strong>Tickets</strong><div style="color:#475569">Create estimates, invoices, and receipts branded with your logo and contact info. Open a ticket to print or save it as a PDF. Booked jobs live here once they have a ticket.</div></div>
+          <div><strong>Today</strong><div style="color:#475569">Your appointments and open jobs at a glance.</div></div>
+          <div><strong>Notifications</strong><div style="color:#475569">Everything that needs your attention, with the unread count on the tab.</div></div>
+          <div><strong>Calendar</strong><div style="color:#475569">Upcoming jobs, soonest first. Booked jobs show up here automatically; tap Add job to calendar to add anything you set up by phone.</div></div>
+          <div><strong>Customers</strong><div style="color:#475569">Prior customers and their service history with you. A customer appears here once they have a booked or billed job.</div></div>
+          <div><strong>Finances</strong><div style="color:#475569">Income counts jobs marked paid (receipts). Quotes and booked jobs show up here once they're paid.</div></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+          <button class="primary" type="button" onclick="hideTutorial()">Got it</button>
         </div>
       </div>
     </div>
@@ -1113,6 +1130,16 @@ window.openCalManualPopup = () => {
   $('cal-manual-popup').style.display = 'flex';
 };
 window.hideCalManualPopup = () => { const box = $('cal-manual-popup'); if (box) box.style.display = 'none'; };
+// First-run tutorial: the welcome tour shown the first time a mechanic
+// creates their profile. It collects the tab explanations that used to
+// sit under each tab heading. Dismissing it records tutorialSeen on the
+// business so it shows once per account, not once per device.
+window.showTutorial = () => { const box = $('tutorial-popup'); if (box) box.style.display = 'flex'; };
+window.hideTutorial = async () => {
+  const box = $('tutorial-popup'); if (box) box.style.display = 'none';
+  if (window._biz) window._biz.tutorialSeen = true;
+  try { await post('/api/business/tutorial-seen', {}); } catch (e) {}
+};
 $('cal-man-submit').onclick = async () => {
   const errEl = $('cal-man-err');
   errEl.textContent = '';
@@ -1205,6 +1232,8 @@ async function loadProfile() {
     if (b.logoUrl) { $('b-logo-preview').src = b.logoUrl; $('b-logo-preview').style.display = 'block'; }
     if (b.coverUrl) { $('b-cover-wrap').style.display = 'block'; $('b-cover-preview').src = b.coverUrl; $('b-cover-preview').style.objectPosition = b.coverPosition || '50% 50%'; }
     renderGallery(b.gallery || []);
+    // First time on the portal with this profile, show the welcome tour.
+    if (!b.tutorialSeen) showTutorial();
   }
 }
 /* ---------- Customer-view preview ---------- */
