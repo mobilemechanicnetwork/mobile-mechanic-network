@@ -27,6 +27,12 @@
   .welcome h1{font-size:1.9rem;font-weight:800;letter-spacing:-.02em;margin:0 0 6px}
   .welcome .muted{margin:0}
   .top-actions{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 28px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0}
+  .tabs button{background:#ffffff;border:1px solid #e2e8f0;color:#475569;border-radius:999px;padding:9px 16px;cursor:pointer;font-size:.9rem;box-shadow:0 1px 2px rgba(15,23,42,.06)}
+  .tabs button.active{background:#2563eb;border-color:#2563eb;color:#fff}
+  @media (max-width:640px){.tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.tabs button{flex:none}}
+  section.tab{display:none}
+  section.tab.active{display:block}
 </style>
 </head>
 <body>
@@ -39,78 +45,105 @@
     <h1 id="hello">My dashboard</h1>
     <p class="muted" id="who"></p>
   </div>
-  <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600;text-align:left">Add your phone number below so mechanics can reach you with quotes. <a href="#owner" id="phone-banner-link" style="color:#b91c1c">Add it in My info ↓</a></div>
+  <div id="phone-banner" hidden style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-weight:600;text-align:left">Add your phone number below so mechanics can reach you with quotes. <a href="#garage" id="phone-banner-link" style="color:#b91c1c" onclick="showTab('garage');return false">Add it in My garage ↓</a></div>
 
   <section id="owner" hidden>
     <p class="top-actions"><button type="button" onclick="location.href='/find'">Find a mobile mechanic</button></p>
-    <h2>Notifications <span id="notif-count" class="muted" style="font-size:1rem"></span></h2>
-    <div id="notif-list"><p class="muted">Loading…</p></div>
-    <p><button type="button" class="ghost" id="notif-read">Mark all read</button> <button type="button" class="ghost" id="notif-clear">Clear all</button></p>
-    <h2>Open Jobs</h2>
-    <div id="open-jobs"></div>
-    <h2>Repair history</h2>
-    <div id="my-requests"></div>
-    <h2>Inspections</h2>
-    <div id="my-inspections"></div>
-    <h2>My info</h2>
-    <div class="card">
-      <div id="o-view">
-        <div id="o-name-view" style="font-size:1.3rem;font-weight:700"></div>
-        <div id="o-phone-view" style="font-size:1.15rem;font-weight:700;margin-top:4px"></div>
-        <div class="muted" id="o-email"></div>
-        <div class="ok" id="o-view-ok"></div>
-        <p style="margin:10px 0 0"><button type="button" class="ghost" id="o-edit-btn" style="font-size:.8rem;padding:5px 10px">Edit</button></p>
-      </div>
-      <div id="o-edit" hidden>
-        <label for="o-name">Name</label><input id="o-name">
-        <label for="o-phone">Phone number</label><input id="o-phone" type="tel" placeholder="(504) 555-0100">
-        <p><button type="button" onclick="saveProfile()">Save</button> <button type="button" class="ghost" onclick="cancelEditProfile()">Cancel</button></p>
-        <div class="err" id="o-err"></div><div class="ok" id="o-ok"></div>
-      </div>
+    <div class="tabs" id="owner-tabs">
+      <button type="button" data-tab="jobs" class="active">Open Jobs</button>
+      <button type="button" data-tab="notifications">Notifications <span id="notif-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700;margin-left:4px;vertical-align:middle"></span></button>
+      <button type="button" data-tab="history">Repair history</button>
+      <button type="button" data-tab="inspections">Inspections</button>
+      <button type="button" data-tab="garage">My garage</button>
+      <button type="button" data-tab="mechanics">Mechanics</button>
+      <button type="button" data-tab="help">Help</button>
     </div>
-    <h2>My vehicles</h2>
-    <div id="my-vehicles"></div>
-    <div class="card">
-      <div class="muted">Add a vehicle</div>
-      <div id="v-type"></div>
-      <label for="v-year">Year</label><select id="v-year"></select>
-      <label for="v-make">Make</label><select id="v-make"></select>
-      <label for="v-model">Model</label><select id="v-model"></select>
-      <p><button type="button" onclick="addVehicle()">Add vehicle</button></p>
-      <div class="err" id="v-err"></div>
-    </div>
-    <h2>Recent mechanics</h2>
-    <div id="recent-mechanics"></div>
-    <div id="recent-req" hidden class="card">
-      <div><strong id="recent-req-name"></strong></div>
-      <label>Vehicle</label>
-      <select id="rq-garage-select"></select>
-      <div id="rq-vehicle-manual" hidden>
-      <div id="rq-type"></div>
-      <div class="row"><div><label for="rq-year">Year</label><select id="rq-year"></select></div><div><label for="rq-make">Make</label><select id="rq-make"></select></div><div><label for="rq-model">Model</label><select id="rq-model"></select></div></div>
-      </div>
-      <label for="rq-service">Service needed</label><select id="rq-service"></select>
-      <label for="rq-desc">What is going on with the vehicle?</label><textarea id="rq-desc" rows="3"></textarea>
-      <label for="rq-location">Street address of the vehicle</label><input id="rq-location" autocomplete="street-address">
-      <label style="display:block;margin-top:6px"><input type="checkbox" id="rq-contact-loc" onchange="toggleRqContact(this)"> Contact me for the exact location</label>
-      <label for="rq-loctype">Is the vehicle at a house, work, or business?</label><select id="rq-loctype"><option value="" disabled selected>Select one</option><option value="house">House</option><option value="work">Work</option><option value="business">Business</option></select>
-      <label for="rq-city">City</label><input id="rq-city">
-      <label for="rq-state">State</label><input id="rq-state" maxlength="2">
-      <label for="rq-date">When do you need it?</label><input id="rq-date" type="date">
-      <p><button type="button" onclick="sendRecentRequest()">Send quote request</button></p>
-      <div class="err" id="rq-err"></div><div class="ok" id="rq-ok"></div>
-    </div>
-  </section>
 
-  <section id="help">
-    <h2>Help</h2>
-    <p class="muted">Something not working or have a question? Describe it below and it goes straight to us.</p>
-    <form id="help-form">
-      <label for="h-subject">Subject (optional)</label><input id="h-subject" maxlength="120" placeholder="e.g. Can't see my quotes">
-      <label for="h-message">What's going on?</label><textarea id="h-message" rows="4" required placeholder="Describe the issue or concern"></textarea>
-      <button type="submit">Send</button>
-      <div class="err" id="h-err"></div><div class="ok" id="h-ok"></div>
-    </form>
+    <section class="tab active" id="tab-jobs">
+      <h2>Open Jobs</h2>
+      <div id="open-jobs"></div>
+    </section>
+
+    <section class="tab" id="tab-notifications">
+      <h2>Notifications</h2>
+      <div id="notif-list"><p class="muted">Loading…</p></div>
+      <p><button type="button" class="ghost" id="notif-read">Mark all read</button> <button type="button" class="ghost" id="notif-clear">Clear all</button></p>
+    </section>
+
+    <section class="tab" id="tab-history">
+      <h2>Repair history</h2>
+      <div id="my-requests"></div>
+    </section>
+
+    <section class="tab" id="tab-inspections">
+      <h2>Inspections</h2>
+      <div id="my-inspections"></div>
+    </section>
+
+    <section class="tab" id="tab-garage">
+      <h2>My garage</h2>
+      <div class="card">
+        <div id="o-view">
+          <div id="o-name-view" style="font-size:1.3rem;font-weight:700"></div>
+          <div id="o-phone-view" style="font-size:1.15rem;font-weight:700;margin-top:4px"></div>
+          <div class="muted" id="o-email"></div>
+          <div class="ok" id="o-view-ok"></div>
+          <p style="margin:10px 0 0"><button type="button" class="ghost" id="o-edit-btn" style="font-size:.8rem;padding:5px 10px">Edit</button></p>
+        </div>
+        <div id="o-edit" hidden>
+          <label for="o-name">Name</label><input id="o-name">
+          <label for="o-phone">Phone number</label><input id="o-phone" type="tel" placeholder="(504) 555-0100">
+          <p><button type="button" onclick="saveProfile()">Save</button> <button type="button" class="ghost" onclick="cancelEditProfile()">Cancel</button></p>
+          <div class="err" id="o-err"></div><div class="ok" id="o-ok"></div>
+        </div>
+      </div>
+      <h2>My vehicles</h2>
+      <div id="my-vehicles"></div>
+      <div class="card">
+        <div class="muted">Add a vehicle</div>
+        <div id="v-type"></div>
+        <label for="v-year">Year</label><select id="v-year"></select>
+        <label for="v-make">Make</label><select id="v-make"></select>
+        <label for="v-model">Model</label><select id="v-model"></select>
+        <p><button type="button" onclick="addVehicle()">Add vehicle</button></p>
+        <div class="err" id="v-err"></div>
+      </div>
+    </section>
+
+    <section class="tab" id="tab-mechanics">
+      <h2>Recent mechanics</h2>
+      <div id="recent-mechanics"></div>
+      <div id="recent-req" hidden class="card">
+        <div><strong id="recent-req-name"></strong></div>
+        <label>Vehicle</label>
+        <select id="rq-garage-select"></select>
+        <div id="rq-vehicle-manual" hidden>
+        <div id="rq-type"></div>
+        <div class="row"><div><label for="rq-year">Year</label><select id="rq-year"></select></div><div><label for="rq-make">Make</label><select id="rq-make"></select></div><div><label for="rq-model">Model</label><select id="rq-model"></select></div></div>
+        </div>
+        <label for="rq-service">Service needed</label><select id="rq-service"></select>
+        <label for="rq-desc">What is going on with the vehicle?</label><textarea id="rq-desc" rows="3"></textarea>
+        <label for="rq-location">Street address of the vehicle</label><input id="rq-location" autocomplete="street-address">
+        <label style="display:block;margin-top:6px"><input type="checkbox" id="rq-contact-loc" onchange="toggleRqContact(this)"> Contact me for the exact location</label>
+        <label for="rq-loctype">Is the vehicle at a house, work, or business?</label><select id="rq-loctype"><option value="" disabled selected>Select one</option><option value="house">House</option><option value="work">Work</option><option value="business">Business</option></select>
+        <label for="rq-city">City</label><input id="rq-city">
+        <label for="rq-state">State</label><input id="rq-state" maxlength="2">
+        <label for="rq-date">When do you need it?</label><input id="rq-date" type="date">
+        <p><button type="button" onclick="sendRecentRequest()">Send quote request</button></p>
+        <div class="err" id="rq-err"></div><div class="ok" id="rq-ok"></div>
+      </div>
+    </section>
+
+    <section class="tab" id="tab-help">
+      <h2>Help</h2>
+      <p class="muted">Something not working or have a question? Describe it below and it goes straight to us.</p>
+      <form id="help-form">
+        <label for="h-subject">Subject (optional)</label><input id="h-subject" maxlength="120" placeholder="e.g. Can't see my quotes">
+        <label for="h-message">What's going on?</label><textarea id="h-message" rows="4" required placeholder="Describe the issue or concern"></textarea>
+        <button type="submit">Send</button>
+        <div class="err" id="h-err"></div><div class="ok" id="h-ok"></div>
+      </form>
+    </section>
   </section>
 
   <section id="mechanic" hidden>
@@ -145,6 +178,26 @@
   async function post(url, body) { return api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+  // Tabs, same pattern as the mechanic portal: pill buttons, one visible
+  // section at a time, Open Jobs first. The unread count lives as a red
+  // badge on the Notifications button.
+  window.showTab = (name) => {
+    document.querySelectorAll('#owner-tabs button').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('section.tab').forEach(x => x.classList.remove('active'));
+    const btn = document.querySelector('#owner-tabs button[data-tab="' + name + '"]');
+    if (btn) btn.classList.add('active');
+    const el = document.getElementById('tab-' + name);
+    if (el) el.classList.add('active');
+  };
+  window.gotoTab = (t) => { showTab(t); window.scrollTo(0, 0); };
+  document.querySelectorAll('#owner-tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.tab); });
+  function updateNotifBadge(count) {
+    const badge = $('notif-badge');
+    if (!badge) return;
+    if (count > 0) { badge.style.display = 'inline-block'; badge.textContent = count; }
+    else badge.style.display = 'none';
+  }
+
   $('logout').onclick = async (e) => { e.preventDefault(); await fetch('/api/logout', { method: 'POST' }); location.href = '/'; };
   if (window.PhoneFmt) { window.PhoneFmt.attach($('o-phone')); window.PhoneFmt.attach($('b-phone')); }
 
@@ -154,7 +207,7 @@
     try {
       const d = await api('/api/notifications');
       const notes = d.notifications || [];
-      $('notif-count').textContent = d.unread ? `(${d.unread} unread)` : '';
+      updateNotifBadge(d.unread || 0);
       $('notif-list').innerHTML = notes.length ? notes.map(n => {
         const bits = [];
         if (n.service) bits.push(esc(n.service));
@@ -166,13 +219,15 @@
     } catch (e) { $('notif-list').innerHTML = '<p class="muted">Notifications could not be loaded.</p>'; }
   }
   window.viewOwnerJob = (requestId, ticketId) => {
-    // A job with a ticket opens the ticket; anything else keeps the old
-    // behavior of scrolling to the job's own card, expanding it first
+    // A job with a ticket opens the ticket; anything else opens the tab
+    // the job lives on first (paid jobs are in Repair history, unpaid in
+    // Open Jobs), then scrolls to the job's own card, expanding it first
     // since job cards now start collapsed.
     if (ticketId) { window.open('/job-ticket?id=' + ticketId, '_blank'); return; }
     const r = (window._ownerRequests || []).find(x => x.id === requestId);
     if (r && r.ticketId) { window.open('/job-ticket?id=' + r.ticketId, '_blank'); return; }
-    const el = document.getElementById('job-' + requestId) || document.getElementById('open-jobs');
+    if (r) showTab(r.paid ? 'history' : 'jobs');
+    const el = document.getElementById('job-' + requestId) || document.getElementById(r && r.paid ? 'my-requests' : 'open-jobs');
     if (el.id === 'job-' + requestId) { const d = document.getElementById('jobd-' + requestId); if (d && d.hidden) window.toggleJobDetail(requestId); }
     el.scrollIntoView();
   };
@@ -573,7 +628,16 @@
     $('who').textContent = me.user.email + ' · ' + (me.user.role === 'mechanic' ? 'Mobile mechanic' : 'Vehicle owner');
     SERVICES = (await api('/api/services')).services;
     if (me.user.role === 'mechanic') { $('mechanic').hidden = false; window.cityChips = window.CityAC ? window.CityAC.chips(document.getElementById('b-cities')) : { get: () => [], set: () => {} }; loadMechanic(); }
-    else { $('owner').hidden = false; loadOwner(); }
+    else {
+      $('owner').hidden = false; loadOwner();
+      // Deep links: the landing page links to /dashboard#help, and the
+      // phone banner used to point at #owner. Anything else opens on
+      // Open Jobs, the action center.
+      const hash = (location.hash || '').replace('#', '');
+      if (hash === 'help') showTab('help');
+      else if (hash === 'owner') showTab('garage');
+      else showTab('jobs');
+    }
   })();
 </script>
 </body>
