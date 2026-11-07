@@ -50,24 +50,23 @@
   <section id="owner" hidden>
     <p class="top-actions"><button type="button" onclick="location.href='/find'">Find a mobile mechanic</button></p>
     <div class="tabs" id="owner-tabs">
-      <button type="button" data-tab="jobs" class="active">Open Jobs</button>
-      <button type="button" data-tab="notifications">Notifications <span id="notif-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700;margin-left:4px;vertical-align:middle"></span></button>
+      <button type="button" data-tab="jobs" class="active">Open Jobs <span id="notif-badge" style="display:none;min-width:20px;height:20px;line-height:20px;text-align:center;background:#dc2626;color:#ffffff;border-radius:999px;padding:0 5px;font-size:.75rem;font-weight:700;margin-left:4px;vertical-align:middle"></span></button>
+      <button type="button" data-tab="garage">My garage</button>
       <button type="button" data-tab="history">Repair history</button>
       <button type="button" data-tab="inspections">Inspections</button>
-      <button type="button" data-tab="garage">My garage</button>
       <button type="button" data-tab="mechanics">Mechanics</button>
       <button type="button" data-tab="help">Help</button>
     </div>
 
-    <section class="tab active" id="tab-jobs">
-      <h2>Open Jobs</h2>
-      <div id="open-jobs"></div>
-    </section>
-
-    <section class="tab" id="tab-notifications">
+    <section class="tab active" id="tab-notifications">
       <h2>Notifications</h2>
       <div id="notif-list"><p class="muted">Loading…</p></div>
       <p><button type="button" class="ghost" id="notif-read">Mark all read</button> <button type="button" class="ghost" id="notif-clear">Clear all</button></p>
+    </section>
+
+    <section class="tab active" id="tab-jobs">
+      <h2>Open Jobs</h2>
+      <div id="open-jobs"></div>
     </section>
 
     <section class="tab" id="tab-history">
@@ -180,14 +179,16 @@
 
   // Tabs, same pattern as the mechanic portal: pill buttons, one visible
   // section at a time, Open Jobs first. The unread count lives as a red
-  // badge on the Notifications button.
+  // badge on the Open Jobs button, since notifications live on that tab.
+  // One button can show several sections: Open Jobs shows notifications
+  // above the jobs, like Today on the mechanic portal.
+  const TAB_SECTIONS = { jobs: ['notifications', 'jobs'], garage: ['garage'], history: ['history'], inspections: ['inspections'], mechanics: ['mechanics'], help: ['help'] };
   window.showTab = (name) => {
     document.querySelectorAll('#owner-tabs button').forEach(x => x.classList.remove('active'));
     document.querySelectorAll('section.tab').forEach(x => x.classList.remove('active'));
     const btn = document.querySelector('#owner-tabs button[data-tab="' + name + '"]');
     if (btn) btn.classList.add('active');
-    const el = document.getElementById('tab-' + name);
-    if (el) el.classList.add('active');
+    (TAB_SECTIONS[name] || [name]).forEach(s => { const el = document.getElementById('tab-' + s); if (el) el.classList.add('active'); });
   };
   window.gotoTab = (t) => { showTab(t); window.scrollTo(0, 0); };
   document.querySelectorAll('#owner-tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.tab); });
