@@ -359,11 +359,16 @@ function ticketMailto() {
 // The dashboard notice still goes out via the server when the
 // customer has an account (see the Text handlers below, which post
 // { text: false } so only the notice fires).
-function ticketSms() {
+function ticketSms(notified) {
   const biz = (typeof B !== 'undefined' && B) ? B.name : 'your mechanic';
   const type = T.type || 'ticket';
   const phone = String(T.phone || '').replace(/[^+\d]/g, '');
-  const msg = 'Hi ' + (T.customerName || '') + ', this is ' + biz + ' with Mobile Mechanic Network. I sent you a ' + type + ' for your ' + (T.vehicle || 'vehicle') + ' — $' + Number(T.total || 0).toFixed(2) + '. Ticket ' + (T.label || '') + '.\n\nView it in your Mobile Mechanic Network dashboard.';
+  let msg = 'Hi ' + (T.customerName || '') + ', this is ' + biz + ' with Mobile Mechanic Network. I sent you a ' + type + ' for your ' + (T.vehicle || 'vehicle') + ' — $' + Number(T.total || 0).toFixed(2) + '. Ticket ' + (T.label || '') + '.';
+  if (notified) {
+    msg += '\n\nView it here: https://mobilemechanicsinmyarea.com/dashboard';
+  } else {
+    msg += '\n\nCreate a free account to view it: https://mobilemechanicsinmyarea.com/account?phone=' + encodeURIComponent(phone);
+  }
   return { phone, url: 'sms:' + phone + '?body=' + encodeURIComponent(msg) };
 }
 function bindSendPrompt() {
@@ -377,13 +382,13 @@ function bindSendPrompt() {
   const bt = document.getElementById('send-prompt-text');
   if (bt) bt.onclick = async () => {
     msg.textContent = ''; err.textContent = '';
-    const s = ticketSms();
-    if (!s.phone) { err.textContent = 'No phone on file for this customer.'; return; }
+    if (!String(T.phone || '').replace(/[^+\d]/g, '')) { err.textContent = 'No phone on file for this customer.'; return; }
     let notified = false;
     try {
       const d = await api('/api/tickets/' + T.id + '/send', { text: false });
       notified = !!(d.sent && d.sent.notified);
     } catch (e) {}
+    const s = ticketSms(notified);
     location.href = s.url;
     msg.textContent = 'Opened your messaging app — send the text from your phone.' + (notified ? ' Dashboard notice sent.' : '');
   };
@@ -406,13 +411,13 @@ function bindSend() {
   const bt = document.getElementById('btn-send-text');
   if (bt) bt.onclick = async () => {
     msg.textContent = ''; err.textContent = '';
-    const s = ticketSms();
-    if (!s.phone) { err.textContent = 'No phone on file for this customer.'; return; }
+    if (!String(T.phone || '').replace(/[^+\d]/g, '')) { err.textContent = 'No phone on file for this customer.'; return; }
     let notified = false;
     try {
       const d = await api('/api/tickets/' + T.id + '/send', { text: false });
       notified = !!(d.sent && d.sent.notified);
     } catch (e) {}
+    const s = ticketSms(notified);
     location.href = s.url;
     msg.textContent = 'Opened your messaging app — send the text from your phone.' + (notified ? ' Dashboard notice sent.' : '');
   };
