@@ -364,10 +364,12 @@ function ticketSms(notified) {
   const type = T.type || 'ticket';
   const phone = String(T.phone || '').replace(/[^+\d]/g, '');
   let msg = 'Hi ' + (T.customerName || '') + ', this is ' + biz + ' with Mobile Mechanic Network. I sent you a ' + type + ' for your ' + (T.vehicle || 'vehicle') + ' — $' + Number(T.total || 0).toFixed(2) + '. Ticket ' + (T.label || '') + '.';
+  // Only an account holder gets a link, to their dashboard. A customer
+  // with no account gets no link and no account push: the estimate
+  // details are in the text itself, and account creation is never a
+  // gate to seeing the ticket.
   if (notified) {
     msg += '\n\nView it here: https://mobilemechanicsinmyarea.com/dashboard';
-  } else {
-    msg += '\n\nCreate a free account to view it: https://mobilemechanicsinmyarea.com/account?phone=' + encodeURIComponent(phone);
   }
   return { phone, url: 'sms:' + phone + '?body=' + encodeURIComponent(msg) };
 }
